@@ -1,0 +1,10 @@
+{
+  "uuid": "2c2b948b-72c8-4fb8-9124-addf2064ee9a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "arch tier open questions resolved (user direction 2026-05-09): all 8 recommendations accepted.\n\narch/00-overview.md decisions (D1, D2):\n- D1: arch-abstraction extraction deferred to v1+ first port (driven by arm64 likely first)\n- D2: UML out of scope for v0\n\narch/x86/00-overview.md decisions (D1-D6):\n- D1: 32-bit-only kernel (X86_32=y) out of scope; ia32 userspace compat IS in scope\n- D2: FRED implemented alongside classic IDT path (both required because boot starts in IDT mode)\n- D3: Full PV-OPS paravirt preserved (hypervisor-guest perf is part of drop-in promise)\n- D4: math-emu out of scope (every x86_64 has hardware FPU)\n- D5: vsyscall page in EMULATE mode by default (matches upstream CONFIG_LEGACY_VSYSCALL_EMULATE)\n- D6: KVM in v0 with staged delivery; v0 graduation bar = kvm-unit-tests passes with same pass/fail set as upstream\n\nBoth arch docs now have 0 open questions. Ready for review.\n\nProceeding to next subsystem in dependency order: lib/00-overview.md (kernel utility library).",
+  "created_at": "2026-05-09T03:45:58.707368616Z",
+  "kind": "decision",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAQP3nmIJ80/4qNS7+31H77+gzPoyzusLpb0wIcytNkNsglWc1Suk30di4QCYcPUmhDMLocHHQsve7B/OzaVtxCg=="
+}
