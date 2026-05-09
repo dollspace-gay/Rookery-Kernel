@@ -6,8 +6,11 @@
   "priority": "medium",
   "created_by": "gb9t",
   "created_at": "2026-05-09T03:20:42.548675709Z",
-  "updated_at": "2026-05-09T03:20:43.834154576Z",
+  "updated_at": "2026-05-09T03:21:07.680846832Z",
   "labels": [
     "implementation"
+  ],
+  "blockers": [
+    "06f6b73b-0ed7-4c40-ad3d-e073907e3c41"
   ]
 }
