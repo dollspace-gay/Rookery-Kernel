@@ -7,16 +7,25 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
+# Reference: grsecurity / PaX hardening principles
 
-## Design Specification
+<!--
+type: external-reference
+file: /home/doll/grsec-6.6.102.patch
+size: 14 MB
+files-patched: 4808
+upstream-target: linux-6.6.102
+patch-date: 2025-08-25
+status: backlog (cataloged, not yet integrated into design)
+-->
 
-### why we care
+## Why we care
 
 grsecurity + PaX is the most rigorously-engineered Linux hardening patchset. Its features encode hard-won knowledge about real exploit primitives in the kernel attack surface. Many of grsec's invariants are exactly what a Rust-from-scratch kernel can enforce more naturally than C — and recognizing the mapping early prevents us from re-discovering the same hardening categories one CVE at a time.
 
 This file is a reading list, not a binding spec. The eventual binding spec lives in a future foundational doc (provisional name `00-security-principles.md`) and per-subsystem hardening sections.
 
-### patch on disk
+## Patch on disk
 
 - Path: `/home/doll/grsec-6.6.102.patch`
 - Size: 14 MB
@@ -24,7 +33,7 @@ This file is a reading list, not a binding spec. The eventual binding spec lives
 - Target: `linux-6.6.102` (note: older than our v7.1-rc2 baseline; still the most current freely-circulating grsec)
 - Acquisition date as observed: 2025-12-21
 
-### feature catalogue (pax_* and grkernsec_*)
+## Feature catalogue (PAX_* and GRKERNSEC_*)
 
 Not exhaustive — drawn from a `grep -oE 'PAX_[A-Z_]+'` pass over the patch. Each row maps the upstream feature to its Rust-kernel implication.
 
@@ -89,7 +98,7 @@ Not exhaustive — drawn from a `grep -oE 'PAX_[A-Z_]+'` pass over the patch. Ea
 | `GRKERNSEC_HIDETASK` | Hide selected tasks from /proc | Compat-policy switch. |
 | `GRKERNSEC_DENYUSB` | Deny new USB devices after a setpoint | Spec in `drivers/usb/00-overview.md`. |
 
-### translation principle for rookery
+## Translation principle for Rookery
 
 Three buckets:
 
@@ -113,22 +122,56 @@ Three buckets:
    - All GRKERNSEC_* compat-policy switches
    - Speculative-execution mitigations
 
-### compat tension
+## Compat tension
 
 A drop-in kernel cannot enable hardening that breaks userspace. Several grsec features (especially the GRKERNSEC_* hiding ones) are compatibility-affecting policy decisions. Rule of thumb: **off-by-default, Kconfig-gated; on-by-default only if the change is invisible to userspace.**
 
 E.g. PAX_KERNEXEC is invisible to userspace → on by default. GRKERNSEC_HIDESYM changes /proc/kallsyms behavior → off by default, gated.
 
-### where this gets formalized
+## grsec ↔ LSMs (SELinux, AppArmor, …) — coexistence model
+
+**This is THE most important architectural distinction Rookery makes about grsec.** The user-flagged concern is real: historically, grsec was hostile to the LSM framework. Specifically:
+
+- grsec replaced the LSM-based MAC layer with its own **GR-RBAC** subsystem.
+- The **GRKERNSEC_*** feature flags (HIDESYM, HIDETASK, TPE, CHROOT_* policy switches, DENYUSB, RBAC) overlapped or competed with what SELinux types / AppArmor profiles enforce.
+- SELinux + grsec was effectively "pick one." The combination compiled but produced contradictory enforcement, and the grsec maintainers had publicly hostile relationships with the SELinux team. AppArmor + grsec had the same conflict in a milder form (both path-based, so the philosophy clash was less acute).
+- The LSM hook framework itself was considered by grsec to be too late-binding / too modifiable.
+
+**Rookery does not adopt grsec's anti-LSM stance.** REQ-1 of `00-overview.md` mandates drop-in compat with the prevalent distros, all of which use LSMs:
+- RHEL / Fedora / CentOS Stream → **SELinux** on by default
+- Ubuntu / Debian / SUSE / openSUSE → **AppArmor** on by default
+- Many BSDs and minimal-distros → **TOMOYO**, **Yama**, **Lockdown**, or stacked combinations
+
+Breaking any of these breaks the project's foundational compatibility promise.
+
+The principled split — what Rookery DOES vs. DOES NOT take from grsec:
+
+| Layer | grsec/PaX features in this layer | LSM-coexistence status | Rookery decision |
+|---|---|---|---|
+| **Memory protection + CFI** (LSM-orthogonal) | PAX_KERNEXEC, PAX_UDEREF, PAX_PAGEEXEC, PAX_NOEXEC, PAX_MPROTECT, PAX_USERCOPY, PAX_REFCOUNT, PAX_RAP, PAX_DIRECT_CALL, PAX_RANDSTRUCT, PAX_AUTOSLAB, PAX_PRIVATE_KSTACKS, PAX_RANDKSTACK, PAX_RANDMMAP, PAX_ASLR, PAX_LATENT_ENTROPY, PAX_MEMORY_SANITIZE, PAX_SIZE_OVERFLOW, PAX_CONSTIFY_PLUGIN, PAX_CLOSE_KERNEL, PAX_CLOSE_USERLAND, PAX_DELAY_FREE_ONE_PAGE | **No conflict.** These harden the kernel against memory-corruption exploits at a layer below LSM enforcement. SELinux / AppArmor see no behavioral change; an `unsafe { *p = x }` that gets stopped by KERNEXEC fails identically whether SELinux is `enforcing`, `permissive`, or off. | **ABSORB.** Most are free in Rust (KERNEXEC, CONSTIFY, REFCOUNT, SIZE_OVERFLOW, AUTOTYPENAME) or type-system-encodable (UDEREF, USERCOPY, RANDSTRUCT). Per-subsystem policy items (PRIVATE_KSTACKS, RANDKSTACK, MEMORY_SANITIZE) become explicit per-subsystem sections in the binding `00-security-principles.md` doc (issue #2). |
+| **Policy enforcement** (LSM territory) | GR-RBAC (an entire alternative MAC framework), GRKERNSEC_HIDESYM, GRKERNSEC_HIDETASK, GRKERNSEC_PROC_USER/USERGROUP, GRKERNSEC_DMESG, GRKERNSEC_TPE (Trusted Path Execution), GRKERNSEC_TPE_INVERT, GRKERNSEC_CHROOT_* (the policy-switch suite), GRKERNSEC_DENYUSB, GRKERNSEC_DEVADD | **Direct conflict.** These either *replace* LSM-based MAC (GR-RBAC) or change userspace-visible behavior in ways that LSM policy authors expect to control (file/proc visibility, exec restrictions, chroot hardening). Layering them under default-on settings breaks SELinux / AppArmor in two ways: (a) the LSM's policy decisions are pre-empted by grsec rules, producing inconsistent allow/deny outcomes that policy authors didn't anticipate; (b) userspace-visible state (`/proc/kallsyms` content, process visibility) diverges from what the LSM expected its policy to permit. | **DO NOT ABSORB as defaults.** Some (HIDESYM, DMESG-restrict) are already absorbed by upstream Linux as `kptr_restrict` and `dmesg_restrict` sysctl knobs and remain off-by-default for compat. Others (TPE, RBAC, CHROOT-policy-switches) are EXPLICITLY OUT OF SCOPE; they would compete with SELinux/AppArmor enforcement. The chroot-hardening *primitives* upstream already has (no-double-chroot, etc.) are kept; the *policy-switch* approach grsec layered on top is not. |
+
+### Practical rule for design-doc authoring
+
+When a Tier-3 doc's "Hardening" section considers a grsec feature:
+
+1. **If the feature is in row 1 (memory protection + CFI)**: include it. Note its Rust expression (free / type-encodable / per-subsystem). Confirm it does not change LSM-visible state.
+2. **If the feature is in row 2 (policy enforcement)**: explicitly reject it as default. If the feature has merit as defense-in-depth, expose it as a sysctl knob in the deferred `00-security-principles.md` doc — never as default-on, never as a replacement for LSM policy.
+3. **If unclear which row**: flag a `<!-- OPEN -->` block and route the question to `00-security-principles.md` (issue #2).
+
+### Why this matters beyond drop-in compat
+
+Even if Rookery weren't bound by drop-in compat, layering GR-RBAC alongside SELinux/AppArmor would multiply maintenance cost: every hook would need to be evaluated against three policies (kernel default → grsec rule → LSM rule), creating a combinatorial review surface for security-relevant change. Rust's type-system makes the row-1 features cheap; row-2 doesn't get cheaper by being in Rust, and it's not the kernel's place to ship a competing MAC framework when LSM exists.
+
+## Where this gets formalized
 
 The binding security policy goes in a future foundational doc, provisionally `00-security-principles.md`, written after the foundation Phase A is complete and at least the mm and arch/x86 subsystem overviews exist. Per-subsystem docs cite this reference when their compat surface intersects a grsec feature.
 
 A crosslink issue tracks this work — see issue tagged `security` + `foundation` titled "Author 00-security-principles.md grounded in grsec/PaX catalog".
 
-### related upstream resources (not on disk; for the future doc)
+## Related upstream resources (not on disk; for the future doc)
 
 - KSPP (Kernel Self-Protection Project) tracker: kernsec.org/wiki/index.php/Kernel_Self_Protection_Project
 - Documentation/process/maintainer-soc.rst-style hardening guides in `Documentation/admin-guide/hw-vuln/`
 - `Documentation/security/self-protection.rst` (upstream)
 - Linux Hardening (lhf-style) docs and their mapping to upstream Kconfigs
-
