@@ -1,0 +1,10 @@
+{
+  "uuid": "c9fb8700-cfc6-4423-8c9b-5d8dfa812cdd",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 54: 1 Tier-2 wrapper + 1 Tier-3 (pivot to fs/proc — procfs deeper coverage). fs/proc/00-overview.md (procfs Tier-2 umbrella: per-task /proc/<pid>/* + system-wide cpuinfo/meminfo/loadavg/uptime/stat/version/cmdline/devices/filesystems/modules/kallsyms/kcore/kmsg, /proc/sys/* sysctl bridge, /proc/net/* per-netns, mount options hidepid=N+gid=N+subset=pid, kptr_restrict+dmesg_restrict defaults; declares 9 Tier-3 children — 8 REQ-O / 8 AC-O, 0 open) + fs/proc/proc-task.md (per-task /proc/<pid>/* infrastructure: 52-field stat format, multi-line status w/ ~50 fields, cmdline/comm/maps/smaps/smaps_rollup/numa_maps/pagemap binary/fd-symlinks-w/-scheme-dispatch (socket/pipe/eventfd/epoll/inotify/pidfd/bpf-prog)/fdinfo per-fd-type, task/<tid> per-thread mirror, /proc/self+/proc/thread-self symlinks, clear_refs+coredump_filter+oom_score_adj writable, uid_map/gid_map/setgroups user-ns, ns/* namespace symlinks, attr/* LSM, wchan kernel-symbol resolution, cgroup membership, mountinfo/mounts/mountstats — 21 REQ / 16 AC, 0 open). 36 upstream paths validated against baseline 27a26ccfd528. Total: 147 .design docs (22 Tier-2s now). Next: fs/proc/proc-system.md (cpuinfo/meminfo/loadavg/uptime/stat/etc.) + fs/proc/proc-sysctl.md (/proc/sys/* bridge — register_sysctl framework).",
+  "created_at": "2026-05-09T23:28:34.694053575Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATdE8CIpce/xdxIr/nWhsWijF3l9r55y+EP5fer2/K0shteOlztNWks+rxQ/qyyRSxkzY0A5PceyLMyPu4DmeBQ=="
+}
