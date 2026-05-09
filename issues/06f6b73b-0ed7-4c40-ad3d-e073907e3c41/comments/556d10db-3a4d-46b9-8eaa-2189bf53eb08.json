@@ -1,0 +1,10 @@
+{
+  "uuid": "556d10db-3a4d-46b9-8eaa-2189bf53eb08",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 43: 2 Tier-3 net/netfilter docs (conntrack core + per-proto state machines). net/netfilter/conntrack-core.md (per-flow nf_conn lifecycle UNCONFIRMED→CONFIRMED→DYING, per-netns hashtable w/ both-direction indexing, struct nf_conn + struct nf_conntrack_tuple layouts, expectation tracking via nf_conntrack_expect for helper-driven RELATED flows, conntrack extensions framework (acct/timestamp/labels/secmark/helper/seqadj/synproxy/nat/ecache), full IP_CT_*+IPS_* state encoding, conntrack zones for multi-tenant isolation, periodic+pressure GC — 11 REQ / 11 AC, 0 open) + net/netfilter/conntrack-proto.md (per-l4proto state machines: TCP w/ 12-state machine RFC 793+6298+5961 + per-direction window/seq/ACK tracking + tcp_be_liberal sysctl, UDP stateless w/ IPS_SEEN_REPLY-driven timeouts, ICMP/ICMPv6 request-reply pair, SCTP w/ vtag-tracked RFC 4960+9260 state machine, GRE key-based for PPTP, generic for unknown protos; OWNS mandatory models/net/conntrack_state_machine.tla — 13 REQ / 13 AC, 0 open). 14 upstream paths validated against baseline 27a26ccfd528. Total: 125 .design docs. netfilter: 3 of 22 children done. Next: net/netfilter/nat-core.md (SNAT/DNAT/MASQUERADE/REDIRECT mapping; owns models/net/nat_translation.tla) + net/netfilter/nft-api.md (nftables NETLINK_NETFILTER NFNL_SUBSYS_NFTABLES API).",
+  "created_at": "2026-05-09T21:56:08.765102257Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAhutMvqpRXNjzrzYl26Jvnxw62OYUeaU6nXn1EtWPzuF80W0XRaS6OKcuVeZ9Ecigml6vK9TQMUfilXEPz/znCA=="
+}
