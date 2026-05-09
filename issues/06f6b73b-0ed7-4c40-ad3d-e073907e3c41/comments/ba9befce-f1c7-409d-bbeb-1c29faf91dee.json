@@ -1,0 +1,10 @@
+{
+  "uuid": "ba9befce-f1c7-409d-bbeb-1c29faf91dee",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 22: 2 Tier-3 ipv6 docs (per-IPPROTO v6 wrappers — narrow scope to v6-only diffs vs IPv4). net/ipv6/tcp-v6.md (tcpv6_protocol register, tcp6_sock layout = tcp_sock + ipv6_pinfo, dual-stack v4-mapped sk_prot switching, RFC 8200 § 8.1 pseudo-header checksum, TCP-MD5 RFC 2385 + TCP-AO RFC 5925 v6-aware key store, __inet6_lookup_listener/established, v6 SYN cookies — 14 REQ / 9 AC, 0 open) + net/ipv6/udp-v6.md (udpv6_protocol UDP+UDP-Lite register, udp6_sock layout, dual-stack per-msg redirect, RFC 6935/6936 zero-csum whitelist, UDPv6 GRO/GSO offload, ip6_udp_tunnel for VXLAN/GENEVE/GTP-over-IPv6, UDP-Lite RFC 3828 cscov, datagram cmsg surface — 13 REQ / 12 AC, 0 open). Path fixes: net/ipv6/udp_impl.h removed upstream (folded into udp.c); net/ipv6/udplite.c folded into udp.c (mirror of IPv4 fix from earlier iters). 9 upstream paths validated against baseline 27a26ccfd528. Total: ~83 .design docs. ipv6 stack now ~98% complete (af-inet6 + route + addrconf + ndisc + icmpv6 + ip6-input + ip6-output + exthdrs + flowlabel + tcp-v6 + udp-v6). Next: net/ipv6/raw-v6.md + net/ipv6/ip6mr.md (RAW v6 sockets + multicast routing) or pivot to net/xfrm IPSec stack.",
+  "created_at": "2026-05-09T19:07:29.437728689Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwsTC2VjfBSBo3/kC1ezz211SVIO3IfXUFsKP5je8fzLXvHihSP2E/Fly2CMl4GHVBW42L11nDqSXf3vzDyFfCw=="
+}
