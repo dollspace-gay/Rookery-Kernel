@@ -419,52 +419,26 @@ Placeholder per `00-overview.md` D6. The kernel/ tier owns implementation of:
 
 Each Tier-3 doc whose content touches a hardening feature gains a "Hardening" section once `00-security-principles.md` is authored.
 
+## Resolved Decisions
+
+### D1 (2026-05-09): sched_ext IN v0
+`kernel/sched/ext.c` (BPF-driven scheduler class) is in v0 scope. Distros ship scx tools (`scx_simple`, `scx_rusty`); excluding breaks them. The BPF surface is well-isolated. `sched/ext.md` Tier 3 covers it.
+
+### D2 (2026-05-09): BPF verifier — RE-IMPLEMENT in Rust (highest-leverage Layer-4 target)
+The BPF verifier (~25K LoC) is re-implemented in Rust. Per the formal-verification baseline (`00-overview.md` D4), the verifier is a strong candidate for Layer-4 functional-correctness proofs (Verus). This is the one place a Rust-from-scratch + formal-proof approach pays dividends most clearly: a verifier soundness theorem ("any program declared safe by the verifier has no UB-equivalent in BPF semantics") is high-value and tractable in Verus. `bpf/verifier.md` Tier-3 will be the largest single Tier-3 doc in the project.
+
+### D3 (2026-05-09): liveupdate (`kernel/liveupdate/`) OUT OF SCOPE for v0
+Depends on serializing arbitrary kernel state across an upgrade — interacts with everything. The `kernel/liveupdate/` directory left empty in Rookery; CONFIG_LIVEUPDATE off by default. Re-evaluate in v1+.
+
+### D4 (2026-05-09): Audit subsystem IN v0
+CONFIG_AUDIT=y is the RHEL/Fedora/SLES distro default. `audit.md` Tier 3 covers syscall-audit + filesystem-audit + LSM-audit-helpers split.
+
+### D5 (2026-05-09): Full ftrace IN v0 (not minimal tracepoints-only)
+ftrace (~30K LoC across `kernel/trace/`) is fully reimplemented. Existing trace-cmd / perf trace / bpftrace consumers depend on the full surface. Tier-3 docs (`trace/ftrace.md` etc.) acknowledge the substantial implementation cost; Layer-2 TLA+ verification focuses on the ringbuffer.
+
 ## Open Questions
 
-<!-- OPEN: Q1 -->
-### Q1: sched_ext (BPF-driven scheduler class) inclusion in v0
-`kernel/sched/ext.c` (sched_ext) lets userspace install a BPF-defined scheduler class. It's a relatively new feature and a sizable design surface. Including it expands `bpf/00-overview.md` and `sched/ext.md` substantially; excluding it breaks compat for users running sched-ext-based schedulers (bpfsched, scx_simple, etc.).
-
-**Recommendation**: sched_ext IS in v0 scope. Drop-in compat for distros that ship scx tools matters; the BPF surface for sched_ext is well-isolated. `sched/ext.md` (Tier 3) is a large doc but tractable.
-
-**To resolve**: User confirms.
-<!-- /OPEN -->
-
-<!-- OPEN: Q2 -->
-### Q2: BPF verifier — re-implement or keep upstream?
-The BPF verifier is ~25K LoC of subtle abstract-interpretation logic. Re-implementing in Rust is a huge undertaking; trapping it as a single FFI call to the C verifier defeats much of the Rust-rewrite point.
-
-**Recommendation**: Re-implement in v0 with verification-stack support: per the formal-verification baseline (D4), the verifier is a strong candidate for Layer-4 functional-correctness proofs (Verus). This is the one place a Rust-from-scratch + formal-proof approach pays dividends most clearly. Accept that the verifier's `bpf/verifier.md` Tier-3 doc is the largest single Tier-3 doc in the project.
-
-**To resolve**: User confirms — re-implement (high effort, high value) vs. keep C verifier as FFI'd black box (low effort, betrays the project's verification ambition).
-<!-- /OPEN -->
-
-<!-- OPEN: Q3 -->
-### Q3: Live update (`kernel/liveupdate/`) inclusion
-Live-update is a newer mechanism (2024–2025) for upgrading the kernel image while preserving running state. Different from livepatch (which patches functions) — liveupdate replaces the whole kernel.
-
-**Recommendation**: liveupdate is OUT OF SCOPE for v0. It depends on serializing arbitrary kernel state across the upgrade, which interacts with everything. The `kernel/liveupdate/` directory may be left empty in Rookery; CONFIG_LIVEUPDATE off by default. Re-evaluate in v1+.
-
-**To resolve**: User confirms.
-<!-- /OPEN -->
-
-<!-- OPEN: Q4 -->
-### Q4: Audit subsystem coverage depth
-The audit subsystem (`kernel/audit*.c`) is ~10K LoC supporting userspace `auditd`. Many distros enable it; some don't.
-
-**Recommendation**: Audit IS in v0 scope (CONFIG_AUDIT=y is the distro default for RHEL/Fedora/SLES). `audit.md` Tier 3 covers the syscall-audit + filesystem-audit + LSM-audit-helpers split.
-
-**To resolve**: User confirms.
-<!-- /OPEN -->
-
-<!-- OPEN: Q5 -->
-### Q5: ftrace re-implementation depth
-ftrace is ~30K LoC across `kernel/trace/`. It interacts with runtime code patching (heavy `unsafe` for fentry trampoline rewriting) and an entirely separate ringbuffer protocol.
-
-**Recommendation**: ftrace IS in v0 scope. Existing trace-cmd / perf trace / bpftrace consumers depend on it. The Tier-3 docs (`trace/ftrace.md` etc.) acknowledge the substantial implementation cost; verification effort focuses Layer-2 TLA+ on the ringbuffer.
-
-**To resolve**: User confirms — full ftrace OR a minimal "tracepoints only" subset for v0?
-<!-- /OPEN -->
+(none — all open questions for this subsystem document are resolved above)
 
 ## Out of Scope
 
