@@ -1,0 +1,10 @@
+{
+  "uuid": "843428b2-da14-4803-a7c7-217bf393d67b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 37: 2 Tier-3 net/sched docs (sender-side fair queueing + flower classifier). net/sched/sch-fq.md (TCP-pacing-aware FQ: per-flow rb-tree of delayed flows + ready FIFO of internal flows, EDT scheduling w/ time_next_packet = now + skb_len/sk_pacing_rate, hash-bucketing via socket_hash, horizon enforcement w/ HORIZON_DROP, low-rate-threshold deprioritization, priomap+weights WRR; backbone of TCP_BBR + TCP_INTERNAL_PACING — 11 REQ / 10 AC, 0 open) + net/sched/cls-flower.md (workhorse 5-tuple + L2/L3/L4/tunnel/conntrack metadata classifier: 30+ key types incl ETH/VLAN/CVLAN/IP/MPLS/TCP/UDP/SCTP/ICMP/ARP/ENC_*/CT_STATE+ZONE+MARK+LABELS, per-mask hashtable for fast lookup, HW offload via flow_setup_cb_call w/ TCA_CLS_FLAGS_SKIP_SW/SKIP_HW/IN_HW; used by Cilium/Calico/Antrea/OVS — 11 REQ / 11 AC, 0 open). 6 upstream paths validated against baseline 27a26ccfd528. Total: 113 .design docs. net/sched: 10 of 18 children done. Next: net/sched/cls-u32.md (legacy 32-bit-key classifier — still common in QoS) + net/sched/cls-bpf.md (BPF-driven classifier, foundation of Cilium dataplane).",
+  "created_at": "2026-05-09T21:07:47.711200937Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAGBxNjmcK6DuoHSOhN22zKKOK2wgJP8pnEAJoAUPWs5WMm829e/ZI9709rmUW7ThEmgZs7m0AJsD2/fQNcKRoAw=="
+}
