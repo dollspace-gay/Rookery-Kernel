@@ -1,0 +1,10 @@
+{
+  "uuid": "405b758c-9664-4805-a14f-15836f80547b",
+  "issue_uuid": "dccf6cbe-dfc6-46db-a691-ab56e593bfaa",
+  "author": "gb9t",
+  "content": "User-flagged architectural clarification (2026-05-09): grsec absorption is two-layer.\n\nWhen 00-security-principles.md is eventually authored (after Phase B review), it MUST encode the layered split:\n\n- **Memory protection + CFI (PaX core, AUTOSLAB, RANDSTRUCT, MEMORY_SANITIZE, …)**: mandatory always-on or configurable-with-secure-defaults. LSM-orthogonal. Absorbed.\n- **Policy enforcement (GR-RBAC, GRKERNSEC_HIDESYM, GRKERNSEC_HIDETASK, GRKERNSEC_TPE, GRKERNSEC_CHROOT_* policy switches, …)**: NEVER absorbed as defaults. Where the feature has defense-in-depth value, expose as sysctl knob explicitly documented as 'complementary to but never substitute for LSM policy'. The LSM framework AND every in-tree LSM (SELinux, AppArmor, SMACK, Yama, Lockdown, Landlock, etc.) is preserved exactly per drop-in REQ-1.\n\nThis means 00-security-principles.md will NOT specify a Rookery RBAC system, will NOT default-enable HIDESYM, will NOT default-enable TPE, will NOT replace SELinux's chroot enforcement with hardcoded grsec rules.\n\nThe doc DOES specify:\n- Which PaX-equivalent memory protections are always-on (KERNEXEC, USERCOPY, REFCOUNT)\n- Which are configurable with secure defaults (RANDKSTACK, MEMORY_SANITIZE-on-free)\n- Sysctl knobs for opt-in defense-in-depth (kernel-symbol-hiding stricter than kptr_restrict=2)\n- A position on retpolines / IBRS / IBT / CET (matching upstream defaults)\n\nThis dependency is now also captured in the security/00-overview.md Hardening section.",
+  "created_at": "2026-05-09T04:49:20.876491997Z",
+  "kind": "plan",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUKeidTkEU/taOmRMbeVLOhWIl+i2+h5K7p+X9BjqF8d6EYtdE5s1r9CosC5Fuzf/hLyFm4RZiM7p61ZPaMzzDw=="
+}
