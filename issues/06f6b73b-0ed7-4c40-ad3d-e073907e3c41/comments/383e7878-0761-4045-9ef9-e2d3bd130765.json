@@ -1,0 +1,10 @@
+{
+  "uuid": "383e7878-0761-4045-9ef9-e2d3bd130765",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 14: 2 Tier-3 docs (scheduler-class siblings of CFS). kernel/sched/rt.md (SCHED_FIFO+SCHED_RR; per-prio bitmap rq, push/pull, RT throttling 95%, cpupri tracking — 11 REQ / 9 AC, 0 open) + kernel/sched/deadline.md (SCHED_DEADLINE = EDF+CBS; admission test, EDF rb-tree, CBS budget+replenish, cpudl max-heap, SIGXCPU on overrun — 13 REQ / 10 AC, 0 open). 15 upstream paths validated against baseline 27a26ccfd528. Total: ~67 .design docs. Next: kernel/sched supporting Tier-3s (load-balance + topology + pelt) or pivot to net/* ipv6 / unix / packet socket family.",
+  "created_at": "2026-05-09T18:06:04.649116727Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA7TWHhvfRmAEWv74f0oIllnfS404ZAIRzuH1rizSUpfMVixJncx7a8qnz1ypqVNtZRkt84xCwOBSHvf7iio4iDQ=="
+}
