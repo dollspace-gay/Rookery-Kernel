@@ -1,0 +1,10 @@
+{
+  "uuid": "1026ce36-e7a6-421c-b35b-a3e14eb7ea55",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 23: 2 Tier-3 ipv6 docs (closes ipv6 protocol-suite). net/ipv6/raw-v6.md (RAW IPv6 sockets per RFC 3542: ICMPV6_FILTER 256-bit-per-type bitmap, IPV6_CHECKSUM offset, IPPROTO_RAW header-injection mode, multi-socket clone-per-match RX delivery, datagram cmsg surface, /proc/net/raw6 — 10 REQ / 11 AC, 0 open) + net/ipv6/ip6mr.md (IPv6 multicast routing: MRT6_* setsockopt full surface for pim6d/smcrouted/mrd6, MFC6 cache + MIF6 registry, MFC-miss MRT6MSG_NOCACHE notification w/ bounded unresolved-queue (LEN_MAX=3, TIMEOUT=10s), PIM Register encap RFC 7761 § 4.4, multi-table support, RTM_*ROUTE w/ RTN_MULTICAST netlink alt — 12 REQ / 10 AC, 0 open). 10 upstream paths validated against baseline 27a26ccfd528. Total: ~85 .design docs. ipv6 protocol-suite COMPLETE: af-inet6 + route + addrconf + ndisc + icmpv6 + ip6-input + ip6-output + exthdrs + flowlabel + tcp-v6 + udp-v6 + raw-v6 + ip6mr (13 Tier-3s under 1 Tier-2). Next: pivot to net/xfrm IPSec stack (xfrm_user / xfrm_state / xfrm_policy) — high-value, security-critical, common dependency for v4 + v6 alike.",
+  "created_at": "2026-05-09T19:15:06.312656454Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUIPSyrdv5FVVzfbBTnj97UXJX8KdTCVNiMm5J/lBV2M/GIEgQ3NdWbNiF3+UyLhOVv76UUtj6/G1zghtEgHWCQ=="
+}
