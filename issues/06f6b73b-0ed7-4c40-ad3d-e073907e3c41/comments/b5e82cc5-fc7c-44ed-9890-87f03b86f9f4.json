@@ -1,0 +1,10 @@
+{
+  "uuid": "b5e82cc5-fc7c-44ed-9890-87f03b86f9f4",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 51: 1 Tier-3 (per-helper NAT) + 1 sub-Tier-2 wrapper (ipset). net/netfilter/nat-helpers.md (NAT counterparts to conntrack helpers: shared nf_nat_mangle_tcp/udp_packet w/ L4 checksum incremental + seqadj integration; per-helper modules for FTP active+passive PORT/EPRT/PASV/EPSV, SIP w/ Via+Contact+SDP c=/m=/o= rewrite, IRC DCC, TFTP expectation-tuple adjust, Amanda; PPTP NAT folded into nf_conntrack_pptp.c upstream + H.323 NAT folded into nf_conntrack_h323_main.c — path note for these — 12 REQ / 10 AC, 0 open) + net/netfilter/ipset/00-overview.md (sub-Tier-2 for ipset framework: 3 set-type families bitmap/hash/list w/ 11+ hash variants, IPSET_CMD_* full surface incl ATOMIC_SWAP for ruleset replacement, per-element TIMEOUT/COUNTERS/COMMENT/SKBINFO/FORCEADD extensions, IPSET_GC_PERIOD periodic GC; declares 4 Tier-3 children covering core/types-bitmap/types-hash/types-list — 8 REQ-O / 7 AC-O, 0 open). 19 upstream paths validated against baseline 27a26ccfd528. Path fix: nf_nat_h323.c + nf_nat_pptp.c removed upstream; integration folded into respective conntrack helper. Total: 141 .design docs (20 Tier-2s now). netfilter: 18 of 22 children done. Next: net/netfilter/ipset/core.md (ip_set_core.c framework + NFNL handler) + net/netfilter/ipset/types-hash.md (the 11-variant hash family — Cilium dataplane workhorse).",
+  "created_at": "2026-05-09T23:03:32.693657698Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA/yVSfwnydPzCP0IcsXNiwONOHV0KQ9b/DYbuSlYEV+aGqYhvPEeCi5c8+KstWoYJbVcHOMc1ZxuYs/HiGeAaBA=="
+}
