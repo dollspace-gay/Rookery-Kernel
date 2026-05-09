@@ -1,0 +1,10 @@
+{
+  "uuid": "51125eb4-22db-4e2b-97dc-219b611456fb",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 52: 2 Tier-3 ipset docs (core framework + 11-variant hash family). net/netfilter/ipset/core.md (struct ip_set + ip_set_type + ip_set_type_variant layouts, full IPSET_CMD_* dispatch CREATE/DESTROY/FLUSH/RENAME/SWAP/LIST/SAVE/ADD/DEL/TEST/HEADER/TYPE/PROTOCOL/GET_BYNAME/GET_BYINDEX, atomic SWAP under paired per-set locks, per-element ext_* TIMEOUT/COUNTERS/COMMENT/SKBINFO, periodic GC for TIMEOUT sets, in-kernel ip_set_test/_add/_del hot path for xt_set+nft+em_ipset consumers, ip_set_getport+pfxlen helpers, protocol-revision negotiation — 13 REQ / 13 AC, 0 open) + net/netfilter/ipset/types-hash.md (11 hash variants: hash:ip/mac/net/net,iface/net,port/net,net/net,port,net/ip,mac/ip,mark/ip,port/ip,port,ip/ip,port,net; ip_set_hash_gen.h template-generated test/add/del/kadt/uadt; IPv4+IPv6 dual-mode; per-set CIDR-count tracking for hash:net* fast-walk; jhash w/ LATENT_ENTROPY-seeded per-set perturbation defense vs hash-collision DoS; resize during concurrent test via RCU; MAXELEM cap w/ FORCEADD evict-oldest — 12 REQ / 14 AC, 0 open). 16 upstream paths validated against baseline 27a26ccfd528. Total: 143 .design docs. netfilter: 20 of 22 children done; ipset 2 of 4 children done. Next: net/netfilter/ipvs/00-overview.md (sub-Tier-2 wrapper for IPVS L4 load balancer) + net/netfilter/conntrack-bpf.md (BPF kfunc set for conntrack — last conntrack child).",
+  "created_at": "2026-05-09T23:11:55.747229306Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAgBuAmhITYaDayszTU2N2D9SvzHVdrJmt9pKqUzeay5cMVePvEt56fhDT6mZ/CfJ+gcV0jXUdWjt/Ajr9s9fEAg=="
+}
