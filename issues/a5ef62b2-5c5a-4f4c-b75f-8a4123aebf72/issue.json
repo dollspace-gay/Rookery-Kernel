@@ -6,9 +6,10 @@
   "priority": "high",
   "created_by": "gb9t",
   "created_at": "2026-05-09T05:40:47.107139610Z",
-  "updated_at": "2026-05-09T05:40:49.785059733Z",
+  "updated_at": "2026-05-09T05:40:50.986916171Z",
   "labels": [
     "design",
-    "security"
+    "security",
+    "grbac"
   ]
 }
