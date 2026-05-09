@@ -7,16 +7,81 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
+# Subsystem: io_uring/ — io_uring async I/O framework
 
-## Design Specification
+<!--
+baseline-commit: 27a26ccfd528da725a999ea1e3102503c61eb655
+baseline-version: 7.1.0-rc2
+status: in-v0
+upstream-paths:
+  - io_uring/
+  - include/uapi/linux/io_uring.h
+  - include/linux/io_uring.h
+  - include/linux/io_uring_types.h
+-->
 
-### Summary
-
+## Summary
 Tier-2 overview for `io_uring/` — the high-performance async I/O interface using two shared-memory rings (Submission + Completion) between userspace and kernel. Owns the syscall trio (`io_uring_setup`, `io_uring_enter`, `io_uring_register`), the per-context state machine, the per-operation handlers (read/write/openat/close/fsync/recvmsg/sendmsg/poll/epoll/timeout/cancel/futex/openat2/recv-zerocopy/send-zerocopy/io-wq/sqpoll/etc.), the file-descriptor table, the buffer-ring (provided buffers), and the memory-mapped queue handling.
 
 io_uring is sibling to (not under) fs/, net/, mm/ — it consumes those subsystems' operations behind a fast async ring interface. Originally lived in `fs/io_uring.c`; promoted to its own top-level directory in mainline.
 
-### Requirements
+## Upstream references in scope
+
+`io_uring/` (~85 .c files, all top-level — no subdirs). Mapping to Tier-3 docs:
+
+| Category | Upstream paths | Planned Tier-3 doc |
+|---|---|---|
+| Core ring + lifecycle | `io_uring/io_uring.{c,h}`, `io_uring/refs.h`, `io_uring/slist.h` | `core.md` |
+| Op dispatcher | `io_uring/opdef.{c,h}` | `op-dispatch.md` |
+| File table + registered files | `io_uring/filetable.{c,h}`, `io_uring/rsrc.{c,h}` | `filetable-rsrc.md` |
+| Submission queue polling thread | `io_uring/sqpoll.{c,h}`, `io_uring/io-wq.{c,h}` | `sqpoll-iowq.md` |
+| File-system ops | `io_uring/fs.{c,h}`, `io_uring/openclose.{c,h}`, `io_uring/rw.{c,h}`, `io_uring/sync.{c,h}`, `io_uring/statx.{c,h}`, `io_uring/truncate.{c,h}`, `io_uring/xattr.{c,h}`, `io_uring/advise.{c,h}`, `io_uring/splice.{c,h}` | `fs-ops.md` |
+| Network ops | `io_uring/net.{c,h}`, `io_uring/notif.{c,h}` (zerocopy notifications), `io_uring/cmd_net.c`, `io_uring/zcrx.{c,h}` (zero-copy receive) | `net-ops.md` |
+| Polling | `io_uring/poll.{c,h}`, `io_uring/epoll.{c,h}` | `poll-ops.md` |
+| Timeouts + cancel + waitid + wait | `io_uring/timeout.{c,h}`, `io_uring/cancel.{c,h}`, `io_uring/waitid.{c,h}`, `io_uring/wait.{c,h}` | `wait-cancel.md` |
+| Futex ops | `io_uring/futex.{c,h}` | folded into `wait-cancel.md` |
+| Eventfd + signal-fd-via-uring | `io_uring/eventfd.{c,h}` | folded into `wait-cancel.md` |
+| Buffers (provided buffer rings + ring buffers) | `io_uring/kbuf.{c,h}`, `io_uring/memmap.{c,h}` | `buffers.md` |
+| Per-task context | `io_uring/tctx.{c,h}`, `io_uring/tw.{c,h}` (task-work runner) | `task-context.md` |
+| Registration + capabilities | `io_uring/register.{c,h}`, `io_uring/query.{c,h}` | `register.md` |
+| FDInfo | `io_uring/fdinfo.{c,h}` | folded into `core.md` |
+| Cross-system ops | `io_uring/uring_cmd.{c,h}` (URING_CMD generic dispatcher used by NVMe, ublk, etc.) | `uring-cmd.md` |
+| Alloc cache + msg ring | `io_uring/alloc_cache.{c,h}`, `io_uring/msg_ring.{c,h}` | folded into `core.md` |
+| Loop op + napi-poll integration | `io_uring/loop.{c,h}`, `io_uring/napi.{c,h}` | folded into `net-ops.md` |
+| Nop op (for benchmarking + testing) | `io_uring/nop.{c,h}` | folded into `op-dispatch.md` |
+| BPF integration | `io_uring/bpf-ops.{c,h}`, `io_uring/bpf_filter.{c,h}` | `bpf-integration.md` |
+| Mock file (for testing) | `io_uring/mock_file.c` | (not separately documented) |
+
+## Compatibility contract
+
+### Syscall surface
+
+`io_uring_setup`, `io_uring_enter`, `io_uring_register` — full ABI per `include/uapi/linux/io_uring.h`.
+
+(Each gets a Tier-5 `uapi/syscalls/<name>.md` in Phase D.)
+
+### Memory-mapped ring layout
+
+The `io_uring_setup(2)` call returns a file descriptor that userspace maps with `mmap(2)` to obtain three regions:
+- **Submission Queue Ring**: `IORING_OFF_SQ_RING`
+- **Completion Queue Ring**: `IORING_OFF_CQ_RING`
+- **Submission Queue Entries**: `IORING_OFF_SQES`
+
+The struct layouts (`struct io_uring_sqe`, `struct io_uring_cqe`, `struct io_sqring_offsets`, `struct io_cqring_offsets`) are byte-identical to upstream — every field at the same offset.
+
+### Operation set (`IORING_OP_*`)
+
+Every `IORING_OP_*` value upstream supports must be implemented identically. The list is large (~70 ops at baseline) and growing.
+
+### Registration commands (`IORING_REGISTER_*`)
+
+All `IORING_REGISTER_*` commands (BUFFERS, FILES, EVENTFD, PROBE, PERSONALITY, FILES_UPDATE, BUFFERS2, IOWQ_AFF, IOWQ_MAX_WORKERS, RING_FDS, RING_FDS_SPARSE, MAP_HUGE, MAP_BUFFERS, MAP_BUFFERS2, RESTRICTIONS, ENABLE_RINGS, IORING_REGISTER_FILE_ALLOC_RANGE, ...) preserve numeric values and semantics.
+
+### `/proc/<pid>/fdinfo/<fd>` for io_uring fds
+
+Format-identical: lists ring sizes, head/tail pointers, registered files, registered buffers.
+
+## Requirements
 
 - REQ-1: `io_uring_setup`, `io_uring_enter`, `io_uring_register` are byte-identical with upstream — register/struct layouts/errno semantics.
 - REQ-2: Memory-mapped ring layout (SQ ring, CQ ring, SQEs) is byte-identical: every offset in `io_sqring_offsets` / `io_cqring_offsets` matches upstream so existing liburing-userspace works unmodified.
@@ -29,7 +94,7 @@ io_uring is sibling to (not under) fs/, net/, mm/ — it consumes those subsyste
 - REQ-9: Existing liburing test suite (`liburing/test/`) passes against Rookery with the same pass/fail set as upstream.
 - REQ-10: All Tier-3 docs declare their unsafe-block clusters, TLA+ models (the SQ/CQ ring concurrency contract is a strong TLA+ candidate), and Kani harnesses for ring-state invariants.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 - [ ] AC-1: liburing test suite under `tools/io_uring-test/` (or upstream liburing repo's test/) passes with the same set as upstream. (covers REQ-1, REQ-3, REQ-9)
 - [ ] AC-2: A user-space program mmaps the rings on Rookery, computes offsets via `io_sqring_offsets`, writes SQEs at the offsets, and observes the kernel completing them. (covers REQ-2)
@@ -40,7 +105,7 @@ io_uring is sibling to (not under) fs/, net/, mm/ — it consumes those subsyste
 - [ ] AC-7: A cgroup-confined io_uring submitter sees its work charged to the right memcg/blkcg. (covers REQ-8)
 - [ ] AC-8: `make verify` passes io_uring/ Kani harnesses; `make tla` passes io_uring/ models. (covers REQ-10)
 
-### Architecture
+## Architecture
 
 ### Layout map
 
@@ -91,69 +156,7 @@ io_uring is heavily concurrent:
 
 io_uring uses standard errno for syscall returns; per-op errors land in the CQE's `res` field.
 
-### Out of Scope
-
-- AIO (`fs/aio.c`) — owned by `fs/00-overview.md` § aio.md
-- 32-bit-only paths
-- Implementation code
-
-### upstream references in scope
-
-`io_uring/` (~85 .c files, all top-level — no subdirs). Mapping to Tier-3 docs:
-
-| Category | Upstream paths | Planned Tier-3 doc |
-|---|---|---|
-| Core ring + lifecycle | `io_uring/io_uring.{c,h}`, `io_uring/refs.h`, `io_uring/slist.h` | `core.md` |
-| Op dispatcher | `io_uring/opdef.{c,h}` | `op-dispatch.md` |
-| File table + registered files | `io_uring/filetable.{c,h}`, `io_uring/rsrc.{c,h}` | `filetable-rsrc.md` |
-| Submission queue polling thread | `io_uring/sqpoll.{c,h}`, `io_uring/io-wq.{c,h}` | `sqpoll-iowq.md` |
-| File-system ops | `io_uring/fs.{c,h}`, `io_uring/openclose.{c,h}`, `io_uring/rw.{c,h}`, `io_uring/sync.{c,h}`, `io_uring/statx.{c,h}`, `io_uring/truncate.{c,h}`, `io_uring/xattr.{c,h}`, `io_uring/advise.{c,h}`, `io_uring/splice.{c,h}` | `fs-ops.md` |
-| Network ops | `io_uring/net.{c,h}`, `io_uring/notif.{c,h}` (zerocopy notifications), `io_uring/cmd_net.c`, `io_uring/zcrx.{c,h}` (zero-copy receive) | `net-ops.md` |
-| Polling | `io_uring/poll.{c,h}`, `io_uring/epoll.{c,h}` | `poll-ops.md` |
-| Timeouts + cancel + waitid + wait | `io_uring/timeout.{c,h}`, `io_uring/cancel.{c,h}`, `io_uring/waitid.{c,h}`, `io_uring/wait.{c,h}` | `wait-cancel.md` |
-| Futex ops | `io_uring/futex.{c,h}` | folded into `wait-cancel.md` |
-| Eventfd + signal-fd-via-uring | `io_uring/eventfd.{c,h}` | folded into `wait-cancel.md` |
-| Buffers (provided buffer rings + ring buffers) | `io_uring/kbuf.{c,h}`, `io_uring/memmap.{c,h}` | `buffers.md` |
-| Per-task context | `io_uring/tctx.{c,h}`, `io_uring/tw.{c,h}` (task-work runner) | `task-context.md` |
-| Registration + capabilities | `io_uring/register.{c,h}`, `io_uring/query.{c,h}` | `register.md` |
-| FDInfo | `io_uring/fdinfo.{c,h}` | folded into `core.md` |
-| Cross-system ops | `io_uring/uring_cmd.{c,h}` (URING_CMD generic dispatcher used by NVMe, ublk, etc.) | `uring-cmd.md` |
-| Alloc cache + msg ring | `io_uring/alloc_cache.{c,h}`, `io_uring/msg_ring.{c,h}` | folded into `core.md` |
-| Loop op + napi-poll integration | `io_uring/loop.{c,h}`, `io_uring/napi.{c,h}` | folded into `net-ops.md` |
-| Nop op (for benchmarking + testing) | `io_uring/nop.{c,h}` | folded into `op-dispatch.md` |
-| BPF integration | `io_uring/bpf-ops.{c,h}`, `io_uring/bpf_filter.{c,h}` | `bpf-integration.md` |
-| Mock file (for testing) | `io_uring/mock_file.c` | (not separately documented) |
-
-### compatibility contract
-
-### Syscall surface
-
-`io_uring_setup`, `io_uring_enter`, `io_uring_register` — full ABI per `include/uapi/linux/io_uring.h`.
-
-(Each gets a Tier-5 `uapi/syscalls/<name>.md` in Phase D.)
-
-### Memory-mapped ring layout
-
-The `io_uring_setup(2)` call returns a file descriptor that userspace maps with `mmap(2)` to obtain three regions:
-- **Submission Queue Ring**: `IORING_OFF_SQ_RING`
-- **Completion Queue Ring**: `IORING_OFF_CQ_RING`
-- **Submission Queue Entries**: `IORING_OFF_SQES`
-
-The struct layouts (`struct io_uring_sqe`, `struct io_uring_cqe`, `struct io_sqring_offsets`, `struct io_cqring_offsets`) are byte-identical to upstream — every field at the same offset.
-
-### Operation set (`IORING_OP_*`)
-
-Every `IORING_OP_*` value upstream supports must be implemented identically. The list is large (~70 ops at baseline) and growing.
-
-### Registration commands (`IORING_REGISTER_*`)
-
-All `IORING_REGISTER_*` commands (BUFFERS, FILES, EVENTFD, PROBE, PERSONALITY, FILES_UPDATE, BUFFERS2, IOWQ_AFF, IOWQ_MAX_WORKERS, RING_FDS, RING_FDS_SPARSE, MAP_HUGE, MAP_BUFFERS, MAP_BUFFERS2, RESTRICTIONS, ENABLE_RINGS, IORING_REGISTER_FILE_ALLOC_RANGE, ...) preserve numeric values and semantics.
-
-### `/proc/<pid>/fdinfo/<fd>` for io_uring fds
-
-Format-identical: lists ring sizes, head/tail pointers, registered files, registered buffers.
-
-### verification
+## Verification
 
 ### Layer 1: Kani SAFETY proofs
 - SQE / CQE field reads (against the userspace-mapped ring)
@@ -172,7 +175,21 @@ Format-identical: lists ring sizes, head/tail pointers, registered files, regist
 ### Layer 4: opt-in
 - SQ/CQ ring memory-ordering correctness via Verus — strong candidate (well-bounded scope, known-tricky property).
 
-### hardening
+## Hardening
 
 Placeholder per `00-overview.md` D6. io_uring's RESTRICTIONS feature provides registration-time op restrictions; preserved.
 
+## Resolved Decisions
+
+### D1 (2026-05-09): BPF integration IN v0
+`io_uring/bpf-ops.c` + `bpf_filter.c` (BPF program attachment for filtering ops) is in v0 scope. Small addition consuming `kernel/bpf/` infrastructure. `bpf-integration.md` Tier 3 covers it.
+
+## Open Questions
+
+(none — all open questions for this subsystem document are resolved above)
+
+## Out of Scope
+
+- AIO (`fs/aio.c`) — owned by `fs/00-overview.md` § aio.md
+- 32-bit-only paths
+- Implementation code
