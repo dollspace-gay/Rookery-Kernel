@@ -1,0 +1,10 @@
+{
+  "uuid": "010cbe59-e59a-4195-a053-511a9fd901f4",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 7: 2 Tier-3 docs.\n\nfs/vfs/fs-context.md (212 lines, 14 REQ / 14 AC, 0 open) — modern mount API: fsopen/fsconfig/fsmount/fspick/move_mount/open_tree syscalls + fs_parser parameter framework + per-FS init_fs_context callback + error-log via fsfd reads. **VFS sweep complete: 7 sub-tier-3 docs (00-overview, dcache, inode, super, file-table, mount, path-resolution, fs-context).**\n\nnet/socket-api.md (256 lines, 16 REQ / 15 AC, 0 open) — BSD socket layer: socket/bind/connect/accept/send/recv full syscall family + SCM ancillary data (SCM_RIGHTS fd-pass + SCM_CREDENTIALS + SCM_PIDFD + SCM_TIMESTAMP* + SCM_DEVMEM_DMABUF) + AF_* family registry + SOL_SOCKET sockopt set + struct msghdr/cmsghdr/sockaddr_* UAPI byte-identity. Major LSM-hook nexus.\n\nTotal .design/ docs: 53.",
+  "created_at": "2026-05-09T17:07:02.859067396Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWZ5hHmIcMtftW4biL213OU/1k3vVIVo9gE5DGQFLoqVvLGq46ZiJNM6FYKNWb3jHqxPruS2oQC5LoXaL39h0Dg=="
+}
