@@ -1,0 +1,10 @@
+{
+  "uuid": "7c5d06e7-0903-4511-92f9-b0c69c9a9629",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 36: 2 Tier-3 net/sched docs (multi-queue + TSN time-aware shapers). net/sched/sch-mqprio.md (multi-queue priority qdisc: struct tc_mqprio_qopt w/ prio_tc_map[16] + per-TC offset+count tile, 2 modes (DCB w/ DCBNL integration + CHANNEL w/ per-TC min/max rate), HW offload via ndo_setup_tc, IEEE 802.1Qbu frame preemption via TCA_MQPRIO_TC_ENTRY_FP — 10 REQ / 10 AC, 0 open) + net/sched/sch-taprio.md (IEEE 802.1Qbv TSN time-aware shaper: GCL gate-control-list w/ cmd+gate_mask+interval, cycle_time validation, admin+oper schedule transition atomicity at base_time+N*cycle, 3 modes (sw hrtimer / txtime-assist w/ etf inner / full HW offload), CLOCK_TAI PTP-driven, frame preemption integration; OWNS models/net/sch_taprio.tla TSN time-window correctness theorem — 12 REQ / 10 AC, 0 open). 6 upstream paths validated against baseline 27a26ccfd528. Total: 111 .design docs. net/sched: 8 of 18 children done. Next: net/sched/sch-fq.md (TCP_PACING-aware FQ for sender-side fair-queueing) + net/sched/cls-flower.md (5-tuple+meta flower classifier — most-used in Cilium/CNI/openvswitch deployments).",
+  "created_at": "2026-05-09T20:59:28.750517755Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAbwvUSH5OWpGLA8r7U7tv6rJ189MPG97vofnB2zomKI+BOetl0LtHrlvorAgI3eJ8YER+eQHvbXvC+Z4QPJ2GDQ=="
+}
