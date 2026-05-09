@@ -1,0 +1,10 @@
+{
+  "uuid": "ec8685e0-2c81-4701-8408-0afb6b475383",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 58: 2 Tier-3 fs/proc docs (proc-kcore + proc-kmsg — closes fs/proc Tier-2). fs/proc/proc-kcore.md (/proc/kcore ELF kernel-memory file: ET_CORE Ehdr + per-region Phdrs PT_LOAD covering direct-mapped low + direct-mapped physical + vmalloc + vmemmap + fixmap + per-cpu + modules; PT_NOTE w/ VMCOREINFO for makedumpfile; lazy header generation w/ hot-add/remove invalidation; kclist_add/_del per-subsys region register; permission gate CAP_SYS_RAWIO + lockdown_KCORE + kptr_restrict; gdb/drgn/crash live-kernel debug consumer; /proc/vmcore sibling for kdump — 11 REQ / 11 AC, 0 open) + fs/proc/proc-kmsg.md (/proc/kmsg destructive printk consumer: bridge to do_syslog(SYSLOG_ACTION_READ), exclusive-open via syslog_lock, blocking read w/ log_wait waitqueue + O_NONBLOCK fast-path, poll(POLLIN) on ring-buffer-non-empty, dmesg_restrict=1 default permission gate w/ CAP_SYSLOG, format <level>kernel-message-text\\n byte-identical for klogd interop — 9 REQ / 10 AC, 0 open). 8 upstream paths validated against baseline 27a26ccfd528. Total: 155 .design docs. **fs/proc Tier-2 COMPLETE: 9 of 9 children done** (overview + proc-task + proc-system + proc-sysctl + proc-net + proc-namespaces + proc-fd + proc-generic + proc-kcore + proc-kmsg). Next: pivot to fs/* deeper (specific filesystem like fs/ext4/00-overview.md or fs/sysfs/00-overview.md).",
+  "created_at": "2026-05-09T23:59:59.439017593Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3zgELdGTgZ49qK1FnqSYHyq3wNHs/Rc7QAhli4hY6VekUK5QPCuzKj8jebNTHPBuqvSr+ja7i+/2NKzfKMQDAQ=="
+}
