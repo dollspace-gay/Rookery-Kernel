@@ -146,13 +146,17 @@ Suggested order (driven by dependency: lower-level subsystems first, so higher-l
 
 **Phase B complete.** All 14 in-scope subsystems have Tier-2 overviews. ~225 Tier-3 component docs are spawned by these overviews (each names its planned children); Phase C authors them in dependency order.
 
+**Phase C in progress (started 2026-05-09).** Drafted Tier-3 docs:
+- `lib/data-structures.md` (foundational; used by every subsystem)
+- `arch/x86/boot.md` (substrate)
+
 Once `mm/00-overview.md` and `arch/x86/00-overview.md` exist, unblock issue #2 to author `00-security-principles.md`.
 
 ### Phase C — component-level designs (Tier 3)
 
 Per the registry conventions, each Tier-2 overview enumerates the Tier-3 docs it spawns. Confirmed Tier-3 docs we know we'll need (incomplete; will grow as Phase B proceeds):
 
-- `arch/x86/boot.md` (incl. kexec hand-off ABI per REQ-15)
+- ~~`arch/x86/boot.md`~~ — DRAFT 2026-05-09 (incl. kexec hand-off ABI per REQ-15)
 - `arch/x86/entry.md` (syscall + IRQ entry, signal frames, vDSO entry-points)
 - `arch/x86/paging.md`
 - `arch/x86/kernel-platform.md` (CPU bringup, TSS, IDT, FPU, MSRs)
