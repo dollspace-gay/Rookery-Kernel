@@ -6,13 +6,14 @@
   "priority": "high",
   "created_by": "gb9t",
   "created_at": "2026-05-09T05:40:47.107139610Z",
-  "updated_at": "2026-05-09T05:41:20.760724861Z",
+  "updated_at": "2026-05-09T05:41:22.120978826Z",
   "labels": [
     "design",
     "security",
     "grbac"
   ],
   "blockers": [
-    "06f6b73b-0ed7-4c40-ad3d-e073907e3c41"
+    "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+    "054d0a7b-3d8c-4702-8691-4c235615b74b"
   ]
 }
