@@ -58,6 +58,7 @@ Tier-2 overview for `security/` — the Linux Security Module (LSM) framework pl
 | Keys (kernel keyring) | `security/keys/`, `include/linux/key.h`, `include/uapi/linux/keyctl.h` | `keys.md` |
 | safesetid (setid restriction) | `security/safesetid/` | `safesetid.md` |
 | BPF-LSM (LSM hooks attached via BPF) | `security/bpf/`, cross-ref `kernel/bpf/lsm.md` | `bpf-lsm.md` |
+| **GR-RBAC** (Rookery-original stackable LSM, reimplementing grsec's RBAC framework) | (no upstream baseline — derived from `/home/doll/grsec-6.6.102.patch` `grsecurity/` source tree, reimplemented in Rust under GPL-2.0) | `grbac/00-overview.md` (new Tier-3 hub) spawning `grbac/{policy-engine,gradm,domains,subjects,objects,inheritance,learning-mode,audit}.md` |
 | Kconfig.hardening (compile-time hardening defaults) | `security/Kconfig.hardening` | folded into `00-security-principles.md` (Tier 1 deferred doc, issue #2) |
 
 ## Compatibility contract
@@ -195,14 +196,21 @@ LSMs return `Result<(), KernelError>` for hooks; errors translate to syscall err
 
 This subsystem IS the hardening tier. Per `00-overview.md` D6, binding policy lands in `00-security-principles.md` (issue #2). After mm/ + arch/x86 overviews are reviewed, that document is authored grounded in the grsec/PaX catalog plus the existing in-tree LSM enforcement points covered here.
 
-### Critical: grsec absorption is layered — LSMs are NOT replaced
+### Critical: grsec absorption is layered + LSM-respecting
 
-The grsec/PaX reference catalog (`.design/references/grsec-pax-notes.md`) splits cleanly into two layers, and Rookery only absorbs one:
+The grsec/PaX reference catalog (`.design/references/grsec-pax-notes.md`) splits into two layers; Rookery's absorption strategy:
 
-- **Memory-protection + CFI layer** (KERNEXEC, UDEREF, USERCOPY, REFCOUNT, RAP, RANDSTRUCT, AUTOSLAB, PRIVATE_KSTACKS, MEMORY_SANITIZE, …) is **LSM-orthogonal**: it hardens the kernel against memory-corruption exploits at a level below LSM hooks. SELinux / AppArmor / SMACK / Yama / Lockdown / Landlock all see no behavioral difference. **Absorb fully.**
-- **Policy-enforcement layer** (GR-RBAC framework, GRKERNSEC_HIDESYM, GRKERNSEC_HIDETASK, GRKERNSEC_TPE, GRKERNSEC_CHROOT_* policy switches, GRKERNSEC_DENYUSB, …) **conflicts with LSM responsibilities**. Historically grsec replaced LSM rather than coexisting; the maintainers were openly hostile to SELinux. Adopting these features by default would break the drop-in compat promise: RHEL/Fedora ship SELinux on; Debian/Ubuntu/SUSE ship AppArmor on; Rookery cannot displace them. **Do NOT absorb as defaults.** Where these have merit as defense-in-depth, expose as sysctl knobs (`00-security-principles.md` will spec the knob set), never as defaults, never as replacements.
+- **Memory-protection + CFI layer** (KERNEXEC, UDEREF, USERCOPY, REFCOUNT, RAP, RANDSTRUCT, AUTOSLAB, PRIVATE_KSTACKS, MEMORY_SANITIZE, …) is **LSM-orthogonal**: hardens the kernel against memory-corruption exploits at a level below LSM hooks. SELinux / AppArmor / SMACK / Yama / Lockdown / Landlock all see no behavioral difference. **Absorbed fully** with default-on policy (decision 2026-05-09 above).
+- **Policy-enforcement layer** (GR-RBAC framework, GRKERNSEC_HIDESYM, GRKERNSEC_HIDETASK, GRKERNSEC_TPE, GRKERNSEC_CHROOT_* policy switches, GRKERNSEC_DENYUSB, …) historically conflicted with LSM responsibilities **because grsec sat OUTSIDE the LSM framework and competed with it**. Adopting these features by default in that historical mode would break drop-in compat: RHEL/Fedora ship SELinux on, Debian/Ubuntu/SUSE ship AppArmor on. **Reimplemented as a STACKABLE LSM** (decision 2026-05-09, locking in the user direction "ADOPT, build gradm into the system"):
 
-This subsystem (`security/`) preserves the LSM framework intact. Every in-tree LSM (SELinux, AppArmor, SMACK, TOMOYO, Yama, LoadPin, Landlock, Lockdown, IPE, IMA+EVM, BPF-LSM) keeps its hooks, its userspace ABI, and its enforcement semantics. Rookery is **grsec-flavored at the memory layer and LSM-respecting at the policy layer.**
+  - GR-RBAC reimplemented in Rust as a proper Rookery-original stackable LSM (CONFIG_LSM_GRBAC=y in default Kconfig).
+  - Stackable-LSM coexistence (Linux 5.x+ feature) lets GR-RBAC run alongside SELinux/AppArmor without conflict — each LSM evaluates its hooks independently; deny-overrides per the LSM framework rules.
+  - GRKERNSEC_* feature flags (HIDESYM, HIDETASK, TPE, CHROOT_*, DENYUSB) become **policy-loadable settings** of the GR-RBAC LSM, not default-on system-wide. Operators enable specific switches by loading the appropriate gradm policy.
+  - `gradm` userspace tool reimplemented in Rust as part of Rookery's tooling. Shipped as a default userspace utility (analogous to how RHEL ships SELinux-utils, Debian ships apparmor-utils).
+  - **Default policy is empty / passive** at boot. GR-RBAC LSM is loaded but with no policy → no enforcement decisions made → drop-in compat preserved. Operators run `gradm -L` (learn mode) or `gradm -E` (enforce a loaded policy) to activate.
+  - This is the difference from historical grsec: same enforcement vocabulary, different framework — proper LSM coexistence instead of LSM replacement.
+
+This subsystem (`security/`) preserves the LSM framework intact and ADDS a new in-tree LSM (GR-RBAC). Every existing in-tree LSM (SELinux, AppArmor, SMACK, TOMOYO, Yama, LoadPin, Landlock, Lockdown, IPE, IMA+EVM, BPF-LSM) keeps its hooks, its userspace ABI, and its enforcement semantics. Rookery is **grsec-flavored at the memory layer and LSM-respecting at the policy layer, with a Rookery-original GR-RBAC LSM joining the stackable LSM family.**
 
 ### Locked-in row-1 absorption list (decision 2026-05-09)
 
@@ -276,20 +284,22 @@ Per `00-overview.md` D6, this Tier-1 doc is authored after Phase A complete + mm
 **To resolve**: User confirms timing — eagerly after Phase B, OR deferred until Phase C is partway done.
 <!-- /OPEN -->
 
-<!-- OPEN: Q3 -->
-### Q3: MPROTECT default-on with JIT-process exemption?
-The "default-on, configurable" policy (decision 2026-05-09) flagged MPROTECT-W→X-block as the one feature that cannot default-on system-wide without breaking JIT-using userspace (V8, OpenJDK, .NET, BEAM, LuaJIT, PyPy → Chrome / Firefox / Java apps / .NET apps / Erlang/Elixir apps fail at startup).
+### D3 (resolved 2026-05-09): MPROTECT default-on with JIT-process exemption — ADOPTED
 
-The current resolution: default-off system-wide; per-process opt-in via `prctl(PR_SET_MDWE)`. systemd's `MemoryDenyWriteExecute=yes` propagates this for confined services.
+User-locked: MPROTECT-W→X-block defaults ON system-wide. JIT runtimes opt out per-process via a new exemption mechanism:
 
-**Alternative being considered**: invert the default — MPROTECT-W→X-block default-on system-wide, with a per-process *exemption* mechanism (new prctl `PR_ALLOW_EXEC_GAIN` or analogous) that JIT-using processes call at startup, reflected in their executable's metadata (e.g., a new ELF note `NT_GNU_PROPERTY_X86_FEATURE_NEEDS_EXEC_GAIN`). Distros patch their JIT runtimes to set the exemption; non-JIT processes get the stronger default.
+- New ELF note `NT_GNU_PROPERTY_X86_FEATURE_NEEDS_EXEC_GAIN` (or equivalent generic name) in the executable's `.note.gnu.property` section. binfmt_elf reads this at exec time and grants `PR_MDWE_REFUSE_EXEC_GAIN` exemption.
+- New prctl `PR_REQUEST_EXEC_GAIN` for runtime self-tagging (e.g., a JIT runtime spawned without the ELF note).
+- Distros patch JIT runtimes (Chrome's V8, Firefox's SpiderMonkey, OpenJDK HotSpot, .NET CLR, Erlang BEAM, LuaJIT, PyPy) to set the ELF note in their build. Existing systemd `MemoryDenyWriteExecute=yes` continues to apply additionally per-service.
+- Transitional period: until distros patch their JIT runtimes, JIT-dependent applications fail at startup. The implementing instance MUST coordinate with downstream packagers before this lands.
 
-**Recommendation**: ADOPT the inverted default — MPROTECT default-on, with the per-process exemption mechanism. This requires (a) defining a new ELF note + prctl in `00-security-principles.md`, (b) patching JIT runtimes in distro packaging, and (c) accepting that newly-installed JIT software fails until packagers update their build. The transitional period is rough but the steady-state security posture is materially better.
+Implementation homes:
+- ELF note recognition: `fs/00-overview.md` § exec-binfmt.md
+- prctl + per-process state: `kernel/00-overview.md` § task-lifecycle.md
+- mmap/mprotect enforcement: `mm/00-overview.md` § mmap.md
+- Spec for the new ELF note: `00-security-principles.md` (Tier 1 deferred doc, issue #2)
 
-**Alternative-alternative**: keep the current resolution (default-off system-wide; per-process opt-in via existing MDWE). Simpler, no new ABI, but the strong policy is opt-in rather than opt-out — most apps never opt in.
-
-**To resolve**: User picks (a) inverted default with new exemption mechanism (more work, better outcome), (b) keep current MDWE-as-opt-in (simpler), or (c) defer to `00-security-principles.md` authoring time.
-<!-- /OPEN -->
+NOEXEC-strict follows the same model: default-on with the same exemption mechanism. Same JIT runtimes need the same ELF note.
 
 ## Out of Scope
 
