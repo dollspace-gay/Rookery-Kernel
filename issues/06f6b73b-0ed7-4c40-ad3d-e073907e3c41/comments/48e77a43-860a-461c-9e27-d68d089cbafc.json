@@ -1,0 +1,10 @@
+{
+  "uuid": "48e77a43-860a-461c-9e27-d68d089cbafc",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Decision locked-in 2026-05-09 (user direction):\n\n**ABSORBED into Rookery as the row-1 grsec/PaX feature set:**\n\nKERNEXEC, UDEREF, USERCOPY, REFCOUNT, RAP/CFI, RANDSTRUCT, AUTOSLAB, PRIVATE_KSTACKS, RANDKSTACK, MEMORY_SANITIZE, SIZE_OVERFLOW, CONSTIFY, LATENT_ENTROPY\n\nPlus the other LSM-orthogonal features in the catalog: PAGEEXEC, NOEXEC, MPROTECT, DIRECT_CALL/DIRECT_SLS_CALL (Spectre-v2/SLS mitigation), RANDMMAP, ASLR, DELAY_FREE_ONE_PAGE, CLOSE_KERNEL, CLOSE_USERLAND.\n\nEach feature now has a named design home in security/00-overview.md (a 21-row table mapping each feature to the Tier-2 doc + planned Tier-3 location where its implementation is specified). Cross-cutting policy (mandatory-always-on vs. secure-default-configurable vs. opt-in-sysctl) consolidates in 00-security-principles.md (issue #2) when authored.\n\n00-overview.md Foundational Decisions table 'Hardening source' row updated: explicit list replaces the previous '…' placeholder; the locked decision is named with date.\n\nThis decision is binding for Phase C (component Tier-3 designs). Each Tier-3 doc that implements one of the listed features gains a 'Hardening' section that cites the security/00-overview.md table when the doc lands.\n\nKnowledge pages refreshed: 00-overview, security-00-overview.",
+  "created_at": "2026-05-09T05:26:55.818601410Z",
+  "kind": "decision",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOCYu+Yhhiku2AtMI+aVBBSF3aNckMQvPj0jBBqqEdcxskjQK0olzsO9hgGelXbuxDT5BVRD5RbqCpO1bPxn8AQ=="
+}
