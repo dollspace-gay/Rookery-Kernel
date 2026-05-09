@@ -1,0 +1,10 @@
+{
+  "uuid": "e2a27e26-8993-407d-86b6-51448e49a122",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C started 2026-05-09. Component-level Tier-3 design docs in dependency order.\n\nStrategy: start with lib/data-structures.md (used by every higher-tier subsystem), then arch/x86/{boot,entry,paging,kernel-platform}.md (the substrate). After foundational docs, mm/ + kernel/ Tier-3s, then up the stack.\n\nEach Tier-3 doc follows the standard template + the new mandatory Hardening section per 00-security-principles.md. Cites this binding policy doc rather than restating defaults.\n\nSession focus this turn: lib/data-structures.md and at least one arch/x86 Tier-3 doc.",
+  "created_at": "2026-05-09T14:26:20.017582166Z",
+  "kind": "plan",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAQeAqPpbc4KCxRB/oFnwVW6SbocIdjw9kInPYZ+ZL19aH5wU8yX8es1suG5VhfVkl1+QvPyILPXbtXK5MV91aDw=="
+}
