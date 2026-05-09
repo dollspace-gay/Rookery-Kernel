@@ -1,0 +1,10 @@
+{
+  "uuid": "96798242-20c6-4e9b-b48a-cc6cff95e461",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 41: 2 Tier-3 net/sched docs (closes net/sched Tier-2 with all 18 children done). net/sched/sch-generic.md (foundational layer: noop_qdisc placeholder, noqueue pass-through, pfifo_fast 3-band priority FIFO w/ 16-entry priomap default, pfifo+bfifo simple-FIFO with packet/byte limits, mq multi-queue meta-qdisc auto-creating per-TX-queue inner qdiscs, per-qdisc state machine __QDISC_STATE_SCHED/DEACTIVATED/MISSED/DRAINING, gso_skb retry-cache, qdisc_watchdog_*, default_qdisc sysctl selector — 10 REQ / 11 AC, 0 open) + net/sched/sch-bpf.md (BPF programmable qdisc via struct_ops: struct bpf_qdisc_ops handle for all Qdisc_ops methods, verifier-checked per-method preconditions, bpf_qdisc_enqueue_skb / _dequeue_skb / _skb_drop kfuncs, register_qdisc synthesis from BPF struct_ops, per-qdisc BPF-map state — 10 REQ / 10 AC, 0 open). 6 upstream paths validated against baseline 27a26ccfd528. Total: 121 .design docs. **net/sched Tier-2 COMPLETE: 18 of 18 children done** (sch-api+cls-api+act-api + sch_generic + sch_fq_codel+sch_htb+sch_cake+sch_fq+sch_mqprio+sch_taprio+sch_bpf + cls_u32+cls_flower+cls_bpf + act_mirred+act_police+act_ct + em_meta). Next: pivot to net/netfilter/00-overview.md Tier-2 wrapper (umbrella for nf_conntrack + nftables + nf_flow_table + xt_* match modules — completes the firewalling/NAT stack for Rookery).",
+  "created_at": "2026-05-09T21:39:21.550934542Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2IehQHh5C4m0kA/Jt/IK173qtVOSIWhxqTuMpQkNG6ehuN/VUO/Lrg6UdfO5UWBJQDIClfwJpw4WOG4GCgjiCQ=="
+}
