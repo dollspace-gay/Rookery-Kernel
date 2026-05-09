@@ -1,0 +1,10 @@
+{
+  "uuid": "bee09d43-5fb9-4caa-bb01-9eed2a9ce377",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 25: 2 Tier-3 xfrm docs (high-value: both hit on every IPSec'd packet). net/xfrm/policy.md (SPD: 3-direction (IN/OUT/FWD) per-netns hashtables w/ inexact rb-tree, struct xfrm_policy + per-template xfrm_vec[XFRM_MAX_DEPTH=6], priority-ordered first-match-wins lookup, xfrm_lookup TX path w/ ACQUIRE-on-missing-template, __xfrm_policy_check RX path w/ XfrmInTmplMismatch/NoPols/PolBlock decisions, per-policy bundle-cache w/ eviction-on-mutation, per-AF v4+v6 adapters — 13 REQ / 12 AC, 0 open) + net/xfrm/input.md (RX pipeline: inet_protos[ESP/AH/IPCOMP] entry, generic xfrm_input → SPI extract → SA lookup → state-validate → selector-validate → replay-check → type->input → replay-advance → nested-walk (≤XFRM_MAX_DEPTH) → __xfrm_policy_check → re-inject; async crypto -EINPROGRESS+xfrm_input_resume; NAT-T xfrm4_udp_encap_rcv RFC 3948 — 13 REQ / 11 AC, 0 open). 11 upstream paths validated against baseline 27a26ccfd528. Total: ~89 .design docs. xfrm IPSec stack progressing: state + policy + input done; output + replay + algo next.",
+  "created_at": "2026-05-09T19:31:50.931565770Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAMgd4XTG+JJRh3Ulj1mqpVU/iK8bBJB9L+1l27lb5YMZXSBXWtpT0M5nMDLTMCKJ+co0c1/FtL6oL3MH8sca4DQ=="
+}
