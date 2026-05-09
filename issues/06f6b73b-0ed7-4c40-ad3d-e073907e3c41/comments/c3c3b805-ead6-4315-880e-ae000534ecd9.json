@@ -1,0 +1,10 @@
+{
+  "uuid": "c3c3b805-ead6-4315-880e-ae000534ecd9",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 8: 2 Tier-3 docs (net pivot cont'd).\n\nnet/skbuff.md (240 lines, 15 REQ / 14 AC, 0 open) — sk_buff packet container + GRO + GSO + frag-list + skb queue + datagram helpers + fclone fast-clone + zerocopy. struct sk_buff + skb_shared_info layout-equivalence for first-cache-line. TLA+ model models/net/skb_clone.tla owned here (mandatory L2). secmark LSM-tag propagation.\n\nnet/netdev.md (262 lines, 15 REQ / 14 AC, 0 open) — net_device + net_device_ops vtable + NAPI poll framework + per-queue arrays + link-state watcher + address lists + devmem DMA-buf RX + ethtool integration + XDP attachment. /sys/class/net/* + rtnetlink wire-format byte-identity. TLA+ models napi_state + rtnl_lock owned here (both mandatory L2).\n\nTotal .design/ docs: 55.",
+  "created_at": "2026-05-09T17:15:06.166193364Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAxPkYIOIuZeq6cwBB0kikOeXYair1JnjYnNYlVynx6mj8eJ9F4B11awoIRqSKyDbJqMXBoBR+Y7yi7LKOMvvtDw=="
+}
