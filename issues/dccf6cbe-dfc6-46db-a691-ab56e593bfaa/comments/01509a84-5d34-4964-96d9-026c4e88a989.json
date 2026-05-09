@@ -1,0 +1,10 @@
+{
+  "uuid": "01509a84-5d34-4964-96d9-026c4e88a989",
+  "issue_uuid": "dccf6cbe-dfc6-46db-a691-ab56e593bfaa",
+  "author": "gb9t",
+  "content": "Authoring start 2026-05-09. Preconditions met: Phase B complete; mm/ + arch/x86/ + security/ overviews drafted; default-on absorption table locked in security/00-overview.md; GR-RBAC + MPROTECT-exemption mechanisms decided.\n\nDoc shape:\n- Tier-1 (lives at .design/00-security-principles.md, sibling of other 00-* foundation docs)\n- Frontmatter per 00-baseline.md convention\n- REQ/AC structure\n- Distills the row-1 absorption table from security/00-overview.md into binding form (sysctl/Kconfig/prctl/ELF-note names locked in)\n- Specifies the new ELF note for JIT exemption (section, name, type, descriptor format) precisely enough for implementing instance to build\n- Specifies PR_REQUEST_EXEC_GAIN prctl number + semantics\n- Provides Hardening-section template every Tier-3 doc must follow\n- Cross-refs grsec-pax-notes.md, security/00-overview.md, security/grbac/ (issue #5)",
+  "created_at": "2026-05-09T05:59:46.721577710Z",
+  "kind": "plan",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASjxu/EFeLRRac+akkFTs3B4ieHel/KA6Dk3MURt/hwONhqiRY2CMzGUVZ+X3IRTlVR/4rNXXhlTyGe/xeL97CQ=="
+}
