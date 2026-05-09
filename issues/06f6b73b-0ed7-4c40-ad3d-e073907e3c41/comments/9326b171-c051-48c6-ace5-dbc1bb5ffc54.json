@@ -1,0 +1,10 @@
+{
+  "uuid": "9326b171-c051-48c6-ace5-dbc1bb5ffc54",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Added grsec/PaX as a project-level security reference (user pointer 2026-05-09):\n\n- Reference catalog: .design/references/grsec-pax-notes.md (PAX_* + GRKERNSEC_* features, mapped into 'free in Rust' / 'type-system encodable' / 'explicit per-subsystem policy' buckets)\n- Knowledge page: 'grsec-pax-notes' (tags: reference, security, backlog)\n- 00-overview.md gains Q6: confirms recommendation to author 00-security-principles.md as a deferred foundational doc, after Phase A and mm/arch overviews land\n- Tracking: issue #2 'Author 00-security-principles.md grounded in grsec/PaX catalog', blocked by #1\n\nSource patch on disk at /home/doll/grsec-6.6.102.patch (14 MB, 4808 files, against linux-6.6.102 — slightly older than our 7.1-rc2 baseline; still the most current freely-available grsec).",
+  "created_at": "2026-05-09T03:04:29.789374876Z",
+  "kind": "observation",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABADviP58szh0/KURQ9HVBT49kodVv3vbqSJhNEyEh9TNFyzLkmCnxXQEVMbS5tygwN23YM1h0xDTMlYFpzsAEfDw=="
+}
