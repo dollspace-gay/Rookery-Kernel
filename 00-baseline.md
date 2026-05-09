@@ -7,34 +7,35 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
+# Foundation: Upstream Linux baseline
 
-## Design Specification
+<!--
+baseline-commit: 27a26ccfd528da725a999ea1e3102503c61eb655
+baseline-version: 7.1.0-rc2
+upstream-paths:
+  - Makefile
+  - (this doc IS the project-wide baseline pin; other paths are referenced in the verification commands within)
+status: draft
+-->
 
-### Summary
-
+## Summary
 Pins the exact upstream Linux source revision that all design documents in this project are reverse-engineered against. Every subsystem design doc must declare the baseline version it was authored against; when the baseline is bumped, docs whose subsystem changed must be re-reviewed.
 
-### Requirements
+## Requirements
 
 - REQ-1: A single canonical upstream commit hash is recorded here, refreshable on a documented cadence.
 - REQ-2: Every design doc in tiers 2-5 (subsystem, component, driver, uapi) MUST declare its baseline commit in a frontmatter line so stale docs are detectable after a rebaseline.
 - REQ-3: Scope statistics (file counts, top-level directory layout) are recorded here so future readers can see what fraction of the kernel a given design pass has covered.
 - REQ-4: A documented refresh procedure exists so the baseline can be advanced without breaking outstanding design work.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 - [ ] AC-1: A "Pinned baseline" section names the exact commit hash, version string, clone date, and clone path.
 - [ ] AC-2: A "Scope statistics" section enumerates file counts by language and top-level directories, with both numbers verifiable via shell commands listed in this doc.
 - [ ] AC-3: A "Refresh procedure" section describes how to advance the baseline (git fetch, update this file, scan design docs for stale frontmatter, file rebaseline review issues).
 - [ ] AC-4: A "Frontmatter convention" section gives the exact line every other design doc must include.
 
-### Out of Scope
-
-- Pinning per-subsystem to *different* baselines — we use a single project-wide baseline. Subsystem-level baseline pinning would multiply rebaseline complexity without obvious gain.
-- Tracking individual file content hashes for staleness detection — `upstream-paths` granularity is sufficient.
-- Tracking the rust-for-linux `rust/` subtree as a separate baseline — it ships in the main Linux tree, so the same commit hash governs both.
-
-### pinned baseline
+## Pinned baseline
 
 | Field | Value |
 |---|---|
@@ -56,7 +57,7 @@ git rev-parse HEAD              # must print 27a26ccfd528da725a999ea1e3102503c61
 head -5 Makefile                # must show VERSION=7 PATCHLEVEL=1 SUBLEVEL=0 EXTRAVERSION=-rc2
 ```
 
-### scope statistics
+## Scope statistics
 
 Top-level directories in the upstream tree (24 total):
 
@@ -86,7 +87,7 @@ find . -name '*.rs' | wc -l
 find . -name '*.S' | wc -l
 ```
 
-### frontmatter convention
+## Frontmatter convention
 
 Every design doc in tiers 2-5 MUST begin with this comment block, immediately after the title:
 
@@ -112,7 +113,7 @@ status: draft | reviewed | approved
 
 (The script itself does not yet exist; tracked separately in the implementation backlog.)
 
-### refresh procedure
+## Refresh procedure
 
 Advancing the baseline (e.g. when Linux 7.1 final lands):
 
@@ -124,3 +125,8 @@ Advancing the baseline (e.g. when Linux 7.1 final lands):
 
 Cadence: review at least once per year, or on each Linux LTS bump (~ every 8 months). Faster cadence as design coverage matures.
 
+## Out of Scope
+
+- Pinning per-subsystem to *different* baselines — we use a single project-wide baseline. Subsystem-level baseline pinning would multiply rebaseline complexity without obvious gain.
+- Tracking individual file content hashes for staleness detection — `upstream-paths` granularity is sufficient.
+- Tracking the rust-for-linux `rust/` subtree as a separate baseline — it ships in the main Linux tree, so the same commit hash governs both.
