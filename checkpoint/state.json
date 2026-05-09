@@ -1,0 +1,17 @@
+{
+  "next_display_id": 1,
+  "next_comment_id": 1,
+  "display_id_map": {},
+  "locks": {
+    "1": {
+      "agent_id": "gb9t",
+      "claimed_at": "2026-05-09T02:41:10.101207276Z"
+    }
+  },
+  "issues": {},
+  "watermark": {
+    "timestamp": "2026-05-09T02:41:10.101207276Z",
+    "agent_id": "gb9t",
+    "agent_seq": 1
+  }
+}
