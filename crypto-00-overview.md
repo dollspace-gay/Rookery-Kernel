@@ -7,16 +7,74 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
+# Subsystem: crypto/ — kernel cryptographic API
 
-## Design Specification
+<!--
+baseline-commit: 27a26ccfd528da725a999ea1e3102503c61eb655
+baseline-version: 7.1.0-rc2
+status: in-v0
+upstream-paths:
+  - crypto/
+  - crypto/asymmetric_keys/
+  - crypto/async_tx/
+  - include/crypto/
+  - include/uapi/linux/cryptouser.h
+-->
 
-### Summary
-
+## Summary
 Tier-2 overview for `crypto/` — the kernel cryptographic API. Owns the algorithm registration framework (`crypto_register_*` / `crypto_alloc_*`), every kernel-side cryptographic primitive (block ciphers, AEAD, hashes, MACs, KDFs, public-key, RNG, compression), the userspace-accessible `AF_ALG` socket interface, asymmetric-key handling (X.509 + PKCS#7 + signature verification), and the modular hardware-acceleration plumbing.
 
 Adjacent: `lib/crypto/` (covered in `lib/00-overview.md`) holds *standalone* lightweight crypto primitives consumed by other lib code — there's no full crypto-API registration. `arch/x86/crypto/` (`arch/x86/00-overview.md` § crypto-accel.md) holds the x86 SIMD-accelerated implementations that register *into* this subsystem. The boundary is: `crypto/` is the API + generic implementations; `arch/<arch>/crypto/` are the hardware-accelerated variants that register at runtime.
 
-### Requirements
+## Upstream references in scope
+
+`crypto/` (~150 .c files + 2 subdirs at baseline). Categorized:
+
+| Category | Upstream paths | Planned Tier-3 doc |
+|---|---|---|
+| API core: registration + alloc + dispatch | `crypto/api.c`, `crypto/algapi.c`, `crypto/algboss.c`, `crypto/proc.c` (`/proc/crypto`) | `api.md` |
+| AF_ALG userspace interface | `crypto/af_alg.c`, `crypto/algif_aead.c`, `crypto/algif_hash.c`, `crypto/algif_rng.c`, `crypto/algif_skcipher.c`, `crypto/cryptouser.c`, `include/uapi/linux/cryptouser.h` | `af-alg.md` |
+| Block ciphers (skcipher) | `crypto/skcipher.c`, `crypto/cipher.c`, plus impls (cbc, ctr, ecb, ofb, cfb, xts, lrw, adiantum, hctr2, salsa20, serpent, twofish, blowfish, cast{5,6}, camellia, aria, arc4, des, aes, sm4, anubis, fcrypt, khazad, seed, tea, xtea) | `skcipher/00-overview.md` (Tier 3 hub) |
+| AEAD | `crypto/aead.c`, `crypto/authenc.c`, `crypto/authencesn.c`, `crypto/ccm.c`, `crypto/gcm.c`, `crypto/chacha20poly1305.c` | `aead.md` |
+| Hashes (shash + ahash) | `crypto/shash.c`, `crypto/ahash.c`, plus impls (sha1, sha256, sha512, sha3, md4, md5, hmac, cmac, xcbc, vmac, crc{32,32c}, blake2b, blake2s, sm3, streebog, ghash, polyval, poly1305) | `hash.md` |
+| Public-key + asymmetric | `crypto/asymmetric_keys/`, `crypto/akcipher.c`, `crypto/sig.c`, `crypto/kpp.c` (key pair primitive: DH, ECDH), `crypto/dh.c`, `crypto/ecdh.c`, `crypto/rsa.c`, `crypto/ecdsa.c`, `crypto/curve25519.c`, plus PQC (ML-KEM, ML-DSA, SLH-DSA in 7.x) | `asymmetric.md` |
+| Compression | `crypto/acompress.c`, `crypto/scompress.c`, `crypto/lz4.c`, `crypto/lzo.c`, `crypto/deflate.c`, `crypto/zstd.c`, `crypto/842.c` | `compression.md` |
+| RNG | `crypto/rng.c`, `crypto/drbg.c` (NIST SP 800-90A DRBG), `crypto/jitterentropy.c` | `rng.md` |
+| Async TX (legacy DMA-engine offload) | `crypto/async_tx/` | `async-tx.md` |
+| Cryptd (deferred-execution wrapper) | `crypto/cryptd.c`, `crypto/crypto_engine.c` | folded into `api.md` |
+| BPF crypto | `crypto/bpf_crypto_skcipher.c` (BPF program access to skcipher) | folded into `bpf-net.md` cross-ref |
+| KDF | `crypto/hkdf.c`, `crypto/kdf_sp800108.c`, `crypto/skcipher_kdf.c` | folded into `hash.md` |
+| FIPS-mode discipline | `crypto/fips.c` | `fips.md` |
+
+## Compatibility contract
+
+### `/proc/crypto` and AF_ALG
+
+| Surface | Owner doc | Compat level |
+|---|---|---|
+| `/proc/crypto` content (every registered alg) | `api.md` | Format-identical |
+| `AF_ALG` socket protocol | `af-alg.md` | Wire-identical |
+| `AF_ALG` `setsockopt(ALG_SET_KEY/AUTH_SIZE)` etc. | `af-alg.md` | Identical |
+
+### Userspace-visible algorithm names
+
+The set of registered cryptographic algorithm names (`aes`, `cbc(aes)`, `gcm(aes)`, `hmac(sha256)`, `xts(aes)`, etc.) and their priorities determine what userspace via AF_ALG, fscrypt, tcrypt, IPsec/xfrm, dm-crypt, dm-verity see. **Every algorithm-name string upstream registers MUST be registered identically by Rookery.** Removing an alg breaks compat for any tool that requested it by name.
+
+### Asymmetric keys API
+
+X.509 + PKCS#7 + signature verification ABI consumed by:
+- Module signing (`kernel/module/`)
+- Kexec image verification (`kernel/kexec_*`)
+- IMA / EVM (`security/integrity/`)
+- DM-verity (`drivers/md/`)
+
+Wire formats (DER, PEM) are RFC-defined; preserved.
+
+### FIPS mode
+
+`fips=1` boot parameter: limits algorithm set to FIPS-approved + adds self-tests. Preserved.
+
+## Requirements
 
 - REQ-1: Every cryptographic algorithm upstream registers must be registered by Rookery under the same name + with the same priority.
 - REQ-2: For each algorithm, output bytes are bit-identical given the same input + key + IV. (Algorithms are spec-defined — this is a strong invariant.)
@@ -29,7 +87,7 @@ Adjacent: `lib/crypto/` (covered in `lib/00-overview.md`) holds *standalone* lig
 - REQ-9: All Tier-3 docs declare verification-stack details. **`lightweight-crypto.md` of `lib/00-overview.md` (chacha20, poly1305, blake2s, libsha256) AND `crypto/00-overview.md` opt into Layer-4 functional-correctness proofs (Verus or Creusot)** — algorithms are textbook-defined, proofs of "this Rust implementation computes this RFC's algorithm" are tractable and high-value.
 - REQ-10: The implementation reuses upstream rust-for-linux's existing crypto abstractions where they exist (`rust/kernel/digest.rs` and similar).
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 - [ ] AC-1: A diff between Rookery's `/proc/crypto` and upstream's on the same `.config` is empty (modulo priorities of arch-accel implementations on different hardware). (covers REQ-1, REQ-4)
 - [ ] AC-2: A test-vector harness exercises every registered algorithm against NIST-CAVP / IETF-test-vectors / per-algorithm reference vectors and reports byte-identical outputs. (covers REQ-2)
@@ -42,7 +100,7 @@ Adjacent: `lib/crypto/` (covered in `lib/00-overview.md`) holds *standalone* lig
 - [ ] AC-9: Layer-4 proofs for at least chacha20, poly1305, blake2s, libsha256, hmac(sha256), aes (the v0 critical-path algorithms) compile and verify under Verus or Creusot. (covers REQ-9)
 - [ ] AC-10: A grep over Rookery for `kernel::crypto::*` shows reuse of upstream rust-for-linux abstractions. (covers REQ-10)
 
-### Architecture
+## Architecture
 
 ### Layout map
 
@@ -88,62 +146,7 @@ Adjacent: `lib/crypto/` (covered in `lib/00-overview.md`) holds *standalone* lig
 
 Crypto errors: EINVAL (bad parameter), EBADMSG (bad ciphertext / authentication failure for AEAD), ENOKEY, EAGAIN (async crypto in flight), EOPNOTSUPP, EBUSY.
 
-### Out of Scope
-
-- Userspace TLS (OpenSSL etc.) — the kernel only offloads TLS record-layer; handshake stays userspace.
-- 32-bit-only paths.
-- Algorithms removed from upstream during v0 (e.g., deprecated MD4 may be dropped).
-- Implementation code — `.design/` contains specs only.
-
-### upstream references in scope
-
-`crypto/` (~150 .c files + 2 subdirs at baseline). Categorized:
-
-| Category | Upstream paths | Planned Tier-3 doc |
-|---|---|---|
-| API core: registration + alloc + dispatch | `crypto/api.c`, `crypto/algapi.c`, `crypto/algboss.c`, `crypto/proc.c` (`/proc/crypto`) | `api.md` |
-| AF_ALG userspace interface | `crypto/af_alg.c`, `crypto/algif_aead.c`, `crypto/algif_hash.c`, `crypto/algif_rng.c`, `crypto/algif_skcipher.c`, `crypto/cryptouser.c`, `include/uapi/linux/cryptouser.h` | `af-alg.md` |
-| Block ciphers (skcipher) | `crypto/skcipher.c`, `crypto/cipher.c`, plus impls (cbc, ctr, ecb, ofb, cfb, xts, lrw, adiantum, hctr2, salsa20, serpent, twofish, blowfish, cast{5,6}, camellia, aria, arc4, des, aes, sm4, anubis, fcrypt, khazad, seed, tea, xtea) | `skcipher/00-overview.md` (Tier 3 hub) |
-| AEAD | `crypto/aead.c`, `crypto/authenc.c`, `crypto/authencesn.c`, `crypto/ccm.c`, `crypto/gcm.c`, `crypto/chacha20poly1305.c` | `aead.md` |
-| Hashes (shash + ahash) | `crypto/shash.c`, `crypto/ahash.c`, plus impls (sha1, sha256, sha512, sha3, md4, md5, hmac, cmac, xcbc, vmac, crc{32,32c}, blake2b, blake2s, sm3, streebog, ghash, polyval, poly1305) | `hash.md` |
-| Public-key + asymmetric | `crypto/asymmetric_keys/`, `crypto/akcipher.c`, `crypto/sig.c`, `crypto/kpp.c` (key pair primitive: DH, ECDH), `crypto/dh.c`, `crypto/ecdh.c`, `crypto/rsa.c`, `crypto/ecdsa.c`, `crypto/curve25519.c`, plus PQC (ML-KEM, ML-DSA, SLH-DSA in 7.x) | `asymmetric.md` |
-| Compression | `crypto/acompress.c`, `crypto/scompress.c`, `crypto/lz4.c`, `crypto/lzo.c`, `crypto/deflate.c`, `crypto/zstd.c`, `crypto/842.c` | `compression.md` |
-| RNG | `crypto/rng.c`, `crypto/drbg.c` (NIST SP 800-90A DRBG), `crypto/jitterentropy.c` | `rng.md` |
-| Async TX (legacy DMA-engine offload) | `crypto/async_tx/` | `async-tx.md` |
-| Cryptd (deferred-execution wrapper) | `crypto/cryptd.c`, `crypto/crypto_engine.c` | folded into `api.md` |
-| BPF crypto | `crypto/bpf_crypto_skcipher.c` (BPF program access to skcipher) | folded into `bpf-net.md` cross-ref |
-| KDF | `crypto/hkdf.c`, `crypto/kdf_sp800108.c`, `crypto/skcipher_kdf.c` | folded into `hash.md` |
-| FIPS-mode discipline | `crypto/fips.c` | `fips.md` |
-
-### compatibility contract
-
-### `/proc/crypto` and AF_ALG
-
-| Surface | Owner doc | Compat level |
-|---|---|---|
-| `/proc/crypto` content (every registered alg) | `api.md` | Format-identical |
-| `AF_ALG` socket protocol | `af-alg.md` | Wire-identical |
-| `AF_ALG` `setsockopt(ALG_SET_KEY/AUTH_SIZE)` etc. | `af-alg.md` | Identical |
-
-### Userspace-visible algorithm names
-
-The set of registered cryptographic algorithm names (`aes`, `cbc(aes)`, `gcm(aes)`, `hmac(sha256)`, `xts(aes)`, etc.) and their priorities determine what userspace via AF_ALG, fscrypt, tcrypt, IPsec/xfrm, dm-crypt, dm-verity see. **Every algorithm-name string upstream registers MUST be registered identically by Rookery.** Removing an alg breaks compat for any tool that requested it by name.
-
-### Asymmetric keys API
-
-X.509 + PKCS#7 + signature verification ABI consumed by:
-- Module signing (`kernel/module/`)
-- Kexec image verification (`kernel/kexec_*`)
-- IMA / EVM (`security/integrity/`)
-- DM-verity (`drivers/md/`)
-
-Wire formats (DER, PEM) are RFC-defined; preserved.
-
-### FIPS mode
-
-`fips=1` boot parameter: limits algorithm set to FIPS-approved + adds self-tests. Preserved.
-
-### verification
+## Verification
 
 ### Layer 1: Kani SAFETY proofs
 - Cipher block-loop pointer arithmetic
@@ -170,7 +173,22 @@ Wire formats (DER, PEM) are RFC-defined; preserved.
 
 These six are the hot path for fscrypt + WireGuard + dm-verity + module signing. Proving them is high-leverage.
 
-### hardening
+## Hardening
 
 Placeholder per `00-overview.md` D6. Notable: constant-time discipline is mandated by the deferred `00-security-principles.md`. Per-algorithm Rust implementations must avoid data-dependent branches and table lookups (use bitslicing or hardware-accelerated code paths).
 
+## Resolved Decisions
+
+### D1 (2026-05-09): v0 Layer-4 verification scope locked
+v0 Layer-4 (Verus / Creusot / Prusti) proofs are MANDATORY only for the named critical-path crypto: chacha20, poly1305, blake2s, libsha256, hmac(sha256), aes-128/256, ecdsa P-256, curve25519. These are the algorithms most kernel users consume (fscrypt + WireGuard + dm-verity + module signing). Other registered algorithms (~70+) get Layer-1/2/3 only in v0; Layer-4 graduation for them is a v1+ activity.
+
+## Open Questions
+
+(none — all open questions for this subsystem document are resolved above)
+
+## Out of Scope
+
+- Userspace TLS (OpenSSL etc.) — the kernel only offloads TLS record-layer; handshake stays userspace.
+- 32-bit-only paths.
+- Algorithms removed from upstream during v0 (e.g., deprecated MD4 may be dropped).
+- Implementation code — `.design/` contains specs only.
