@@ -1,0 +1,10 @@
+{
+  "uuid": "a936f358-b123-4b04-9ad5-0b872233f3b5",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iteration (2026-05-09): 2 Tier-3 docs added.\n\nmm/page-cache.md (219 lines, 15 REQ / 13 AC, 0 open) — filemap xarray + folio operations + readahead + truncate. address_space_operations vtable byte-identity preserved for fs/* compat.\n\nmm/reclaim.md (215 lines, 13 REQ / 13 AC, 0 open) — vmscan + classic LRU + MGLRU + shrinker framework + kswapd + oom_kill. Owns mm/00-overview.md's mandatory L3 LRU + memcg consistency invariants.\n\nTotal Tier-3: 18. Phase C running via /loop dynamic mode (270s heartbeat); user can interrupt anytime.",
+  "created_at": "2026-05-09T16:16:08.986140710Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAv0Aids4oaARD66HFIBbkd9GS5eeNEAU9H9kMEoyxgmD1NgdLme7vCCny7LSjPL1P6dxIfbg+zAVe8+m3aY7DBg=="
+}
