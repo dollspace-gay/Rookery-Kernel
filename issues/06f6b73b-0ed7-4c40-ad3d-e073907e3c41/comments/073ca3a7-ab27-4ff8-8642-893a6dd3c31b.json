@@ -1,0 +1,10 @@
+{
+  "uuid": "073ca3a7-ab27-4ff8-8642-893a6dd3c31b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 48: 2 Tier-3 net/netfilter docs (legacy x_tables + iptables ABI). net/netfilter/x-tables.md (shared framework: struct xt_table + xt_table_info per-AF table register w/ valid_hooks + priority, struct xt_match + xt_target + xt_entry_match + xt_entry_target with revision-based dispatch, xt_replace_table atomic RCU swap, per-CPU jump stack w/ XT_RECURSION_LIMIT=512, per-rule xt_counters per-CPU shards, full SO_SET_REPLACE/GET_INFO/GET_ENTRIES/GET_REVISION_*/GET_COUNTERS/ADD_COUNTERS UAPI; 32-bit compat DEFERRED for v0 — 10 REQ / 10 AC, 0 open) + net/netfilter/iptables.md (per-AF iptables/ip6tables: 5 standard tables filter/nat/mangle/raw/security w/ specific valid_hooks per table, struct ipt_entry+ipt_ip + ip6t_entry+ip6t_ip6 byte-identical UAPI, ipt_do_table+ip6t_do_table chain walk, NAT table FORWARD-rejection per RFC 3022, iptable_security LSM secmark integration, iptables-save/restore round-trip — 11 REQ / 10 AC, 0 open). 17 upstream paths validated against baseline 27a26ccfd528. Total: 135 .design docs. netfilter: 13 of 22 children done. Next: net/netfilter/ebtables.md (Ethernet bridge filtering) + net/netfilter/arptables.md (ARP filtering) — completes the legacy x_tables family.",
+  "created_at": "2026-05-09T22:40:42.692549289Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAlXSsh/xO9udb3x3/V65dvUuQJztOglX8FBRPFs+eFNUHtG071g/1tru/HeHyh/FeIwMK41RjqlmuQuCUNdx5Bg=="
+}
