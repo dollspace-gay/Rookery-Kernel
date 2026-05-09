@@ -1,0 +1,10 @@
+{
+  "uuid": "8907cae1-be07-4acd-88ab-83ecab256903",
+  "display_id": 4,
+  "title": "Author missing rust-for-linux abstractions Rookery needs (RwSemaphore, Kthread spawn, PerCpu)",
+  "status": "open",
+  "priority": "medium",
+  "created_by": "gb9t",
+  "created_at": "2026-05-09T03:20:42.548675709Z",
+  "updated_at": "2026-05-09T03:20:42.548675709Z"
+}
