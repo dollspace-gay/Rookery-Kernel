@@ -1,0 +1,10 @@
+{
+  "uuid": "5425693d-0063-4082-b03c-a543873bf828",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 42: 1 Tier-2 wrapper + 1 Tier-3 (pivot to net/netfilter framework — completes parent for cross-refs from sched/act_ct + sched/cls_flower + xfrm). net/netfilter/00-overview.md (umbrella for ~150 files: hook framework, conntrack core+proto+helper+expect+netlink+bpf, NAT core+helpers, nftables api+core+expressions+sets, flowtable + HW offload, x_tables/iptables/ip6tables/ebtables/arptables legacy ABI, ipset, IPVS, NFLOG, NFQUEUE; declares 22 Tier-3 children + 4 mandatory TLA+ models (conntrack_state_machine, nat_translation, flowtable_offload, nft_vm_eval) — 13 REQ-O / 10 AC-O, 0 open) + net/netfilter/core.md (hook framework: 5 NF_INET_* hooks + AF-specific Bridge/ARP/Netdev hooks, struct nf_hook_ops, per-netns/per-AF/per-hook priority-sorted chains, NF_DROP/ACCEPT/QUEUE/STOLEN/REPEAT verdict dispatch with queue-number encoding, RCU-side traversal w/ synchronize_net unregister, per-netdev NFPROTO_NETDEV ingress/egress, NF_IP_PRI_CONNTRACK/RAW/MANGLE/NAT_DST/FILTER/SECURITY/NAT_SRC/CONNTRACK_HELPER priority constants — 11 REQ / 11 AC, 0 open). 36 upstream paths validated against baseline 27a26ccfd528. Total: 123 .design docs (19 Tier-2s now). Next: net/netfilter/conntrack-core.md (per-flow nf_conn lifecycle, hashtable, expectations) + net/netfilter/conntrack-proto.md (per-proto state machines — owns models/net/conntrack_state_machine.tla).",
+  "created_at": "2026-05-09T21:47:55.249976287Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUeiWlz59CLjoD5ZLqkCXZau0XOqdp9cLAkNq73D81HJNJDdILCLOdDmjedc5eZNyD3yGhMan9dPiBalucAZMDw=="
+}
