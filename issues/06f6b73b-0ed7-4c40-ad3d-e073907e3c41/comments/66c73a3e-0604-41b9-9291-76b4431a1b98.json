@@ -1,0 +1,10 @@
+{
+  "uuid": "66c73a3e-0604-41b9-9291-76b4431a1b98",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter (2026-05-09): 2 Tier-3 docs added.\n\nkernel/locking/00-overview.md (241 lines, 14 REQ / 10 AC, 0 open) — locking primitives hub: mutex, qspinlock, qrwlock, rwsem, rtmutex, percpu-rwsem, lockdep, RCU (Tree + SRCU + Tasks + tiny). Names sub-tier docs: mutex.md, spinlock.md, rwsem.md, seqlock.md, rcu.md, lockdep.md, rtmutex.md, refcount.md, atomic.md.\n\nkernel/sched/cfs.md (271 lines, 16 REQ / 15 AC, 0 open) — **the FIFTH and final MANDATORY Layer-3 subsystem per 00-overview.md D4**. CFS / EEVDF scheduler with all of fair.c surface: per-CPU runqueue rbtree, vruntime accounting, PELT, wakeup preemption, load balancing, NUMA balancing, schedutil cpufreq, autogroup, idle, isolation, membarrier, wait queues. Mandatory L3 invariants: rbtree leftmost has smallest virtual deadline; cgroup hierarchical accounting; domain hierarchy subset; wait-queue list integrity. Layer-4 Verus opt-ins for CFS fairness theorem + nice→weight mapping correctness + pick_eevdf selection.\n\nALL FIVE MANDATORY Layer-3 subsystems per 00-overview.md D4 now have Tier-3 design docs:\n1. mm/page-allocator (buddy invariants)\n2. mm/slab (SLUB freelist)\n3. mm/virtual-memory (VMA non-overlap, page-table walker)\n4. fs/vfs/dcache (dcache integrity)\n5. kernel/sched/cfs (rbtree ordering — completed this iteration)\n\nPlus arch/x86/paging (page-table walker) — also mandatory.\n\nTotal: 22 Tier-3 docs (counting 2 sub-tier-3 hubs).",
+  "created_at": "2026-05-09T16:25:54.185882193Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAcVRGtuB468iqb4Iz4WVmE/ARwhnUbgo6Rm5mppGQktO+Zq3rWSZWRw9nIPmt/RzfjREXjsPkvTHvl1xs53JvAQ=="
+}
