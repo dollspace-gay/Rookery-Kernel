@@ -1,0 +1,10 @@
+{
+  "uuid": "37e6264a-6f54-453d-9379-6d1dc665624a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter (2026-05-09): 2 Tier-3 docs added.\n\nmm/swap.md (227 lines, 15 REQ / 10 AC, 1 open Q1 about default-enabling swap-page encryption) — swap subsystem: swapfile, swap_state cache, page_io for swap, per-memcg swap accounting, zswap. swap entry encoding, swapon/swapoff lifecycle, on-disk header byte-identity. Owns the mandatory L3 swap-slot exclusivity invariant from mm/00-overview.md.\n\nmm/vmalloc.md (167 lines, 11 REQ / 11 AC, 0 open) — vmalloc / vfree / kvmalloc / vmap / vmap_pfn. Lazy-free queue. Huge-page-backed vmalloc. /proc/vmallocinfo format-identical.\n\nTotal Tier-3 docs: 22 + 2 hubs (kernel/locking, kernel/sched). The mm core is now substantially complete: page-allocator, slab, virtual-memory, mmap, page-cache, reclaim, swap, vmalloc all drafted. Remaining mm: zsmalloc (small), thp, hugetlb, migration-compaction, ksm, userfaultfd, memcg, numa-mempolicy, memory-hotplug, memory-failure, bootmem, percpu, hmm, sanitizers, damon, mm-debug, maccess.",
+  "created_at": "2026-05-09T16:33:35.958173319Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYzjpndfxz13cIsTPsIg3LqAD+RzfZ/ttOGB0mnVFDIx/cMbrpUa4FE/VYUxKyWWZCNSfeJOwNFdl30TELrSDBw=="
+}
