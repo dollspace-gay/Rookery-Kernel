@@ -1,0 +1,10 @@
+{
+  "uuid": "cb8987b2-4711-47de-969e-c99d443e9f8f",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 4 (2026-05-09): 2 Tier-3 docs added (VFS pivot).\n\nfs/vfs/00-overview.md (193 lines, 11 REQ / 10 AC, 0 open) — VFS core hub. Establishes shared concepts; spawns 7 sub-tier-3 docs (inode, dcache, super, file-table, mount, path-resolution, fs-context). Operations-table layout byte-identity for all 5 vtables (super_operations, inode_operations, file_operations, address_space_operations, dentry_operations) is the keystone compat invariant.\n\nfs/vfs/inode.md (251 lines, 15 REQ / 13 AC, 0 open) — struct inode + inode_operations + ACL + xattr + libfs helpers + bad_inode + anon_inode. Covers stat/statx UAPI byte-identity, POSIX ACL inheritance, xattr namespace dispatch, idmapped-mount uid/gid translation, inode lifecycle state machine. Owns the mandatory L3 'every linked inode on its sb's s_inodes list' invariant from fs/00-overview.md. TLA+ model models/fs/inode_concurrent_link.tla owned here.\n\nTotal Tier-3: 25 docs (incl. 3 hubs: kernel/locking, kernel/sched, fs/vfs).",
+  "created_at": "2026-05-09T16:41:52.454709025Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOQgvpkRcOWtTeGlVCRzmEA+zTdRwBYTpf62V5ArpLyYqPNQzfqcP/w5O1omwA9JTI9Xzfnx3UKyGgPG5gvIzBw=="
+}
