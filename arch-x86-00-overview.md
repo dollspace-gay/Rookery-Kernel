@@ -7,16 +7,143 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
+# Subsystem: arch/x86/ — x86_64 architecture
 
-## Design Specification
+<!--
+baseline-commit: 27a26ccfd528da725a999ea1e3102503c61eb655
+baseline-version: 7.1.0-rc2
+status: in-v0
+upstream-paths:
+  - arch/x86/
+  - arch/x86/boot/
+  - arch/x86/coco/
+  - arch/x86/crypto/
+  - arch/x86/entry/
+  - arch/x86/events/
+  - arch/x86/hyperv/
+  - arch/x86/ia32/
+  - arch/x86/include/
+  - arch/x86/kernel/
+  - arch/x86/kvm/
+  - arch/x86/lib/
+  - arch/x86/mm/
+  - arch/x86/net/
+  - arch/x86/pci/
+  - arch/x86/platform/
+  - arch/x86/power/
+  - arch/x86/purgatory/
+  - arch/x86/ras/
+  - arch/x86/realmode/
+  - arch/x86/virt/
+  - arch/x86/xen/
+  - arch/x86/Kconfig
+  - arch/x86/Makefile
+-->
 
-### Summary
-
+## Summary
 Tier-2 overview for the x86_64 architecture port — Rookery's only architecture in v0. Owns every CPU-, MMU-, IRQ-, and platform-specific interaction with x86_64 hardware: boot from the bootloader hand-off through `start_kernel`, syscall and exception entry, page-table management, FPU/SIMD state, kexec hand-off, KVM host support, confidential-compute guest support (SEV-SNP, TDX), virtualized-guest enlightenments (Xen, Hyper-V), CPU-vulnerability mitigations, and the x86 BPF JIT.
 
 This document does NOT design Rust workspace/crate shape (delegated to the implementing instance per `00-overview.md`). It enumerates components, declares the compat-contract slice owned by x86, lists planned Tier-3 component docs, and fixes verification + hardening expectations.
 
-### Requirements
+## Upstream references in scope
+
+`arch/x86/` is 25+ subdirectories totaling tens of thousands of lines. The Tier-3 docs spawned from this overview cover them in detail; the table below is a roadmap.
+
+| Upstream subdir | Purpose | Planned Tier-3 doc |
+|---|---|---|
+| `arch/x86/boot/`         | Real-mode + protected-mode setup before the 64-bit kernel runs; bzImage header (`header.S`), early decompression (`compressed/`) | `boot.md` |
+| `arch/x86/realmode/`     | Real-mode trampolines used for AP CPU bringup and S3 wakeup | folded into `boot.md` and `kernel-platform.md` |
+| `arch/x86/purgatory/`    | Tiny stub running between kexec'd kernels (SHA-256 image verification) | folded into `boot.md` (kexec section) |
+| `arch/x86/entry/`        | Syscall, IRQ, exception entry/exit assembly + C; vDSO; vsyscall (legacy) | `entry.md`, `vdso.md` |
+| `arch/x86/kernel/`       | Core x86 platform: head_64.S, setup, traps, IDT, SMP bringup, signals, FPU, time, kexec, CPU init, ftrace, modules | `kernel-platform.md` (umbrella; spawns smaller docs as content grows) |
+| `arch/x86/mm/`           | Page tables, page-fault handler, ioremap, PAT, KASLR, KASAN/KMSAN init, AMD SEV memory encryption | `paging.md`, `mem_encrypt.md` |
+| `arch/x86/coco/`         | Confidential-compute guest support: SEV-SNP (AMD) + TDX (Intel) infrastructure | `coco.md` |
+| `arch/x86/kvm/`          | KVM hypervisor module (host side): VMX (Intel) + SVM (AMD) | `kvm.md` (cross-references `virt/00-overview.md`) |
+| `arch/x86/xen/`          | Xen PV/PVH guest enlightenments | `xen-guest.md` |
+| `arch/x86/hyperv/`       | Hyper-V guest enlightenments | `hyperv-guest.md` |
+| `arch/x86/events/`       | x86 PMU drivers (Intel, AMD, Zhaoxin); the `perf_event` substrate | `pmu.md` (cross-references `kernel/events/`) |
+| `arch/x86/crypto/`       | AES-NI, SHA-NI, AVX-assisted hashes/ciphers | `crypto-accel.md` |
+| `arch/x86/net/`          | BPF JIT for x86_64 | `bpf-jit.md` |
+| `arch/x86/pci/`          | x86 PCI configuration mechanisms (mmconfig, type-1 ports) | `pci.md` |
+| `arch/x86/platform/`     | Platform-specific quirks (UV, Intel-MID legacy, OLPC, EFI, IRIS, AMD-CCP) | folded into `kernel-platform.md` |
+| `arch/x86/power/`        | Suspend-to-RAM (S3) and hibernate (S4) | `power.md` |
+| `arch/x86/ras/`          | Machine-check architecture, CEC (Corrected-Errors Collector) | `ras.md` |
+| `arch/x86/virt/`         | x86 virtualization shared helpers (vmx common, svm common) | folded into `kvm.md` |
+| `arch/x86/lib/`          | x86-specific libc-equivalents: memcpy, memset, copy_to/from_user, retpoline thunks | folded into `kernel-platform.md` and `entry.md` |
+| `arch/x86/ia32/`         | 32-bit-on-64-bit compat layer | folded into `entry.md` |
+| `arch/x86/include/asm/`  | x86 architecture headers (339 files) | (covered indirectly by all the above; major headers cited in their respective Tier-3 docs) |
+
+The 22 architectures other than `x86` are out of scope for v0 (per `arch/00-overview.md`).
+
+## Compatibility contract
+
+x86_64 owns the following slice of the project's full-ABI drop-in compat surface (`00-overview.md` REQ-1 through REQ-5):
+
+### Boot interface
+
+The x86 boot protocol (`Documentation/arch/x86/boot.rst`, `arch/x86/boot/header.S`, `arch/x86/include/uapi/asm/bootparam.h`) defines how the bootloader hands control to the kernel.
+
+- **bzImage header**: byte-identical layout. Magic `0x53726448` ("HdrS"), `setup_sects`, `version`, `realmode_swtch`, `start_sys_seg`, `kernel_version`, `type_of_loader`, `loadflags`, `setup_move_size`, `code32_start`, `ramdisk_image`, `ramdisk_size`, `heap_end_ptr`, `cmd_line_ptr`, `init_size`, `handover_offset`, `kernel_info_offset`. Owned by `boot.md`.
+- **boot_params struct**: byte-identical, including `screen_info`, `apm_bios_info`, `tboot_addr`, `ist_info`, `acpi_rsdp_addr`, `e820_table`, `eddbuf`, `efi_info`, command-line tail. Owned by `boot.md`.
+- **EFI hand-off**: identical EFI hand-off entry point and parameter layout (`handover_offset`, `efi_info` fields, EFI memory map relayed via `boot_params`). Owned by `boot.md`.
+- **kexec hand-off**: the kernel produces a kexec hand-off byte-identical to upstream's (REQ-15 / D5). Source: `arch/x86/kernel/machine_kexec_64.c`, `arch/x86/kernel/relocate_kernel_64.S`, `arch/x86/purgatory/`. Owned by `boot.md`.
+- **xen PVH boot entry**: identical PVH note + entry contract for Xen PVH boot. Owned by `xen-guest.md`.
+
+### Syscall interface
+
+x86_64 syscall ABI per the System V x86-64 calling convention (subset for syscalls):
+
+- **Instructions**: `syscall` (preferred), `int 0x80` (legacy 32-bit-on-64-bit), `sysenter` (legacy compat). Identical instruction recognition.
+- **Registers in (x86_64)**: `rax`=syscall number, `rdi`=arg0, `rsi`=arg1, `rdx`=arg2, `r10`=arg3, `r8`=arg4, `r9`=arg5. (Note `r10` not `rcx`; `rcx` is clobbered by the `syscall` insn for `rip`.)
+- **Registers out**: `rax`=result. Negative values in `[-4095, -1]` indicate `-errno` per upstream convention.
+- **Clobbered**: `rcx` (saved `rip`), `r11` (saved `rflags`).
+- **Syscall numbers**: identical to `arch/x86/entry/syscalls/syscall_64.tbl` (421 entries at baseline including `x32` overlapping range).
+- **vDSO fast paths**: `__vdso_clock_gettime`, `__vdso_clock_getres`, `__vdso_gettimeofday`, `__vdso_time`, `__vdso_getcpu` exposed via `linux-vdso.so.1` mapped into every userspace process. Owned by `vdso.md`.
+- **vsyscall page** (legacy emulation): `0xffffffffff600000` virtual address with `gettimeofday`, `time`, `getcpu` stubs. CONFIG_LEGACY_VSYSCALL_* gated; `EMULATE` mode is the upstream default. Owned by `vdso.md`.
+- **Compat layer**: 32-bit-on-64-bit syscalls (`int 0x80`, `syscall32` via `entry_64_compat.S`) consume the 32-bit `syscall_32.tbl`. Owned by `entry.md`.
+- **FRED entry**: optional path via Flexible Return and Event Delivery (`entry_64_fred.S`, `entry_fred.c`) on FRED-capable CPUs; for Rookery, FRED support tracks upstream's CONFIG_X86_FRED. Owned by `entry.md`.
+
+### CPU state visible to userspace
+
+- **General-purpose registers**: 16 GPRs (`rax`-`r15`) saved in `pt_regs` (`arch/x86/include/asm/ptrace.h`); ptrace `NT_PRSTATUS` register set is byte-identical.
+- **Segment registers**: `cs`, `ss`, `ds`, `es`, `fs`, `gs` saved in `pt_regs`. `fs.base`, `gs.base` saved per-task (used by TLS).
+- **FPU/SIMD state**: stored in `struct fpu` (variable-size, per `XSAVE`/`XSAVES` features advertised by CPUID). Layout matches upstream's `fpu_state_perm` per-task tracking. Owned by `kernel-platform.md` (FPU section).
+- **Signal frame**: `struct ucontext_t` and `struct sigcontext` from `include/uapi/asm/sigcontext.h` are byte-identical. The signal-handler entry restores GPRs, segment registers, FPU state from the frame on `sigreturn(2)`. Owned by `signal.md`.
+- **TLS**: `arch_prctl(ARCH_SET_FS, ...)`/`ARCH_GET_FS` semantics + the four-slot user-segment TLS table (legacy 32-bit). Owned by `entry.md` plus `kernel-platform.md`.
+
+### Memory layout visible to userspace
+
+- **Userspace virtual address range** (`TASK_SIZE`): on 4-level paging, `0x00007fff_ffffffff` (47-bit). On 5-level paging (CONFIG_X86_5LEVEL + CR4.LA57), `0x00ffffff_ffffffff` (56-bit). Identical to upstream.
+- **mmap base randomization**: `arch_mmap_rnd_bits` range `[28, 32]`; identical default behavior.
+- **Page sizes**: 4 KiB (4 K), 2 MiB (PMD-large), 1 GiB (PUD-huge). All advertised to userspace via `/proc/<pid>/smaps` `KernelPageSize`/`MMUPageSize`.
+- **`/proc/<pid>/maps` and `/proc/<pid>/smaps`**: format byte-identical (compat-critical for tooling: gdb, valgrind, strace, perf, libunwind).
+- **`/proc/cpuinfo`**: identical fields and ordering (`vendor_id`, `cpu family`, `model`, `model name`, `stepping`, `microcode`, `cpu MHz`, `cache size`, `physical id`, `siblings`, `core id`, `cpu cores`, `apicid`, `initial apicid`, `fpu`, `fpu_exception`, `cpuid level`, `wp`, `flags`, `bugs`, `bogomips`, `clflush size`, `cache_alignment`, `address sizes`, `power management`). Owned by `cpuinfo.md`.
+
+### ELF and binfmt
+
+- **e_machine = `EM_X86_64` (62)** for 64-bit; `EM_386` (3) for 32-bit compat.
+- **ELF auxiliary vector entries**: identical (`AT_PLATFORM`, `AT_BASE_PLATFORM`, `AT_HWCAP`, `AT_HWCAP2`, `AT_RANDOM`, `AT_SYSINFO_EHDR` pointing at vDSO).
+- **HWCAP / HWCAP2** bit definitions: identical per `arch/x86/include/uapi/asm/hwcap.h` (where present) and `arch/x86/include/asm/cpufeatures.h`. Owned by `cpuinfo.md`.
+
+### Hypervisor / virtualization interfaces
+
+- **KVM userspace ABI** (`/dev/kvm` ioctls per `include/uapi/linux/kvm.h`) — owned at the cross-arch level by `virt/00-overview.md`; x86-specific KVM_GET_SUPPORTED_CPUID, KVM_SET_TSC_KHZ, MSR-based ops are owned here. Owned by `kvm.md`.
+- **Xen PV/PVH guest interface** — hypercall ABI, event channels, grant tables (Xen-defined; we implement the guest side). Owned by `xen-guest.md`.
+- **Hyper-V TLFS-defined synthetic MSRs and hypercalls** — guest-side. Owned by `hyperv-guest.md`.
+- **Confidential-guest interfaces**: AMD SEV-SNP `GHCB` protocol, Intel TDX `TDCALL`/`TDVMCALL`. Owned by `coco.md`.
+
+### IDT / IRQ / exception interface (mostly internal but ptrace-visible)
+
+- **Hardware exception vectors 0-31** are fixed by the CPU; their handlers' visible behavior (signal delivery, ptrace stops, core-dump generation, `/proc/<pid>/syscall` semantics) is byte-identical.
+- **Exception → signal mapping**: `#PF` → `SIGSEGV` or `SIGBUS`, `#GP` → `SIGSEGV`, `#UD` → `SIGILL`, `#DE` → `SIGFPE`, `#OF` → `SIGSEGV`, etc. Owned by `entry.md`.
+
+### MSRs and CPUID
+
+- **Userspace-visible MSRs via `/dev/cpu/<n>/msr`**: identical per upstream `arch/x86/kernel/msr.c`.
+- **CPUID exposure to userspace via `/dev/cpu/<n>/cpuid`**: identical per upstream `arch/x86/kernel/cpuid.c`.
+- **rdtsc / rdtscp / rdpmc** behavior: identical, including conditional disables via `prctl(PR_SET_TSC, ...)` / `cr4.TSD`.
+
+## Requirements
 
 - REQ-1: A Rookery-built `bzImage` consumes the upstream-defined boot protocol (`Documentation/arch/x86/boot.rst`) byte-for-byte: the same `boot_params` fields, the same `setup_header` layout, the same EFI hand-off conventions. (Drop-in compat source.)
 - REQ-2: A Rookery kernel produces a kexec hand-off (`segment[]` + `boot_params`) byte-identical to upstream's such that an existing `kexec`-tools userspace (or a Rookery-built one) can `kexec` to and from a Rookery kernel.
@@ -32,7 +159,7 @@ This document does NOT design Rust workspace/crate shape (delegated to the imple
 - REQ-12: All CPU-vulnerability mitigations upstream supports at the baseline commit (Spectre-v1/v2, Meltdown, MDS, TAA, SRBDS, MMIO Stale Data, retbleed, GDS, BHI, SLS, EntryBleed, RFDS, Reg-File Data Sampling, …) are implemented, with identical `cpu_show_*()` reporting under `/sys/devices/system/cpu/vulnerabilities/`.
 - REQ-13: All Tier-3 component docs spawned from this overview are listed in the Architecture section's Layout map.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 - [ ] AC-1: A Rookery-built `bzImage` boots under QEMU using a stock GRUB or systemd-boot configuration without modification. Verified by booting through `start_kernel` to userspace `init`. (covers REQ-1)
 - [ ] AC-2: A Rookery kernel can `kexec` into an upstream Linux kernel and vice versa, verified by an integration-test harness. (covers REQ-2)
@@ -48,7 +175,7 @@ This document does NOT design Rust workspace/crate shape (delegated to the imple
 - [ ] AC-12: `/sys/devices/system/cpu/vulnerabilities/*` files exist and report the same `Mitigation: ...` strings as upstream on identical hardware. (covers REQ-12)
 - [ ] AC-13: This document's Architecture section's Layout map enumerates Tier-3 docs covering boot, entry, paging, kernel-platform (CPU bringup / FPU / signal / time / IDT / TSS / kexec), vDSO, cpuinfo, ptrace ABI, ELF, CPU mitigations, COCO, hyperv-guest, xen-guest, KVM, PCI, RAS, power, crypto-accel, BPF JIT. (covers REQ-13)
 
-### Architecture
+## Architecture
 
 ### Layout map (Tier-3 docs spawned from this overview)
 
@@ -119,115 +246,7 @@ The vDSO update path (clock-source updates) uses a seqlock between writers (time
 
 x86 entry paths must NOT return `Result` (exceptions and IRQs do not have a fallible-return contract). Errors detected during entry (bad IRET frame, invalid syscall number) translate to a signal delivery to the offending task, not a return value. The Rust-side type is `kernel::arch::x86::EntryOutcome` with variants `Continue`, `DeliverSignal { sig, info }`, `BugOn`. The `BugOn` arm panics via `kernel::panic!` (not bare `panic!`).
 
-### Out of Scope
-
-- 32-bit-only kernel (`X86_32=y`) — per Q1 recommendation.
-- math-emu (`arch/x86/math-emu/`) — per Q4 recommendation.
-- Architectures other than x86_64 (every `arch/<name>/` for `<name> != x86`) — per `00-overview.md` D5.
-- User Mode Linux (`arch/x86/um/`, `arch/um/`) — per `arch/00-overview.md` Q2.
-- `arch/x86/video/` BIOS-VGA legacy — modern systems boot via EFI framebuffer; legacy VGA is deferred to v1+ if demand arises.
-- 32-bit `arch/x86/ia32/` syscalls 0–280 (the gap range that no current 32-bit userspace uses) — covered by inclusion of full `syscall_32.tbl` but no per-syscall designs in Phase D.
-- Implementation code — `.design/` contains specs only.
-
-### upstream references in scope
-
-`arch/x86/` is 25+ subdirectories totaling tens of thousands of lines. The Tier-3 docs spawned from this overview cover them in detail; the table below is a roadmap.
-
-| Upstream subdir | Purpose | Planned Tier-3 doc |
-|---|---|---|
-| `arch/x86/boot/`         | Real-mode + protected-mode setup before the 64-bit kernel runs; bzImage header (`header.S`), early decompression (`compressed/`) | `boot.md` |
-| `arch/x86/realmode/`     | Real-mode trampolines used for AP CPU bringup and S3 wakeup | folded into `boot.md` and `kernel-platform.md` |
-| `arch/x86/purgatory/`    | Tiny stub running between kexec'd kernels (SHA-256 image verification) | folded into `boot.md` (kexec section) |
-| `arch/x86/entry/`        | Syscall, IRQ, exception entry/exit assembly + C; vDSO; vsyscall (legacy) | `entry.md`, `vdso.md` |
-| `arch/x86/kernel/`       | Core x86 platform: head_64.S, setup, traps, IDT, SMP bringup, signals, FPU, time, kexec, CPU init, ftrace, modules | `kernel-platform.md` (umbrella; spawns smaller docs as content grows) |
-| `arch/x86/mm/`           | Page tables, page-fault handler, ioremap, PAT, KASLR, KASAN/KMSAN init, AMD SEV memory encryption | `paging.md`, `mem_encrypt.md` |
-| `arch/x86/coco/`         | Confidential-compute guest support: SEV-SNP (AMD) + TDX (Intel) infrastructure | `coco.md` |
-| `arch/x86/kvm/`          | KVM hypervisor module (host side): VMX (Intel) + SVM (AMD) | `kvm.md` (cross-references `virt/00-overview.md`) |
-| `arch/x86/xen/`          | Xen PV/PVH guest enlightenments | `xen-guest.md` |
-| `arch/x86/hyperv/`       | Hyper-V guest enlightenments | `hyperv-guest.md` |
-| `arch/x86/events/`       | x86 PMU drivers (Intel, AMD, Zhaoxin); the `perf_event` substrate | `pmu.md` (cross-references `kernel/events/`) |
-| `arch/x86/crypto/`       | AES-NI, SHA-NI, AVX-assisted hashes/ciphers | `crypto-accel.md` |
-| `arch/x86/net/`          | BPF JIT for x86_64 | `bpf-jit.md` |
-| `arch/x86/pci/`          | x86 PCI configuration mechanisms (mmconfig, type-1 ports) | `pci.md` |
-| `arch/x86/platform/`     | Platform-specific quirks (UV, Intel-MID legacy, OLPC, EFI, IRIS, AMD-CCP) | folded into `kernel-platform.md` |
-| `arch/x86/power/`        | Suspend-to-RAM (S3) and hibernate (S4) | `power.md` |
-| `arch/x86/ras/`          | Machine-check architecture, CEC (Corrected-Errors Collector) | `ras.md` |
-| `arch/x86/virt/`         | x86 virtualization shared helpers (vmx common, svm common) | folded into `kvm.md` |
-| `arch/x86/lib/`          | x86-specific libc-equivalents: memcpy, memset, copy_to/from_user, retpoline thunks | folded into `kernel-platform.md` and `entry.md` |
-| `arch/x86/ia32/`         | 32-bit-on-64-bit compat layer | folded into `entry.md` |
-| `arch/x86/include/asm/`  | x86 architecture headers (339 files) | (covered indirectly by all the above; major headers cited in their respective Tier-3 docs) |
-
-The 22 architectures other than `x86` are out of scope for v0 (per `arch/00-overview.md`).
-
-### compatibility contract
-
-x86_64 owns the following slice of the project's full-ABI drop-in compat surface (`00-overview.md` REQ-1 through REQ-5):
-
-### Boot interface
-
-The x86 boot protocol (`Documentation/arch/x86/boot.rst`, `arch/x86/boot/header.S`, `arch/x86/include/uapi/asm/bootparam.h`) defines how the bootloader hands control to the kernel.
-
-- **bzImage header**: byte-identical layout. Magic `0x53726448` ("HdrS"), `setup_sects`, `version`, `realmode_swtch`, `start_sys_seg`, `kernel_version`, `type_of_loader`, `loadflags`, `setup_move_size`, `code32_start`, `ramdisk_image`, `ramdisk_size`, `heap_end_ptr`, `cmd_line_ptr`, `init_size`, `handover_offset`, `kernel_info_offset`. Owned by `boot.md`.
-- **boot_params struct**: byte-identical, including `screen_info`, `apm_bios_info`, `tboot_addr`, `ist_info`, `acpi_rsdp_addr`, `e820_table`, `eddbuf`, `efi_info`, command-line tail. Owned by `boot.md`.
-- **EFI hand-off**: identical EFI hand-off entry point and parameter layout (`handover_offset`, `efi_info` fields, EFI memory map relayed via `boot_params`). Owned by `boot.md`.
-- **kexec hand-off**: the kernel produces a kexec hand-off byte-identical to upstream's (REQ-15 / D5). Source: `arch/x86/kernel/machine_kexec_64.c`, `arch/x86/kernel/relocate_kernel_64.S`, `arch/x86/purgatory/`. Owned by `boot.md`.
-- **xen PVH boot entry**: identical PVH note + entry contract for Xen PVH boot. Owned by `xen-guest.md`.
-
-### Syscall interface
-
-x86_64 syscall ABI per the System V x86-64 calling convention (subset for syscalls):
-
-- **Instructions**: `syscall` (preferred), `int 0x80` (legacy 32-bit-on-64-bit), `sysenter` (legacy compat). Identical instruction recognition.
-- **Registers in (x86_64)**: `rax`=syscall number, `rdi`=arg0, `rsi`=arg1, `rdx`=arg2, `r10`=arg3, `r8`=arg4, `r9`=arg5. (Note `r10` not `rcx`; `rcx` is clobbered by the `syscall` insn for `rip`.)
-- **Registers out**: `rax`=result. Negative values in `[-4095, -1]` indicate `-errno` per upstream convention.
-- **Clobbered**: `rcx` (saved `rip`), `r11` (saved `rflags`).
-- **Syscall numbers**: identical to `arch/x86/entry/syscalls/syscall_64.tbl` (421 entries at baseline including `x32` overlapping range).
-- **vDSO fast paths**: `__vdso_clock_gettime`, `__vdso_clock_getres`, `__vdso_gettimeofday`, `__vdso_time`, `__vdso_getcpu` exposed via `linux-vdso.so.1` mapped into every userspace process. Owned by `vdso.md`.
-- **vsyscall page** (legacy emulation): `0xffffffffff600000` virtual address with `gettimeofday`, `time`, `getcpu` stubs. CONFIG_LEGACY_VSYSCALL_* gated; `EMULATE` mode is the upstream default. Owned by `vdso.md`.
-- **Compat layer**: 32-bit-on-64-bit syscalls (`int 0x80`, `syscall32` via `entry_64_compat.S`) consume the 32-bit `syscall_32.tbl`. Owned by `entry.md`.
-- **FRED entry**: optional path via Flexible Return and Event Delivery (`entry_64_fred.S`, `entry_fred.c`) on FRED-capable CPUs; for Rookery, FRED support tracks upstream's CONFIG_X86_FRED. Owned by `entry.md`.
-
-### CPU state visible to userspace
-
-- **General-purpose registers**: 16 GPRs (`rax`-`r15`) saved in `pt_regs` (`arch/x86/include/asm/ptrace.h`); ptrace `NT_PRSTATUS` register set is byte-identical.
-- **Segment registers**: `cs`, `ss`, `ds`, `es`, `fs`, `gs` saved in `pt_regs`. `fs.base`, `gs.base` saved per-task (used by TLS).
-- **FPU/SIMD state**: stored in `struct fpu` (variable-size, per `XSAVE`/`XSAVES` features advertised by CPUID). Layout matches upstream's `fpu_state_perm` per-task tracking. Owned by `kernel-platform.md` (FPU section).
-- **Signal frame**: `struct ucontext_t` and `struct sigcontext` from `include/uapi/asm/sigcontext.h` are byte-identical. The signal-handler entry restores GPRs, segment registers, FPU state from the frame on `sigreturn(2)`. Owned by `signal.md`.
-- **TLS**: `arch_prctl(ARCH_SET_FS, ...)`/`ARCH_GET_FS` semantics + the four-slot user-segment TLS table (legacy 32-bit). Owned by `entry.md` plus `kernel-platform.md`.
-
-### Memory layout visible to userspace
-
-- **Userspace virtual address range** (`TASK_SIZE`): on 4-level paging, `0x00007fff_ffffffff` (47-bit). On 5-level paging (CONFIG_X86_5LEVEL + CR4.LA57), `0x00ffffff_ffffffff` (56-bit). Identical to upstream.
-- **mmap base randomization**: `arch_mmap_rnd_bits` range `[28, 32]`; identical default behavior.
-- **Page sizes**: 4 KiB (4 K), 2 MiB (PMD-large), 1 GiB (PUD-huge). All advertised to userspace via `/proc/<pid>/smaps` `KernelPageSize`/`MMUPageSize`.
-- **`/proc/<pid>/maps` and `/proc/<pid>/smaps`**: format byte-identical (compat-critical for tooling: gdb, valgrind, strace, perf, libunwind).
-- **`/proc/cpuinfo`**: identical fields and ordering (`vendor_id`, `cpu family`, `model`, `model name`, `stepping`, `microcode`, `cpu MHz`, `cache size`, `physical id`, `siblings`, `core id`, `cpu cores`, `apicid`, `initial apicid`, `fpu`, `fpu_exception`, `cpuid level`, `wp`, `flags`, `bugs`, `bogomips`, `clflush size`, `cache_alignment`, `address sizes`, `power management`). Owned by `cpuinfo.md`.
-
-### ELF and binfmt
-
-- **e_machine = `EM_X86_64` (62)** for 64-bit; `EM_386` (3) for 32-bit compat.
-- **ELF auxiliary vector entries**: identical (`AT_PLATFORM`, `AT_BASE_PLATFORM`, `AT_HWCAP`, `AT_HWCAP2`, `AT_RANDOM`, `AT_SYSINFO_EHDR` pointing at vDSO).
-- **HWCAP / HWCAP2** bit definitions: identical per `arch/x86/include/uapi/asm/hwcap.h` (where present) and `arch/x86/include/asm/cpufeatures.h`. Owned by `cpuinfo.md`.
-
-### Hypervisor / virtualization interfaces
-
-- **KVM userspace ABI** (`/dev/kvm` ioctls per `include/uapi/linux/kvm.h`) — owned at the cross-arch level by `virt/00-overview.md`; x86-specific KVM_GET_SUPPORTED_CPUID, KVM_SET_TSC_KHZ, MSR-based ops are owned here. Owned by `kvm.md`.
-- **Xen PV/PVH guest interface** — hypercall ABI, event channels, grant tables (Xen-defined; we implement the guest side). Owned by `xen-guest.md`.
-- **Hyper-V TLFS-defined synthetic MSRs and hypercalls** — guest-side. Owned by `hyperv-guest.md`.
-- **Confidential-guest interfaces**: AMD SEV-SNP `GHCB` protocol, Intel TDX `TDCALL`/`TDVMCALL`. Owned by `coco.md`.
-
-### IDT / IRQ / exception interface (mostly internal but ptrace-visible)
-
-- **Hardware exception vectors 0-31** are fixed by the CPU; their handlers' visible behavior (signal delivery, ptrace stops, core-dump generation, `/proc/<pid>/syscall` semantics) is byte-identical.
-- **Exception → signal mapping**: `#PF` → `SIGSEGV` or `SIGBUS`, `#GP` → `SIGSEGV`, `#UD` → `SIGILL`, `#DE` → `SIGFPE`, `#OF` → `SIGSEGV`, etc. Owned by `entry.md`.
-
-### MSRs and CPUID
-
-- **Userspace-visible MSRs via `/dev/cpu/<n>/msr`**: identical per upstream `arch/x86/kernel/msr.c`.
-- **CPUID exposure to userspace via `/dev/cpu/<n>/cpuid`**: identical per upstream `arch/x86/kernel/cpuid.c`.
-- **rdtsc / rdtscp / rdpmc** behavior: identical, including conditional disables via `prctl(PR_SET_TSC, ...)` / `cr4.TSD`.
-
-### verification
+## Verification
 
 Per `00-overview.md` D4, this Tier-2 document declares the verification expectations for the x86 subsystem. Each Tier-3 doc enumerates its concrete artifacts; this section sets the floor.
 
@@ -272,7 +291,7 @@ Subsystem opt-ins anticipated:
 - `arch/x86/bpf-jit.md` — JIT correctness (the emitted x86 bytes execute the BPF program's semantics) is a candidate for **Creusot**, but is large enough that it may slip past v0; track but do not require.
 - `arch/x86/cpu-mitigations.md` — retpoline-thunk equivalence (the thunk is observably indistinguishable from a direct indirect call in the absence of speculation) is a candidate for hand-written assembly proof rather than a Rust verifier.
 
-### hardening
+## Hardening
 
 Placeholder per `00-overview.md` D6 (binding policy in deferred `00-security-principles.md`). The arch/x86 tier owns the *implementation* of the following hardening features; their policy gating lands in the principles doc once authored.
 
@@ -289,3 +308,36 @@ Placeholder per `00-overview.md` D6 (binding policy in deferred `00-security-pri
 
 Each Tier-3 doc whose content touches a hardening feature gains a "Hardening" section.
 
+## Resolved Decisions
+
+### D1: 32-bit-only kernel (`X86_32=y`) is out of scope
+Drop-in compat targets prevalent x86_64 distros. The 32-bit *userspace* compat layer (`arch/x86/ia32/`) IS in v0 scope; a pure 32-bit *kernel* is not. No `i386_kernel.md` design doc is authored in v0; one may be added as a deferred placeholder if future demand arises.
+
+### D2: FRED implemented alongside classic IDT path in v0
+Both code paths are required because the bootloader hands off in IDT mode and FRED must be enabled mid-boot if available. An FRED-only kernel cannot boot on non-FRED hardware, so the dual-path implementation is mandatory. `entry.md` (Tier 3) covers both.
+
+### D3: Full PV-OPS paravirt layer preserved in v0
+Hypervisor-guest performance is part of the drop-in promise — if Xen / Hyper-V / KVM guests run noticeably slower under Rookery, that breaks user expectations even if functionally correct. `kernel-platform.md` (Tier 3) covers paravirt dispatch. Tier-3 work for `xen-guest.md`, `hyperv-guest.md`, and `kvm.md` (host) all consume the paravirt dispatch layer.
+
+### D4: math-emu out of scope for v0
+Every x86_64 CPU has hardware FPU mandated by the architecture. `arch/x86/math-emu/` is not reverse-engineered.
+
+### D5: vsyscall page in EMULATE mode by default
+Matches upstream default (`CONFIG_LEGACY_VSYSCALL_EMULATE=y`). Preserves compat with very old binaries that still call into the fixed `0xffffffffff600000` mapping. `vdso.md` (Tier 3) owns the full spec.
+
+### D6: KVM is in v0 scope with staged delivery
+KVM (`arch/x86/kvm/`) IS in v0. The implementing instance may stage delivery: (a) basic VMX guest support → (b) MSR/CPUID emulation → (c) MMU virtualization → (d) lapic/IOAPIC emulation → (e) nested virt. **v0 graduation bar: `kvm-unit-tests` passes against Rookery KVM with the same pass/fail set as upstream.** The `kvm.md` (Tier 3) doc owns the design and names the staging gates.
+
+## Open Questions
+
+(none — all open questions for this subsystem document are resolved above)
+
+## Out of Scope
+
+- 32-bit-only kernel (`X86_32=y`) — per Q1 recommendation.
+- math-emu (`arch/x86/math-emu/`) — per Q4 recommendation.
+- Architectures other than x86_64 (every `arch/<name>/` for `<name> != x86`) — per `00-overview.md` D5.
+- User Mode Linux (`arch/x86/um/`, `arch/um/`) — per `arch/00-overview.md` Q2.
+- `arch/x86/video/` BIOS-VGA legacy — modern systems boot via EFI framebuffer; legacy VGA is deferred to v1+ if demand arises.
+- 32-bit `arch/x86/ia32/` syscalls 0–280 (the gap range that no current 32-bit userspace uses) — covered by inclusion of full `syscall_32.tbl` but no per-syscall designs in Phase D.
+- Implementation code — `.design/` contains specs only.
