@@ -361,22 +361,14 @@ The implementing instance decides crate boundaries within these guardrails:
 - **Documentation language** — English only, matching upstream Linux convention.
 - **Rust 2024 edition** — deferred until rust-for-linux moves; currently 2021.
 
+## Resolved Decisions
+
+### D1: Lints land before subsystem implementation
+Issue #3 (Rookery-specific clippy lints) is a **hard prerequisite** for any non-foundation implementation work. The full lint set — `unsafe_without_proof`, `panic_in_kernel_path`, `async_in_kernel`, `alloc_without_gfp`, `bare_arithmetic_on_size`, `unstable_feature_without_decision` — must merge in upstream-or-Rookery clippy-driver-plugin form before any subsystem implementation crate is started. Rationale: the entire codebase grows under enforcement; retrofitting the lints onto a partly-written codebase has historically produced thousands of `#![allow(...)]` escape hatches that never get cleaned up. Recorded as a block on the implementation tracking issue (issue #3 blocked by #1; subsystem-implementation issues will block on #3 as they're created).
+
+### D2: TLA+ default is TLC; opt-in to Apalache
+The TLC model checker is the default for `make tla`. A model whose state space is too large for TLC, or that requires parametric / unbounded reasoning, declares `(* APALACHE *)` in its preamble; CI dispatches to Apalache for those models. Both checkers run as part of `make tla`. Rationale: TLC has the gentler authoring experience and richer error traces for the common case; Apalache is the right escape hatch for the cases TLC can't handle.
+
 ## Open Questions
 
-<!-- OPEN: Q1 -->
-### Q1: Project-specific clippy lint authoring schedule
-The lints `unsafe_without_proof`, `panic_in_kernel_path`, `async_in_kernel`, `bare_arithmetic_on_size`, `alloc_without_gfp`, `unstable_feature_without_decision` are referenced as enforcement mechanisms but don't exist yet. They are independent crate-of-clippy plugins, each requiring AST traversal logic.
-
-**Recommendation**: Track each lint as its own crosslink subissue under issue #1. Author the lints as one of the first implementation tasks (before any subsystem code) so the rest of the codebase grows under enforcement.
-
-**To resolve**: User confirms the priority — block any non-foundation implementation work on these lints landing first.
-<!-- /OPEN -->
-
-<!-- OPEN: Q2 -->
-### Q2: TLA+ tooling — TLC vs Apalache
-Two TLA+ model checkers exist: TLC (the original) and Apalache (symbolic, supports unbounded properties via SMT). Many concurrency proofs are tractable in TLC; some (large state spaces, parametric proofs) need Apalache.
-
-**Recommendation**: TLC is the default. A model may declare `(* APALACHE *)` in its preamble to opt into Apalache instead. CI runs both checkers as appropriate.
-
-**To resolve**: User confirms the default.
-<!-- /OPEN -->
+(none — all open questions for this foundational document are resolved above)
