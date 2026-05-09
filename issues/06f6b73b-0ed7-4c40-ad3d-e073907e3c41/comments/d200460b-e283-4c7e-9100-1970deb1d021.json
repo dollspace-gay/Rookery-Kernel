@@ -1,0 +1,10 @@
+{
+  "uuid": "d200460b-e283-4c7e-9100-1970deb1d021",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 56: 2 Tier-3 fs/proc docs (proc-net per-netns + proc-namespaces). fs/proc/proc-net.md (per-netns /proc/net/* infrastructure: per-task netns resolution via /proc/self/net symlink, proc_create_net*+_data+_single+_single_write registration family, struct pernet_operations w/ init+exit+exit_batch+pre_exit lifecycle, full standard /proc/net entries table cross-referencing per-subsys content owners (tcp/udp/unix/packet/dev/route/snmp/snmp6/nf_conntrack/protocols/wireless/netlink), RCU-quiesce + per-pernet exit on netns destroy — 9 REQ / 8 AC, 0 open) + fs/proc/proc-namespaces.md (10 per-task /proc/<pid>/ns/* symlinks cgroup/ipc/mnt/net/pid/pid_for_children/time/time_for_children/user/uts w/ <type>:[<inode>] format, setns(2) syscall w/ per-type permission requirements, full nsfs.h NS_GET_USERNS/PARENT/NSTYPE/OWNER_UID/MNTNS_ID/PID_FROM_PIDNS+TGID_FROM_PIDNS+PID_IN_PIDNS+TGID_IN_PIDNS ioctls, unshare(2)+clone3 CLONE_NEW* atomic, struct nsproxy 8-namespace per-task, PID+user namespace hierarchy via NS_GET_PARENT, time-ns per-clock offsets — 12 REQ / 12 AC, 0 open). 13 upstream paths validated against baseline 27a26ccfd528. Total: 151 .design docs. fs/proc: 6 of 9 children done. Next: fs/proc/proc-fd.md (/proc/<pid>/fd/+/fdinfo/) + fs/proc/proc-generic.md (procfs framework: generic.c+inode.c+root.c).",
+  "created_at": "2026-05-09T23:44:32.380217325Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAJc18kdgjh4pmZtqlOpcX+MqI+Nhitzj2OYB1n55IyBELD4dIElSTnPvGJbgfd/fX7QLwcyIU0v6Rq2MJpXuiAw=="
+}
