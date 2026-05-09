@@ -6,16 +6,12 @@
     "1": {
       "agent_id": "gb9t",
       "claimed_at": "2026-05-09T02:41:10.101207276Z"
-    },
-    "2": {
-      "agent_id": "gb9t",
-      "claimed_at": "2026-05-09T05:59:32.833096052Z"
     }
   },
   "issues": {},
   "watermark": {
-    "timestamp": "2026-05-09T05:59:32.833096052Z",
+    "timestamp": "2026-05-09T06:04:58.737725743Z",
     "agent_id": "gb9t",
-    "agent_seq": 2
+    "agent_seq": 3
   }
 }
