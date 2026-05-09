@@ -1,0 +1,10 @@
+{
+  "uuid": "699353dd-a90c-4352-95c2-3976e851d7fc",
+  "issue_uuid": "dccf6cbe-dfc6-46db-a691-ab56e593bfaa",
+  "author": "gb9t",
+  "content": "Inputs already on disk:\n- /home/doll/grsec-6.6.102.patch (14 MB, 4808 files, against linux-6.6.102)\n- .design/references/grsec-pax-notes.md (catalog + Rust translation principle)\n- Knowledge page 'grsec-pax-notes' (tags: reference, security, backlog)\n\nAuthoring prerequisites (Q6 in 00-overview.md):\n- Phase A complete (rust-conventions + glossary + index written)\n- mm/00-overview.md exists (so we can reference real allocator/paging structures)\n- arch/x86/00-overview.md exists (so we can reference real entry/IDT/CPU code paths)\n\nDoc deliverable shape:\n- Foundational tier (sits next to 00-overview.md as 00-security-principles.md)\n- Three buckets per the catalog: 'free in Rust', 'type-system encodable', 'explicit per-subsystem policy'\n- Compat policy: off-by-default Kconfig gating for any userspace-visible change; on-by-default for invisible hardening\n- Cross-references the future per-subsystem 'Hardening' section that all tier-2/3 docs will adopt\n\nBlock on issue #1 — this issue depends on Phase A completion.",
+  "created_at": "2026-05-09T03:04:18.274137408Z",
+  "kind": "plan",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAjZxPK17vKsTyEoDxVAFhCQfMyC+USVrLAWsO9MEJ0rcK+mlRSBczdhK9d1liE7reem9T1NtYaS2WOIWU/hCdAQ=="
+}
