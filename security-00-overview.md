@@ -206,38 +206,51 @@ This subsystem (`security/`) preserves the LSM framework intact. Every in-tree L
 
 ### Locked-in row-1 absorption list (decision 2026-05-09)
 
-Per the user-locked decision recorded on issue #1, the following PaX/grsec layer-1 features are ABSORBED into Rookery. Each names its design home (where the implementation is specified) — the `00-security-principles.md` doc is the umbrella but the feature lands inside the named Tier-2/Tier-3 doc.
+Per the user-locked decision recorded on issue #1, every PaX/grsec layer-1 feature below is ABSORBED into Rookery. **Default policy: each feature is ON by default and configurable** (revised 2026-05-09). The configurability knob is sysctl, Kconfig, or per-process prctl as appropriate per feature. The four-column table below names: the feature, its Rust expression, its design home (where the implementation is specified), and its default + configurability mechanism.
 
-| PaX/grsec feature | Rust expression | Design home |
-|---|---|---|
-| **KERNEXEC** (W^X for kernel; non-writable text + non-executable data) | Free in Rust (no JIT, write-protected statics) | `arch/x86/00-overview.md` § paging.md + § kernel-platform.md (vmlinux.lds.S equivalent) |
-| **UDEREF** (kernel cannot deref user pointers without explicit gate) | Type-encodable: `UserPtr<T>` newtype; `copy_to/from_user` only path | `00-rust-conventions.md` (UserPtr<T> convention) + `lib/00-overview.md` § usercopy.md |
-| **USERCOPY** (whitelist slab caches that may participate in copy_*_user) | Type-encodable: slab-cache type-tagging + compile-time check | `mm/00-overview.md` § slab.md + `lib/00-overview.md` § usercopy.md |
-| **REFCOUNT** (overflow-checked saturating refcounts) | Free via `kernel::sync::Refcount` (already exists upstream) | `kernel/00-overview.md` § locking/refcount.md |
-| **RAP/CFI** (forward + backward edge CFI via type signatures) | Per-arch with cross-arch substrate; entry/exit boundary protection | `kernel/00-overview.md` § runtime-codepatching.md + `arch/x86/00-overview.md` § cpu-mitigations.md |
-| **RANDSTRUCT** (randomize layout of marked structs) | Rust `#[repr(Rust)]` default + opt-in `randomize_layout` attribute | `00-rust-conventions.md` (struct-layout convention) + per-subsystem opt-in |
-| **AUTOSLAB** (per-callsite slab cache type tagging) | Free via Rust's type system; `core::any::type_name` for forensics | `mm/00-overview.md` § slab.md |
-| **PRIVATE_KSTACKS** (per-CPU IST stacks; per-task kernel stacks isolated) | Per-CPU IST stacks + per-task kernel stacks (already in x86) | `arch/x86/00-overview.md` § kernel-platform.md + § entry.md |
-| **RANDKSTACK** (kernel-stack offset randomization on syscall entry) | Cross-arch infra here; x86 instantiation in entry.md | `kernel/00-overview.md` § syscall-entry-helpers.md + `arch/x86/00-overview.md` § entry.md |
-| **MEMORY_SANITIZE** (zero memory on free for sensitive caches; opt-in for all) | Per-cache flag; always-on for `SENSITIVE`-marked types | `mm/00-overview.md` § slab.md + § page-allocator.md |
-| **SIZE_OVERFLOW** (forbid bare arithmetic on size types) | Clippy lint `bare_arithmetic_on_size` (issue #3) + `checked_*`/`saturating_*`/`wrapping_*` discipline | `00-rust-conventions.md` § Forbidden patterns + issue #3 |
-| **CONSTIFY** (auto-const function-pointer-only structs) | Free in Rust — `static FOO: Vtable = …` is `const` by default | `00-rust-conventions.md` (no separate doc) |
-| **LATENT_ENTROPY** (gather entropy at boot + runtime, feed RNG) | Boot-time + scheduler-tick entropy harvesting feeding the CSPRNG | `crypto/00-overview.md` § rng.md + `drivers/char/random.c` cross-ref |
-| **PAGEEXEC** (NX bit enforcement) | Compile-time guarantee (NX is required on x86_64) | `arch/x86/00-overview.md` § paging.md |
-| **NOEXEC** (no-exec for stack/heap/anon-mmap in userspace) | mm policy enforced via mmap permissions | `mm/00-overview.md` § mmap.md |
-| **MPROTECT** (per-process W^X for userspace via mprotect restrictions) | mm policy | `mm/00-overview.md` § mmap.md |
-| **DIRECT_CALL / DIRECT_SLS_CALL** (replace indirect calls + Spectre-v2/SLS mitigation) | Retpolines + IBRS + IBPB + eIBRS + LASS where applicable | `arch/x86/00-overview.md` § cpu-mitigations.md |
-| **RANDMMAP** (strong ASLR for mmap regions) | mm policy | `mm/00-overview.md` § mmap.md |
-| **ASLR** (strong userspace ASLR for PIE / mmap / stack / exec base) | mm policy | `mm/00-overview.md` § mmap.md + `fs/00-overview.md` § exec-binfmt.md |
-| **DELAY_FREE_ONE_PAGE** (page quarantine on free to defeat UAF spray) | Page-allocator hardening switch | `mm/00-overview.md` § page-allocator.md |
-| **CLOSE_KERNEL / CLOSE_USERLAND** (SMEP/SMAP-equivalent memory-view switching on user↔kernel transition) | Already handled by SMEP/SMAP (CR4 bits) on x86_64 | `arch/x86/00-overview.md` § entry.md + § paging.md |
+The row-1 features cleanly split into three operational categories:
 
-Every Tier-3 doc named above gains a **Hardening** section that explicitly cites this table when the doc lands. The deferred `00-security-principles.md` (issue #2) consolidates the cross-cutting policy — particularly which features are mandatory always-on, which are configurable with secure defaults, and which are opt-in via sysctl.
+- **Type-system-enforced** (the feature is a property of the Rust code itself; "configurability" means escape hatches via attributes / `unsafe` blocks):
+- **Sysctl/Kconfig-configurable kernel-internal hardening** (operationally invisible to userspace; default-on with a kernel-side knob to disable for benchmarking or unusual workloads):
+- **User-visible per-process restriction** (default-on system-wide would break common userspace JITs; the existing per-process opt-in mechanism — `prctl(PR_SET_MDWE)` — is preserved as the configurable knob):
+
+| PaX/grsec feature | Rust expression | Design home | Default + configurability |
+|---|---|---|---|
+| **KERNEXEC** (W^X for kernel; non-writable text + non-executable data) | Free in Rust (no JIT, write-protected statics) | `arch/x86/00-overview.md` § paging.md + § kernel-platform.md | **ON, mandatory** (no off switch — invariant in Rust) |
+| **UDEREF** (kernel cannot deref user pointers without explicit gate) | Type-encodable: `UserPtr<T>` newtype; `copy_to/from_user` only path | `00-rust-conventions.md` + `lib/00-overview.md` § usercopy.md | **ON, mandatory** (type-system-enforced) |
+| **USERCOPY** (whitelist slab caches that may participate in copy_*_user) | Type-encodable: slab-cache type-tagging + compile-time check | `mm/00-overview.md` § slab.md + `lib/00-overview.md` § usercopy.md | **ON, mandatory** (type-system-enforced) |
+| **REFCOUNT** (overflow-checked saturating refcounts) | Free via `kernel::sync::Refcount` (upstream existing) | `kernel/00-overview.md` § locking/refcount.md | **ON, mandatory** (type-system-enforced; raw `atomic_t` for refcount discouraged) |
+| **RAP/CFI** (forward + backward edge CFI via type signatures) | Per-arch with cross-arch substrate; entry/exit boundary protection | `kernel/00-overview.md` § runtime-codepatching.md + `arch/x86/00-overview.md` § cpu-mitigations.md | **ON by default** (CONFIG_CFI_CLANG=y; Intel CET shadow stack on supporting CPUs); Kconfig-disable for benchmarking or non-CFI compilers |
+| **RANDSTRUCT** (randomize layout of internal kernel structs) | Rust `#[repr(Rust)]` default + opt-in `randomize_layout` attribute on internal structs | `00-rust-conventions.md` (struct-layout convention) + per-subsystem opt-in | **ON by default** for marked internal structs; ABI structs (`#[repr(C)]`) NEVER randomized; per-build seed configurable via Kconfig CONFIG_RANDSTRUCT_FULL=y vs `=performance` |
+| **AUTOSLAB** (per-callsite slab cache type tagging) | Free via Rust's type system; `core::any::type_name` for forensics | `mm/00-overview.md` § slab.md | **ON, mandatory** (compile-time per-type slab caches) |
+| **PRIVATE_KSTACKS** (per-CPU IST stacks; per-task kernel stacks isolated) | Per-CPU IST stacks + per-task kernel stacks | `arch/x86/00-overview.md` § kernel-platform.md + § entry.md | **ON, mandatory** (already required by SMP correctness) |
+| **RANDKSTACK** (kernel-stack offset randomization on syscall entry) | Cross-arch infra here; x86 instantiation in entry.md | `kernel/00-overview.md` § syscall-entry-helpers.md + `arch/x86/00-overview.md` § entry.md | **ON by default** (CONFIG_RANDOMIZE_KSTACK_OFFSET=y, runtime sysctl `kernel.randomize_kstack_offset=1` — both flipped from upstream's defaults; userspace-invisible) |
+| **MEMORY_SANITIZE** (zero memory on free for slab + page allocators) | Per-cache flag; always-on for `SENSITIVE`-marked types; default-on for all others | `mm/00-overview.md` § slab.md + § page-allocator.md | **ON by default** (boot param `init_on_free=1`, sysctl `vm.zero_on_free=1` — both flipped from upstream's defaults; ~5–10% overhead on alloc-heavy workloads, configurable off per cache or globally) |
+| **SIZE_OVERFLOW** (forbid bare arithmetic on size types) | Clippy lint `bare_arithmetic_on_size` (issue #3) + `checked_*`/`saturating_*`/`wrapping_*` discipline | `00-rust-conventions.md` § Forbidden patterns + issue #3 | **ON, mandatory** (compile-time lint deny-level) |
+| **CONSTIFY** (auto-const function-pointer-only structs) | Free in Rust — `static FOO: Vtable = …` is `const` by default | `00-rust-conventions.md` | **ON, mandatory** (Rust default) |
+| **LATENT_ENTROPY** (gather entropy at boot + runtime, feed RNG) | Boot-time + scheduler-tick entropy harvesting feeding the CSPRNG | `crypto/00-overview.md` § rng.md | **ON by default** (CONFIG_LATENT_ENTROPY=y — flipped from upstream's gcc-plugin default-off; userspace-invisible) |
+| **PAGEEXEC** (NX bit enforcement) | Compile-time guarantee (NX is required on x86_64) | `arch/x86/00-overview.md` § paging.md | **ON, mandatory** (architectural; cannot be disabled on x86_64) |
+| **NOEXEC** (no-exec for stack/heap/anon-mmap in userspace by default) | mm policy enforced via mmap permissions | `mm/00-overview.md` § mmap.md | **ON by default** for stack + heap + anon-mmap (matches upstream PT_GNU_STACK default); ELF binaries with explicit executable-stack annotation continue to opt back in |
+| **NOEXEC strict** (forbid PROT_EXEC even when explicitly requested) | mm policy; would break JITs (V8 / OpenJDK / .NET / BEAM / LuaJIT / PyPy) | `mm/00-overview.md` § mmap.md | **OFF by default at system level**; opt-in per process via `prctl(PR_SET_MDWE)` (existing upstream mechanism); systemd's `MemoryDenyWriteExecute=yes` propagates this. JIT-using processes default to non-strict; security-sensitive processes opt in. |
+| **MPROTECT** (per-process W^X — block W→X transitions in mprotect) | mm policy; same JIT-breaking concern as NOEXEC strict | `mm/00-overview.md` § mmap.md | **OFF by default at system level**; opt-in per process via `prctl(PR_SET_MDWE, PR_MDWE_REFUSE_EXEC_GAIN)` (matches existing upstream MDWE). systemd integration via `MemoryDenyWriteExecute=yes`. **Q4 below tracks whether to push for default-on with a JIT-process exemption mechanism.** |
+| **DIRECT_CALL / DIRECT_SLS_CALL** (replace indirect calls + Spectre-v2/SLS mitigation) | Retpolines + IBRS + IBPB + eIBRS + LASS where applicable | `arch/x86/00-overview.md` § cpu-mitigations.md | **ON by default** (matches upstream defaults: retpoline + IBRS at boot; LASS on supporting CPUs); kernel-cmdline `mitigations=off` opt-out preserved |
+| **RANDMMAP** (strong ASLR for mmap regions) | mm policy | `mm/00-overview.md` § mmap.md | **ON by default** (CONFIG_RANDOMIZE_BASE=y; sysctl `kernel.randomize_va_space=2` — matches upstream); user-controllable via personality(2) per-process for tools that need fixed addresses |
+| **ASLR** (strong userspace ASLR for PIE / mmap / stack / exec base) | mm policy | `mm/00-overview.md` § mmap.md + `fs/00-overview.md` § exec-binfmt.md | **ON by default** (sysctl `kernel.randomize_va_space=2`); same per-process opt-out as RANDMMAP |
+| **DELAY_FREE_ONE_PAGE** (page quarantine on free to defeat UAF spray) | Page-allocator hardening switch | `mm/00-overview.md` § page-allocator.md | **ON by default** (sysctl `vm.delay_free_pages=1` — flipped from upstream's not-present default; ~few % memory overhead, configurable off per workload) |
+| **CLOSE_KERNEL / CLOSE_USERLAND** (SMEP/SMAP-equivalent memory-view switching on user↔kernel transition) | Already handled by SMEP/SMAP (CR4 bits) on x86_64 | `arch/x86/00-overview.md` § entry.md + § paging.md | **ON, mandatory** (architectural; cannot be disabled on x86_64 without CPU support hack) |
+
+### Default-on policy summary
+
+- **Mandatory (cannot disable)**: KERNEXEC, UDEREF, USERCOPY, REFCOUNT, AUTOSLAB, PRIVATE_KSTACKS, SIZE_OVERFLOW, CONSTIFY, PAGEEXEC, CLOSE_KERNEL/CLOSE_USERLAND.
+- **Default-on, configurable off**: RAP/CFI, RANDSTRUCT, RANDKSTACK, MEMORY_SANITIZE, LATENT_ENTROPY, NOEXEC (default mode), DIRECT_CALL, RANDMMAP, ASLR, DELAY_FREE_ONE_PAGE.
+- **Default-off, configurable on per-process** (the JIT carve-out): NOEXEC strict, MPROTECT-W→X-block. These cannot default-on system-wide without breaking Chrome / Firefox / OpenJDK / .NET / BEAM / LuaJIT / PyPy. Per-process opt-in via `prctl(PR_SET_MDWE)` is preserved; systemd's `MemoryDenyWriteExecute=yes` propagates this for confined services.
+
+Every Tier-3 doc named above gains a **Hardening** section that explicitly cites this table when the doc lands. The deferred `00-security-principles.md` (issue #2) consolidates the cross-cutting policy.
 
 The `00-security-principles.md` doc when authored will:
-1. Specify which row-1 features are mandatory always-on.
-2. Specify which row-1 features are configurable (off by default for compat) like KASLR-strict-mode, RANDKSTACK, MEMORY_SANITIZE-on-free.
-3. Explicitly **forbid** any feature in row 2 from being enabled-by-default, and explicitly forbid replacing or short-circuiting the LSM framework.
+1. Specify the table above as the binding default-policy reference.
+2. Specify the configurability mechanism (sysctl name + boot param + Kconfig + prctl) for each non-mandatory feature.
+3. Explicitly **forbid** any row-2 (policy-enforcement) feature from being enabled-by-default; explicitly forbid replacing or short-circuiting the LSM framework.
 4. Where a row-2 feature has defense-in-depth value (e.g., kernel-symbol hiding past `kptr_restrict=2`), spec it as an opt-in sysctl that is documented as "complementary to but never substitute for LSM policy."
 
 ## Open Questions
@@ -261,6 +274,21 @@ Per `00-overview.md` D6, this Tier-1 doc is authored after Phase A complete + mm
 **Recommendation**: Author `00-security-principles.md` (issue #2) immediately after Phase B completes, before Phase C (component-level designs) begins. This locks the binding security policy that all Tier-3 docs cite.
 
 **To resolve**: User confirms timing — eagerly after Phase B, OR deferred until Phase C is partway done.
+<!-- /OPEN -->
+
+<!-- OPEN: Q3 -->
+### Q3: MPROTECT default-on with JIT-process exemption?
+The "default-on, configurable" policy (decision 2026-05-09) flagged MPROTECT-W→X-block as the one feature that cannot default-on system-wide without breaking JIT-using userspace (V8, OpenJDK, .NET, BEAM, LuaJIT, PyPy → Chrome / Firefox / Java apps / .NET apps / Erlang/Elixir apps fail at startup).
+
+The current resolution: default-off system-wide; per-process opt-in via `prctl(PR_SET_MDWE)`. systemd's `MemoryDenyWriteExecute=yes` propagates this for confined services.
+
+**Alternative being considered**: invert the default — MPROTECT-W→X-block default-on system-wide, with a per-process *exemption* mechanism (new prctl `PR_ALLOW_EXEC_GAIN` or analogous) that JIT-using processes call at startup, reflected in their executable's metadata (e.g., a new ELF note `NT_GNU_PROPERTY_X86_FEATURE_NEEDS_EXEC_GAIN`). Distros patch their JIT runtimes to set the exemption; non-JIT processes get the stronger default.
+
+**Recommendation**: ADOPT the inverted default — MPROTECT default-on, with the per-process exemption mechanism. This requires (a) defining a new ELF note + prctl in `00-security-principles.md`, (b) patching JIT runtimes in distro packaging, and (c) accepting that newly-installed JIT software fails until packagers update their build. The transitional period is rough but the steady-state security posture is materially better.
+
+**Alternative-alternative**: keep the current resolution (default-off system-wide; per-process opt-in via existing MDWE). Simpler, no new ABI, but the strong policy is opt-in rather than opt-out — most apps never opt in.
+
+**To resolve**: User picks (a) inverted default with new exemption mechanism (more work, better outcome), (b) keep current MDWE-as-opt-in (simpler), or (c) defer to `00-security-principles.md` authoring time.
 <!-- /OPEN -->
 
 ## Out of Scope
