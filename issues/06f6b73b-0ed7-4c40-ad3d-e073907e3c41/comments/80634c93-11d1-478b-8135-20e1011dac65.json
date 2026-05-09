@@ -1,0 +1,10 @@
+{
+  "uuid": "80634c93-11d1-478b-8135-20e1011dac65",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 57: 2 Tier-3 fs/proc docs (proc-fd + proc-generic framework). fs/proc/proc-fd.md (per-task fd/+fdinfo/ symlinks: full FD-type taxonomy resolving to <scheme>:[<id>] anon_inode/socket/pipe/eventfd/signalfd/timerfd/eventpoll/inotify/fanotify/bpf-prog/bpf-map/bpf-link/pidfd/userfaultfd/secretmem/io_uring/memfd/uffd; common fdinfo fields pos/flags/mnt_id/ino + per-fd-type extras incl eventfd-count, signalfd sigmask, epoll per-watched-fd lines, inotify+fanotify per-watch w/ fhandle, pidfd Pid+NSpid, BPF prog_type/id/tag, io_uring SQ/CQ ring metadata, memfd seals; ptrace_may_access permission gate; O_PATH bind to /proc/<pid>/fd/<n> works — 8 REQ / 11 AC, 0 open) + fs/proc/proc-generic.md (procfs framework: struct proc_dir_entry + proc_ops + proc_inode layouts, full proc_create_*/proc_create_data/proc_create_seq/proc_create_single/proc_create_mount_point/proc_mkdir/proc_symlink/proc_remove API, procfs_fill_super w/ hidepid+gid+subset mount options, per-pid lookup via proc_pid_lookup chain, /proc/mounts+mountinfo+mountstats from proc_namespace.c, top-level /proc/{self,thread-self,mounts,net} symlinks, RCU-defer free on remove; consumed by all other procfs Tier-3s — 13 REQ / 12 AC, 0 open). 9 upstream paths validated against baseline 27a26ccfd528. Total: 153 .design docs. fs/proc: 8 of 9 children done (proc-kcore + proc-kmsg remain). Next: fs/proc/proc-kcore.md (/proc/kcore — kernel core ELF for crash debug) + fs/proc/proc-kmsg.md (/proc/kmsg — kernel printk consumer). Then close out fs/proc Tier-2.",
+  "created_at": "2026-05-09T23:52:48.385328959Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATsZ2QU+tbHAWQmLTbGgbmikhLRRWOElAptPoWJ0zivyA146cRSXCyaBX5iJyoR6pKEqAcd2CIGZYOC2l+EHuBg=="
+}
