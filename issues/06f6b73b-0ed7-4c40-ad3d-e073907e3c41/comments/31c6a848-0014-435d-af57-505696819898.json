@@ -1,0 +1,10 @@
+{
+  "uuid": "31c6a848-0014-435d-af57-505696819898",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 17: 1 Tier-2 wrapper + 1 Tier-3. net/ipv6/00-overview.md (full IPv6 stack umbrella: AF_INET6, RX/TX, FIB6, SLAAC, ND, ICMPv6, MLDv1/v2, ext-headers, TCP/UDP/RAW v6, IPSec, mcast routing — 8 REQ-O / 7 AC-O, 0 open; lists 15 child Tier-3s + 4 mandatory TLA+ models) + net/ipv6/af-inet6.md (AF_INET6 family register, inet6_create dispatch, dual-stack IPv4-mapped semantics + IPV6_V6ONLY, full SOL_IPV6 setsockopt surface, struct ipv6_pinfo + sockaddr_in6 + in6_addr layouts, ehash/bhash IPv6 lookup — 13 REQ / 12 AC, 0 open). 17 upstream paths validated against baseline 27a26ccfd528. Total: ~73 .design docs (16 Tier-2 now). Next: net/ipv6/route.md + net/ipv6/addrconf.md (FIB6 + SLAAC, both load-bearing for any v6-on-real-network test).",
+  "created_at": "2026-05-09T18:28:05.107902966Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAfLZJ7+3vN0NRAW575u02QwwPW5b4PQV2RH+to61t9DB2Q1GFL2WfNCulH5NffhZFq+xSHM4o7PGR47gAtHnaBA=="
+}
