@@ -1,0 +1,10 @@
+{
+  "uuid": "03f0b329-e9b3-4efe-8739-90aa5d480661",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 11: 2 Tier-3 docs (block layer pivot).\n\nblock/blk-mq.md (203 lines, 13 REQ / 12 AC, 0 open) — multi-queue request layer: per-CPU ctx → per-hardware-queue hctx mapping + per-hctx tag bitmap + request lifecycle state machine + I/O scheduler integration + timeout handling + DMA-mapping. struct request + struct blk_mq_hw_ctx layout-equivalence. Mandatory L2 TLA+ models for tag-allocation and request-state-machine. Mandatory L3 invariants for tag bitmap exclusivity + request list non-duplication.\n\nblock/bio.md (218 lines, 14 REQ / 13 AC, 0 open) — block I/O request: struct bio + struct bio_vec + bvec_iter cursor + bio chaining (parent/children with refcount) + split/merge + user-buffer mapping (GUP-based) + helpers (discard/zeroout/secure_erase/flush/zone_*). REQ_OP_*/REQ_* numeric byte-identity. Mandatory L3 chain-acyclicity invariant.\n\nTotal .design/ docs: 61.",
+  "created_at": "2026-05-09T17:40:10.953265292Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAStm8lvBSHJbx9yn7M4R5Efqie+YhC5ICGjaEsdPFxmGuqCIVS+ojUK5I6sWdIKq2B3h2XeWQZ8tvUVC7HMt3DQ=="
+}
