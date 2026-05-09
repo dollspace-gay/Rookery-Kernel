@@ -1,0 +1,10 @@
+{
+  "uuid": "bd26e36a-8720-470e-9c67-a63e7a2f033e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 10: 2 Tier-3 docs (net pivot cont'd).\n\nnet/ipv4/udp.md (220 lines, 13 REQ / 11 AC, 0 open) — UDP (RFC 768) + UDP-Lite (RFC 3828) + UDP-GSO/GRO offload + udp_tunnel framework (VxLAN/GENEVE/FoU/GUE) + sockmap BPF integration + inet_diag dump + UDP-corking. /proc/net/udp + /proc/net/udp6 format-identity.\n\nnet/netfilter.md (251 lines, 14 REQ / 14 AC, 0 open) — packet-filter framework: nftables + iptables-legacy + connection tracking (per-protocol state machines) + NAT (SNAT/DNAT/MASQ/REDIR/NETMAP) + ipset + NFLOG + NFQUEUE + flowtables (HW offload) + per-namespace state. NFNL netlink ABI byte-identity. TLA+ model models/net/conntrack.tla owned here (mandatory L2).\n\nTotal .design/ docs: 59.",
+  "created_at": "2026-05-09T17:32:30.193148152Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAKz3het1/7gWGE+gp1pTqoav+wabF865zIoxGaGXB1qb7HQt8Pw5OiL+7nX5qDHBY5tkTwEZhwDfVpG1SLqZUBA=="
+}
