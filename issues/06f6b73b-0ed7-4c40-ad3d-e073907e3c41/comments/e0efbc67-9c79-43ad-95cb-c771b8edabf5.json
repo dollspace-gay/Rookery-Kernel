@@ -1,0 +1,10 @@
+{
+  "uuid": "e0efbc67-9c79-43ad-95cb-c771b8edabf5",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 44: 2 Tier-3 net/netfilter docs (NAT core + nftables API). net/netfilter/nat-core.md (4 NAT modes SNAT/DNAT/MASQUERADE/REDIRECT, struct nf_nat_range2 UAPI, nf_nat_setup_info alloc-protect-tuple algorithm RFC 3022+7857, nf_nat_packet per-direction translation w/ RFC 1624 incremental L4 checksum, per-l4proto port mangling TCP/UDP/SCTP/ICMP, per-helper NAT (FTP/IRC/SIP/PPTP/TFTP/SANE/Amanda), MASQUERADE iface-event teardown, REDIRECT for transparent proxy, bidirectional-mapping invariant; OWNS mandatory models/net/nat_translation.tla — 12 REQ / 11 AC, 0 open) + net/netfilter/nft-api.md (NETLINK_NETFILTER NFNL_SUBSYS_NFTABLES: full NFT_MSG_* surface NEWTABLE/CHAIN/RULE/SET/SETELEM/GEN/OBJ/FLOWTABLE + DEL/GET each, NFNL_MSG_BATCH_BEGIN/END atomic transaction commit, per-netns generation counter, NFT_CHAIN_HW_OFFLOAD bridge to flow_setup_cb_call, NFT_MSG_TRACE per-skb trace, NFTNLGRP_* multicast event groups, NFT_TABLE_F_OWNER per-pid auto-delete, NFT_TABLE_F_DORMANT — 12 REQ / 11 AC, 0 open). 13 upstream paths validated against baseline 27a26ccfd528. Total: 127 .design docs. netfilter: 5 of 22 children done. Next: net/netfilter/nft-core.md (VM expression evaluation engine; OWNS models/net/nft_vm_eval.tla) + net/netfilter/flowtable.md (fast-path bypass; OWNS models/net/flowtable_offload.tla).",
+  "created_at": "2026-05-09T22:05:16.649634302Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtcM4ObraOUv8Lb1fJ1LTHsSJNs+ie9BETmbpzERL3ErpWJtL6QDOmRslb9Kf+XLc13XNp4BKpkJSzYd0Q6tOCw=="
+}
