@@ -1,0 +1,10 @@
+{
+  "uuid": "ffe71653-f4c0-4dbe-bd33-ca2ea985a555",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 53: 1 sub-Tier-2 wrapper (IPVS) + 1 Tier-3 (conntrack BPF). net/netfilter/ipvs/00-overview.md (sub-Tier-2 for IPVS L4 load balancer: 4 forwarding modes (NAT/DR/TUN/LOCALNODE), 14 scheduling algorithms RR/WRR/LC/WLC/SH/DH/LBLC/LBLCR/SED/NQ/MH/OVF/FO/TWOS w/ Maglev consistent-hashing, struct ip_vs_service+_dest+_conn layouts, NF hook integration at LOCAL_IN+FORWARD+POST_ROUTING, conntrack integration via ip_vs_nfct.c, sync daemon UDP-multicast+TCP-unicast HA, persistence engine PE w/ ip_vs_pe_sip; per-component sub-Tier-3 split deferred to Phase D — 11 REQ-O / 11 AC-O, 0 open) + net/netfilter/conntrack-bpf.md (BPF kfunc set: bpf_ct_alloc+_insert_entry+_release acquire/release-pair w/ verifier-enforced pairing, bpf_xdp_ct_lookup+bpf_skb_ct_lookup, bpf_ct_set_status+_timeout+_nat_info, flowtable kfuncs bpf_xdp_flow_lookup+bpf_skb_flow_lookup+bpf_flowtable_offload_release, per-prog-type allow-list SCHED_CLS/XDP/TRACING; cornerstone of Cilium dataplane — 11 REQ / 12 AC, 0 open). 28 upstream paths validated against baseline 27a26ccfd528. Total: 145 .design docs (21 Tier-2s now). netfilter: 22 of 22 children done — netfilter Tier-2 COMPLETE. Next: pivot to next Tier-2 expansion area — fs/* deeper coverage (specific filesystems like ext4/xfs/btrfs/proc/sysfs/cgroupfs) or kernel/* (more sched/cgroup/locking).",
+  "created_at": "2026-05-09T23:19:44.295273687Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATZPzHuU0ymdwOv1amfepZYufzwe9aYd5id/R+7fnH7PGCu6NmnduPg+hvnK3UXvCgMsoPHzoDp6EvElIaDvNAA=="
+}
