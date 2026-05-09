@@ -1,0 +1,10 @@
+{
+  "uuid": "954f3164-915b-4123-8473-861cf99dc9fd",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 40: 2 Tier-3 net/sched docs (act_ct conntrack action + ematch meta predicates). net/sched/act-ct.md (conntrack action: TCA_CT_ACTION flags COMMIT/CLEAR/NAT/NAT_SRC/NAT_DST/FORCE, per-zone isolation via TCA_CT_ZONE 16-bit, per-skb _nfct tagging w/ IP_CT_NEW/ESTABLISHED/RELATED/INVALID/REPLY, NAT integration w/ IP+port range params, conntrack helper attach (ftp/sip/etc.), nf_flow_table fast-path offload, HW offload for ConnectX-6 DX+; cornerstone of Cilium stateful firewall — 10 REQ / 11 AC, 0 open) + net/sched/em-meta.md (ematch framework + 6 predicate kinds: em_meta (skb mark/priority/protocol/sk fields/realm 30+ accessors), em_cmp (byte-offset), em_nbyte (N-byte), em_canid (SocketCAN ID), em_ipset (ipset membership), em_ipt (xt_match bridge); tree composition w/ AND/OR/XOR/INVERT — 11 REQ / 11 AC, 0 open). 12 upstream paths validated against baseline 27a26ccfd528. Total: 119 .design docs. net/sched: 16 of 18 children done — closing in on full coverage. Next: net/sched/sch-generic.md (per-qdisc generic helpers + default qdiscs pfifo_fast/blackhole/noop) + net/sched/sch-bpf.md (BPF qdisc — bpf_qdisc.c, programmable qdisc dataplane) — last 2 children.",
+  "created_at": "2026-05-09T21:31:39.657403176Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAfD32cK3REur6QEwcAahuCuD1jkrGt4WQ+8f7M2bItwlJSh9VVTXoiz8kMCyjDuMKGQabk69hL9ARVIMr8GoYCA=="
+}
