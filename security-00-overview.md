@@ -261,28 +261,20 @@ The `00-security-principles.md` doc when authored will:
 3. Explicitly **forbid** any row-2 (policy-enforcement) feature from being enabled-by-default; explicitly forbid replacing or short-circuiting the LSM framework.
 4. Where a row-2 feature has defense-in-depth value (e.g., kernel-symbol hiding past `kptr_restrict=2`), spec it as an opt-in sysctl that is documented as "complementary to but never substitute for LSM policy."
 
+## (more) Resolved Decisions
+
+### D4 (2026-05-09): Per-LSM Rust port set locked
+
+- **Full Rust port in v0**: yama, loadpin, landlock, lockdown, safesetid, keys (keyring core), commoncap/capabilities.
+- **FFI to upstream C in v0**: SELinux (~100K LoC), AppArmor (~30K LoC), SMACK, TOMOYO, IPE, integrity (IMA + EVM).
+- **CONFIG=n by default**: device_cgroup-as-LSM (legacy v1; cgroup v2 device controller is in `kernel/cgroup/`).
+
+### D5 (2026-05-09): Author 00-security-principles.md eagerly after Phase B
+Authoring proceeds NOW (preconditions met: Phase B complete, mm + arch/x86 + security overviews drafted, GR-RBAC + MPROTECT-exemption + default-on policy table all locked). Lands BEFORE Phase C component-level designs begin so all Tier-3 docs can cite a stable principles doc. Issue #2 unblocks.
+
 ## Open Questions
 
-<!-- OPEN: Q1 -->
-### Q1: Per-LSM Rust port set vs. FFI-to-C
-The major LSMs are large: SELinux ~100K LoC, AppArmor ~30K LoC, SMACK ~10K LoC. Re-implementing all in Rust is a multi-year effort.
-
-**Recommendation**:
-- **Full Rust port in v0**: yama (small), loadpin (small), landlock (medium, growing — strong fit for Rust), lockdown (small), safesetid (small), keys (medium — keyring core, valuable for Rust), commoncap/capabilities (small but pervasive)
-- **FFI in v0**: SELinux (huge, complex), AppArmor (medium-huge), SMACK (medium), TOMOYO (medium), IPE (newer, medium), integrity/IMA + EVM (medium-large)
-- **CONFIG=n by default if not in distro defaults**: device_cgroup-as-LSM (legacy v1)
-
-**To resolve**: User confirms split, or names LSMs to move between buckets.
-<!-- /OPEN -->
-
-<!-- OPEN: Q2 -->
-### Q2: Authorship of 00-security-principles.md
-Per `00-overview.md` D6, this Tier-1 doc is authored after Phase A complete + mm/00-overview.md + arch/x86/00-overview.md exist. With this `security/00-overview.md` now drafted, those preconditions are met.
-
-**Recommendation**: Author `00-security-principles.md` (issue #2) immediately after Phase B completes, before Phase C (component-level designs) begins. This locks the binding security policy that all Tier-3 docs cite.
-
-**To resolve**: User confirms timing — eagerly after Phase B, OR deferred until Phase C is partway done.
-<!-- /OPEN -->
+(none — all open questions for this subsystem document are resolved above)
 
 ### D3 (resolved 2026-05-09): MPROTECT default-on with JIT-process exemption — ADOPTED
 
