@@ -1,0 +1,10 @@
+{
+  "uuid": "69e49f30-ea4b-4f85-b97b-bf572cbb4dcf",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 24: 1 Tier-2 wrapper + 1 Tier-3 (pivot to net/xfrm IPSec stack). net/xfrm/00-overview.md (umbrella for SADB/SPD/xfrm_user-NETLINK/PF_KEYv2/AH/ESP/IPCOMP/replay/algo/device/XFRMi/IPTFS/espintcp/NAT-keepalive/per-AF v4+v6 transforms — 13 REQ-O / 9 AC-O, 0 open; lists 17 Tier-3 children + 3 mandatory TLA+ models including replay-window correctness, state-machine soundness, policy-eval atomicity; 32-bit compat marked OUT-OF-SCOPE for v0) + net/xfrm/state.md (SADB: 4 per-netns hashtables (bydst/bysrc/byspi/byseq), SA lifecycle VALID→EXPIRING→DEAD via soft+hard byte/packet/time limits, RFC 4303 § 2.1 cryptographically-random SPI alloc w/ reserved-range rejection, ACQUIRE-driven SA install, BPF state introspection, walk iterator — 13 REQ / 11 AC, 0 open). 28 upstream paths validated against baseline 27a26ccfd528. Total: ~87 .design docs (17 Tier-2s now). Next: net/xfrm/policy.md (SPD + xfrm_lookup hot path) + net/xfrm/input.md (RX transform pipeline) — high-value pair since both are hit on every IPSec'd packet.",
+  "created_at": "2026-05-09T19:23:51.604183715Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAe7+zKMwRC+M0tlDuqiJrm6SbJV2wVf+orWUDyWIEAuJN60gVkoB+zBAprzdO3x0Yu4tip2D7owpBrjo7i3UhAA=="
+}
