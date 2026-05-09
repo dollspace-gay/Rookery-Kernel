@@ -1,0 +1,10 @@
+{
+  "uuid": "33fbfc52-a28c-4734-ad76-d8579f32630e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase A foundational decisions (2026-05-09):\n\n- **RE ethic**: GPL-clean reference. We read Linux source freely as reference; we rewrite from scratch in idiomatic Rust. Project license: GPL-2.0 (matching Linux).\n- **Architecture priority**: x86_64-only for v0. arch/<other> design docs deferred. Arch-abstraction layer NOT designed up front; arch/x86_64 specs are concrete and arch/-overview will mark abstraction as a v1+ refactor.\n- **Build system**: Integrate with kbuild (Make-driven). Match rust-for-linux conventions. Cargo workspace lives under the kernel source tree, .rs files compile via kbuild rules.\n- **Async/await**: NOT used. Explicit state machines + kthreads + workqueues + tasklets, matching Linux conventions. 00-rust-conventions.md will state 'sync by default, async forbidden' (revisitable per design doc with strong justification).\n\nThese four decisions go into 00-overview.md as the project's foundational contract.",
+  "created_at": "2026-05-09T02:51:03.156119705Z",
+  "kind": "decision",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA6lTb8iakgQ5AYmzzh6xaSaZEHWiTp9tumR+1fTf49b6E6RIgS5AjtyG5lQdRUEocEm6iblIwYazJ4fZeDfxWAw=="
+}
