@@ -1,0 +1,10 @@
+{
+  "uuid": "c2869b83-b3a5-4bea-9f5a-4ba43f010f29",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 30: 2 Tier-3 xfrm docs (XFRMi virtual netdev + RFC 8229 ESP-in-TCP). net/xfrm/interface.md (XFRMi: ip link add type xfrm dev <link> if_id <id> w/ IFLA_XFRM_LINK/IF_ID/COLLECT_METADATA, replaces vti/vti6, per-tenant policy classification via if_id, per-XFRMi mark/mask transformation, struct xfrm_md_info BPF-visible metadata, xfrm_interface_bpf kfunc set for traffic classification, per-netns isolation — 10 REQ / 10 AC, 0 open) + net/xfrm/espintcp.md (RFC 8229 ESP-in-TCP: 2-byte-length-prefix framing for restrictive-middlebox traversal; tcp_set_ulp espintcp ULP attach; strparser parse_msg/rcv_msg callbacks; cooperative IKE-vs-ESP demux per RFC 8229 § 4 marker; lock_sock-serialized daemon-sendmsg + kernel-ESP-TX; UDP_ENCAP_ESPINTCP=7 SA encap value; clean detach on socket close — 10 REQ / 8 AC, 0 open). 6 upstream paths validated against baseline 27a26ccfd528. Total: ~99 .design docs. xfrm: 13 of 17 children done. Next: net/xfrm/iptfs.md (RFC 9347 IP-TFS aggregation/fragmentation) + net/xfrm/nat-keepalive.md (RFC 3948 NAT-T keepalive). Then bpf + compat (deferred for v0). Then close out xfrm Tier-2 + check the design corpus crosses 100 docs.",
+  "created_at": "2026-05-09T20:11:16.840449616Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOKdXFZF0sNrGUtTGigmAPClZKI2kjE9k4ya3LIrvQaBLu8hYuH2C+59i2j7sVxY5nAicTx0iD8n3EjpLxm2mBw=="
+}
