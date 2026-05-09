@@ -204,6 +204,36 @@ The grsec/PaX reference catalog (`.design/references/grsec-pax-notes.md`) splits
 
 This subsystem (`security/`) preserves the LSM framework intact. Every in-tree LSM (SELinux, AppArmor, SMACK, TOMOYO, Yama, LoadPin, Landlock, Lockdown, IPE, IMA+EVM, BPF-LSM) keeps its hooks, its userspace ABI, and its enforcement semantics. Rookery is **grsec-flavored at the memory layer and LSM-respecting at the policy layer.**
 
+### Locked-in row-1 absorption list (decision 2026-05-09)
+
+Per the user-locked decision recorded on issue #1, the following PaX/grsec layer-1 features are ABSORBED into Rookery. Each names its design home (where the implementation is specified) — the `00-security-principles.md` doc is the umbrella but the feature lands inside the named Tier-2/Tier-3 doc.
+
+| PaX/grsec feature | Rust expression | Design home |
+|---|---|---|
+| **KERNEXEC** (W^X for kernel; non-writable text + non-executable data) | Free in Rust (no JIT, write-protected statics) | `arch/x86/00-overview.md` § paging.md + § kernel-platform.md (vmlinux.lds.S equivalent) |
+| **UDEREF** (kernel cannot deref user pointers without explicit gate) | Type-encodable: `UserPtr<T>` newtype; `copy_to/from_user` only path | `00-rust-conventions.md` (UserPtr<T> convention) + `lib/00-overview.md` § usercopy.md |
+| **USERCOPY** (whitelist slab caches that may participate in copy_*_user) | Type-encodable: slab-cache type-tagging + compile-time check | `mm/00-overview.md` § slab.md + `lib/00-overview.md` § usercopy.md |
+| **REFCOUNT** (overflow-checked saturating refcounts) | Free via `kernel::sync::Refcount` (already exists upstream) | `kernel/00-overview.md` § locking/refcount.md |
+| **RAP/CFI** (forward + backward edge CFI via type signatures) | Per-arch with cross-arch substrate; entry/exit boundary protection | `kernel/00-overview.md` § runtime-codepatching.md + `arch/x86/00-overview.md` § cpu-mitigations.md |
+| **RANDSTRUCT** (randomize layout of marked structs) | Rust `#[repr(Rust)]` default + opt-in `randomize_layout` attribute | `00-rust-conventions.md` (struct-layout convention) + per-subsystem opt-in |
+| **AUTOSLAB** (per-callsite slab cache type tagging) | Free via Rust's type system; `core::any::type_name` for forensics | `mm/00-overview.md` § slab.md |
+| **PRIVATE_KSTACKS** (per-CPU IST stacks; per-task kernel stacks isolated) | Per-CPU IST stacks + per-task kernel stacks (already in x86) | `arch/x86/00-overview.md` § kernel-platform.md + § entry.md |
+| **RANDKSTACK** (kernel-stack offset randomization on syscall entry) | Cross-arch infra here; x86 instantiation in entry.md | `kernel/00-overview.md` § syscall-entry-helpers.md + `arch/x86/00-overview.md` § entry.md |
+| **MEMORY_SANITIZE** (zero memory on free for sensitive caches; opt-in for all) | Per-cache flag; always-on for `SENSITIVE`-marked types | `mm/00-overview.md` § slab.md + § page-allocator.md |
+| **SIZE_OVERFLOW** (forbid bare arithmetic on size types) | Clippy lint `bare_arithmetic_on_size` (issue #3) + `checked_*`/`saturating_*`/`wrapping_*` discipline | `00-rust-conventions.md` § Forbidden patterns + issue #3 |
+| **CONSTIFY** (auto-const function-pointer-only structs) | Free in Rust — `static FOO: Vtable = …` is `const` by default | `00-rust-conventions.md` (no separate doc) |
+| **LATENT_ENTROPY** (gather entropy at boot + runtime, feed RNG) | Boot-time + scheduler-tick entropy harvesting feeding the CSPRNG | `crypto/00-overview.md` § rng.md + `drivers/char/random.c` cross-ref |
+| **PAGEEXEC** (NX bit enforcement) | Compile-time guarantee (NX is required on x86_64) | `arch/x86/00-overview.md` § paging.md |
+| **NOEXEC** (no-exec for stack/heap/anon-mmap in userspace) | mm policy enforced via mmap permissions | `mm/00-overview.md` § mmap.md |
+| **MPROTECT** (per-process W^X for userspace via mprotect restrictions) | mm policy | `mm/00-overview.md` § mmap.md |
+| **DIRECT_CALL / DIRECT_SLS_CALL** (replace indirect calls + Spectre-v2/SLS mitigation) | Retpolines + IBRS + IBPB + eIBRS + LASS where applicable | `arch/x86/00-overview.md` § cpu-mitigations.md |
+| **RANDMMAP** (strong ASLR for mmap regions) | mm policy | `mm/00-overview.md` § mmap.md |
+| **ASLR** (strong userspace ASLR for PIE / mmap / stack / exec base) | mm policy | `mm/00-overview.md` § mmap.md + `fs/00-overview.md` § exec-binfmt.md |
+| **DELAY_FREE_ONE_PAGE** (page quarantine on free to defeat UAF spray) | Page-allocator hardening switch | `mm/00-overview.md` § page-allocator.md |
+| **CLOSE_KERNEL / CLOSE_USERLAND** (SMEP/SMAP-equivalent memory-view switching on user↔kernel transition) | Already handled by SMEP/SMAP (CR4 bits) on x86_64 | `arch/x86/00-overview.md` § entry.md + § paging.md |
+
+Every Tier-3 doc named above gains a **Hardening** section that explicitly cites this table when the doc lands. The deferred `00-security-principles.md` (issue #2) consolidates the cross-cutting policy — particularly which features are mandatory always-on, which are configurable with secure defaults, and which are opt-in via sysctl.
+
 The `00-security-principles.md` doc when authored will:
 1. Specify which row-1 features are mandatory always-on.
 2. Specify which row-1 features are configurable (off by default for compat) like KASLR-strict-mode, RANDKSTACK, MEMORY_SANITIZE-on-free.
