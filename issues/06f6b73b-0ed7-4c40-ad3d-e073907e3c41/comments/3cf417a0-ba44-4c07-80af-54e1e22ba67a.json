@@ -1,0 +1,10 @@
+{
+  "uuid": "3cf417a0-ba44-4c07-80af-54e1e22ba67a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 39: 2 Tier-3 net/sched docs (mirred + police actions). net/sched/act-mirred.md (mirror/redirect: 4 eactions EGRESS_REDIRECT/EGRESS_MIRROR/INGRESS_REDIRECT/INGRESS_MIRROR, struct tc_mirred UAPI, MIRRED_RECURSION_LIMIT=4 anti-loop guard via per-CPU counter, TCA_MIRRED_BLOCKID shared-block targeting alternative to ifindex, HW offload via flow_action_mirred — Cilium dataplane cornerstone — 11 REQ / 12 AC, 0 open) + net/sched/act-police.md (rate-policer: srTCM RFC 2697 single-rate + trTCM RFC 2698 two-rate, struct tc_police UAPI, dual token-bucket arithmetic w/ tcfp_tok/tcfp_ptok/tcfp_t_c, 5 result variants OK/DROP/RECLASSIFY/PIPE/CONTINUE, PPS-mode via TCA_POLICE_PKTRATE64, 64-bit rates via TCA_POLICE_RATE64, action sharing across classifiers w/ shared bucket, HW offload via flow_action_police — 11 REQ / 11 AC, 0 open). Path note: tc_police UAPI lives in include/uapi/linux/pkt_cls.h not its own header. 8 upstream paths validated against baseline 27a26ccfd528. Total: 117 .design docs. net/sched: 14 of 18 children done. Next: net/sched/act-ct.md (connection-tracking action — netfilter conntrack integration; major Cilium dependency) + net/sched/em-meta.md (extended-match meta predicates).",
+  "created_at": "2026-05-09T21:23:26.712240554Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAAbkd0pxgPaDDo1gJHCNVFZEUaHYPt/xq+RJMN2YTggD7ZBYb/EhxgN9GupGv3tfJ/hjNvgLqP58J92Sw8EfmBg=="
+}
