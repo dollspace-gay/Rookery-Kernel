@@ -1,0 +1,10 @@
+{
+  "uuid": "a03123b2-3df9-4afc-aa59-b088fad1816d",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 31: 2 Tier-3 xfrm docs (IPTFS + NAT-T keepalive). 100-doc milestone CROSSED. net/xfrm/iptfs.md (RFC 9347 IP-TFS Traffic Flow Confidentiality: aggregation/fragmentation w/ Payload Header (Subtype+Block Offset), per-SA bounded TX queue, periodic timer + assembler emits constant-size constant-rate outer ESP, fragments oversize inner across outers, RX reassembly w/ XFRMA_IPTFS_REORDER_WINDOW + DROP_TIME, XFRMA_IPTFS_DONT_FRAG mode, LATENT_ENTROPY-seeded padding for traffic-fingerprint defense, Subtype 1 CC mode deferred for v0 — 12 REQ / 12 AC, 0 open) + net/xfrm/nat-keepalive.md (RFC 3948 § 4 NAT-T keepalive: kernel-side per-SA hrtimer emitter sends 1-byte 0xff packet at XFRMA_NAT_KEEPALIVE_INTERVAL seconds; replaces userspace-emitted keepalives; per-SA mark inheritance; SA-delete cancel-sync teardown; backward-compat preserved when interval=0 — 10 REQ / 10 AC, 0 open). 6 upstream paths validated against baseline 27a26ccfd528. Total: 101 .design docs (milestone). xfrm: 15 of 17 children done. Remaining: bpf (xfrm_state_bpf.c partial coverage already in state.md; xfrm_interface_bpf.c in interface.md) + compat (deferred for v0). Wrapping up xfrm soon — could pivot to net/sched (tc qdiscs/classifiers) or net/netfilter (iptables/nftables) Tier-2 next.",
+  "created_at": "2026-05-09T20:19:09.739228878Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAixsYAr52UjCipndvh2ESrxsoyOBu3Q+IkqTOdwvbbC5WVOB/dLHx/71bWK96+ofymWZKquy7A93NvQgCqd58BQ=="
+}
