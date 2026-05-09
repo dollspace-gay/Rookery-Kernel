@@ -1,0 +1,10 @@
+{
+  "uuid": "ec0c05ce-57c0-4353-a871-8de671dd89e3",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 34: 2 Tier-3 net/sched docs (action framework + default qdisc). net/sched/act-api.md (action API: tcf_register_action / tc_action_ops registry, struct tc_action layout, tcfa_refcnt + tcfa_bindcnt sharing, tcf_action_exec walk w/ TC_ACT_PIPE chaining + TC_ACT_GOTO_CHAIN, RTM_*TACT wire w/ full TCA_ACT_* NLA set, per-netns IDR for shared-action lookup, multi-part dump, HW offload via offload_act_setup, per-CPU bstats/qstats — 12 REQ / 10 AC, 0 open) + net/sched/sch-fq-codel.md (kernel-default qdisc since 4.12: per-flow hash-perturb classification, CoDel state machine RFC 8289 w/ count/dropping/next_drop + interval/sqrt(count) backoff, ECN marking + CE_THRESHOLD, deficit round-robin between new_flows/old_flows, memory_limit+drop_batch_size, perturb-rotation defense vs hash-collision DoS; OWNS mandatory models/net/sch_fq_codel.tla — 12 REQ / 10 AC, 0 open). 9 upstream paths validated against baseline 27a26ccfd528. Total: 107 .design docs. Next: net/sched/sch-htb.md (HTB; owns models/net/sch_htb.tla rate-bound proof) + net/sched/sch-cake.md (CAKE; extends fq_codel w/ shaping + per-host fairness — common laptop/router default).",
+  "created_at": "2026-05-09T20:43:51.221994629Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABALABShXS3AZp73vjHTy1l3vTzZoJtmJF9WR5vR/si4GfvHTMrd0VMjAS8eHqT2sVW9cytIIKAQOiCWj65FdKDBw=="
+}
