@@ -1,0 +1,10 @@
+{
+  "uuid": "b8162f7c-01ae-4803-89f7-9e5a64a591d3",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 55: 2 Tier-3 fs/proc docs (system-wide entries + sysctl bridge). fs/proc/proc-system.md (per-arch /proc/cpuinfo, full /proc/meminfo with ~50 fields incl Hugetlb+CmaTotal+DirectMap2M/1G, /proc/loadavg 5-field, /proc/uptime 2-float, /proc/stat per-CPU+system+intr+ctxt+btime+procs_running+procs_blocked+softirq, /proc/cmdline+version+devices+interrupts+softirqs+consoles, /proc/kpagecount+kpageflags+kpagecgroup binary 8-byte-per-page; consumed by free/top/htop/lscpu/mpstat/dstat/sar — 14 REQ / 14 AC, 0 open) + fs/proc/proc-sysctl.md (/proc/sys/* sysctl bridge: struct ctl_table layout, full standard proc_handler set (dointvec/minmax/jiffies/userhz_jiffies/ms_jiffies/ulongvec/dostring/dobool/douintvec/dou8vec), register_sysctl + per-netns scoping for net.*, top-level abi/crypto/debug/dev/fs/kernel/net/sunrpc/user/vm subdirs, modes 0644/0600/0444, RCU-defer unregister, sysctl_poll notification, legacy sysctl(2) syscall returns ENOSYS — 12 REQ / 12 AC, 0 open). 16 upstream paths validated against baseline 27a26ccfd528. Total: 149 .design docs. fs/proc: 4 of 9 children done. Next: fs/proc/proc-net.md (/proc/net/* per-netns) + fs/proc/proc-namespaces.md (/proc/<pid>/ns/* + setns infra).",
+  "created_at": "2026-05-09T23:36:36.245002151Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAQ3aIhPVC1tnXJuK80t+waCybztzSCxYP60DODpx42o792JyMWfpQJokaCRtPWr+ipWaZQDMCcAKK5P9n9zi1Aw=="
+}
