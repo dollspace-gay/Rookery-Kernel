@@ -1,0 +1,10 @@
+{
+  "uuid": "611068b7-18d6-468f-b0b5-996d14616587",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase A part 1 written and verified:\n\n- .design/00-baseline.md (factual anchor: pinned commit 27a26ccfd528, kernel 7.1.0-rc2, scope stats, refresh procedure)\n- .design/00-overview.md (keystone contract: 12 REQs, 10 ACs, tiered doc layout, compat-contract enumeration table, 5 open questions)\n- All upstream paths verified to resolve (one fix: fs/devtmpfs.c → drivers/base/devtmpfs.c)\n- Both registered as knowledge pages tagged design-doc + foundation\n\nFive open questions in 00-overview.md await user resolution before Phase A is complete:\n  Q1: baseline pinning policy / refresh cadence\n  Q2: strict CONFIG_MODVERSIONS binary-module compat (massive scope decision)\n  Q3: driver coverage strategy (per-class vs per-driver)\n  Q4: verification ambition (best-effort vs formal)\n  Q5: kexec hand-off parity in / out\n\nPausing for review of these two docs before drafting 00-rust-conventions.md, 00-glossary.md, 00-index.md.",
+  "created_at": "2026-05-09T03:01:24.962963122Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPW/zagdAsmxsnNu4xy1QdOJHtZdsefHHrdVPqp0jNZLRCTjHbdelnYSRH/kEM6lS/d8uG2xEFzAh/uNbhddXCg=="
+}
