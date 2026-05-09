@@ -1,0 +1,10 @@
+{
+  "uuid": "24a116cb-288d-4224-a74f-097095c39a5f",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "00-rust-conventions.md Q1+Q2 resolved (user direction 2026-05-09): both recommendations accepted.\n\nD1: Issue #3 (Rookery clippy lints) is a HARD prerequisite for any non-foundation implementation work. Subsystem-implementation issues will block on #3 as they're created. Rationale: codebase grows under enforcement; retrofitting produces never-cleaned #![allow(...)] escape hatches.\n\nD2: TLC is the default for 'make tla'. Models opt into Apalache via '(* APALACHE *)' preamble for state-space-too-large or parametric/unbounded properties. Both run via the same kbuild target.\n\nConventions doc now has 0 open blocks. Ready for review.\n\nPhase A remaining: 00-glossary.md (kernel terminology baseline; ≥40 terms with upstream references per AC-5 of 00-overview.md) and 00-index.md (master registry of every design doc with tier/status/summary). Proceeding now.",
+  "created_at": "2026-05-09T03:23:39.678873088Z",
+  "kind": "decision",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsWNcKuED98OndjzofDXcfMVrjrfUfoOegfqY/M6SRD1CFMsqo4OYWuIQPZs+4s8bcAGW8ZCsbMGWrk6pY8ZrAA=="
+}
