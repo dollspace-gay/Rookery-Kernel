@@ -1,0 +1,10 @@
+{
+  "uuid": "db0e6791-9094-420e-805e-2d817377b44c",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 32: 1 Tier-3 (xfrm bpf) + 1 Tier-2 wrapper (net/sched). net/xfrm/bpf.md (consolidates xfrm_state_bpf.c + xfrm_interface_bpf.c BPF integration: bpf_xdp_get_xfrm_state w/ refcount-acquire + KF_RELEASE-paired bpf_xdp_xfrm_state_release; bpf_skb_get_xfrm_info / bpf_skb_set_xfrm_info kfuncs for XFRMi metadata; verifier-checked refcount pairing on every program path; read-only contract — 8 REQ / 8 AC, 0 open). xfrm Tier-2 now has 16 of 17 children done (compat deferred for v0). net/sched/00-overview.md Tier-2 wrapper (umbrella for tc qdiscs+classifiers+actions: enumerates 3 mandatory TLA+ models — sch_fq_codel.tla fair-queueing, sch_htb.tla rate-bound, cls_chain_eval.tla atomicity; declares 18 Tier-3 children covering sch_api, sch_generic, cls_api, act_api, sch_fq/fq_codel/cake/htb/mqprio/taprio/bpf, cls_u32/flower/bpf, act_mirred/police/ct, em_meta — 11 REQ-O / 8 AC-O, 0 open). 25 upstream paths validated against baseline 27a26ccfd528. Total: 103 .design docs (18 Tier-2s now). Next: net/sched/sch-api.md + net/sched/cls-api.md (the two API tiers anchoring all qdisc + classifier work).",
+  "created_at": "2026-05-09T20:27:18.567183947Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAAzsfKEqIYfGmdCjnuZvuIzy6Z5sQsVaS6ScfofCkDkf9gu932IdCl7sN2/yjik3VBlx0XgDq5Riz9BdXc6eUBg=="
+}
