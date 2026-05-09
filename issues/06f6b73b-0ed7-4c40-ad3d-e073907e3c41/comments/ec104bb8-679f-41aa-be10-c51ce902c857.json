@@ -1,0 +1,10 @@
+{
+  "uuid": "ec104bb8-679f-41aa-be10-c51ce902c857",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 50: 2 Tier-3 net/netfilter docs (NFQUEUE userspace handoff + NFLOG packet logging). net/netfilter/nf-queue.md (NFQUEUE: NF_QUEUE_NR(num)<<16 verdict encoding, per-(netns,queue_num) waiter lists, struct nf_queue_entry suspended-skb tracking, NFNL_SUBSYS_QUEUE NFQNL_MSG_PACKET/VERDICT/CONFIG/VERDICT_BATCH, full NFQA_* NLA set incl PAYLOAD/CT/UID/GID/SECCTX/VLAN/CGROUPv2, NFQA_CFG_F_FAIL_OPEN+GSO+CONNTRACK flags, queue_maxlen=1024 default w/ FAIL_OPEN drop policy, used by Suricata/Snort — 12 REQ / 10 AC, 0 open) + net/netfilter/nf-log.md (per-AF logger registry w/ syslog backend printk-text + NFLOG NFNL_SUBSYS_ULOG backend, NFULNL_MSG_PACKET w/ full NFULA_* NLA set incl PAYLOAD/PREFIX/UID/GID/SEQ/SEQ_GLOBAL/CT/CT_INFO/HWHEADER, per-group batching via qthresh+timeout, iptables -j LOG/NFLOG + nftables log expression integration, ulogd2 interop — 11 REQ / 10 AC, 0 open). 9 upstream paths validated against baseline 27a26ccfd528. Total: 139 .design docs. netfilter: 17 of 22 children done. Next: net/netfilter/nat-helpers.md (per-helper NAT counterparts: nf_nat_ftp/sip/irc/pptp/tftp/sane/amanda/h323) + ipset Tier-2 wrapper net/netfilter/ipset/00-overview.md.",
+  "created_at": "2026-05-09T22:55:54.428639273Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAvh9Eaxni0GqPS4mL0x5JmZt4ZxEuQMtPAEKxsybCHVBpObjl5VAfeFKxjNOQUUc2x1DfPkvWlOGyDaW7bPZZDg=="
+}
