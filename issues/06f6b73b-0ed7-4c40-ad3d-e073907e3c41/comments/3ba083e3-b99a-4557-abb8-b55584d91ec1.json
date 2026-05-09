@@ -1,0 +1,10 @@
+{
+  "uuid": "3ba083e3-b99a-4557-abb8-b55584d91ec1",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 49: 2 Tier-3 net/netfilter docs (Ethernet bridge + ARP filtering — closes legacy x_tables family). net/netfilter/ebtables.md (legacy ebtables: 6 NF_BR_* hooks incl special BROUTING for bridge-or-route decision, 3 standard tables filter/nat/broute, struct ebt_entry layout, ebt_arp + ebt_among + ebt_ip + ebt_802_3 + ebt_stp + ebt_vlan match modules, ebt_dnat/snat/redirect/arpreply/log/nflog/mark targets, EBT_SO_SET_ENTRIES/GET_INFO setsockopt UAPI; modern alternative nft bridge family — 12 REQ / 9 AC, 0 open) + net/netfilter/arptables.md (legacy arptables: 3 NF_ARP_* hooks IN/OUT/FORWARD, single filter table w/ default ACCEPT, struct arpt_entry + arpt_arp + arpt_devaddr_info layouts, arpt_mangle target rewriting src_ip/tgt_ip/src_hw/tgt_hw, ARPT_SO_SET_REPLACE setsockopt; ARP-spoofing-prevention use case — 9 REQ / 8 AC, 0 open). 27 upstream paths validated against baseline 27a26ccfd528. Total: 137 .design docs. netfilter: 15 of 22 children done. Legacy x_tables family complete: x-tables + iptables + ebtables + arptables. Next: net/netfilter/nf-queue.md (NFQUEUE userspace handoff) + net/netfilter/nf-log.md (NFLOG packet logging).",
+  "created_at": "2026-05-09T22:48:01.561782082Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAY8JaIUWqVB0qrXWiBelkd4GtT5lbKsWqhyyx00SzmIF+WyyqJv2zqVNDMNZFNdLZHomb5Yca70BzTpcnksSVDw=="
+}
