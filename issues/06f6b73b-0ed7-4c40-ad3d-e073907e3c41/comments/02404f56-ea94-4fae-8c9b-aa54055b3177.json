@@ -1,0 +1,10 @@
+{
+  "uuid": "02404f56-ea94-4fae-8c9b-aa54055b3177",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Strategy locked in by user (2026-05-09):\n\n- Source: shallow clone of torvalds/linux mainline → ~/linux-src\n- Baseline version: latest mainline (commit hash to be pinned in 00-baseline.md once clone finishes)\n- Compat target: FULL ABI — syscall numbers + /proc & /sys layouts + kernel-module ABI. Existing distros must boot unchanged. Maximum scope.\n- Starting point: top-down — overview/glossary/conventions docs first, then walk the kernel directory tree\n\nDocument layout (decision):\n- Use .design/<area>/<subarea>/<slug>.md nested directories. Flat naming will not scale to thousands of docs. Skill writes a single file per invocation; we override the path convention deliberately and document it in 00-overview.md.\n\nPhase plan:\n- Phase A (foundations): 00-overview.md, 00-glossary.md, 00-rust-conventions.md, 00-baseline.md, 00-index.md\n- Phase B (subsystem overviews): one 00-overview per top-level kernel/ directory (arch, mm, fs, net, kernel, drivers, ipc, security, crypto, block, lib, sound, virt)\n- Phase C (component-level designs): drill into each subsystem (e.g. kernel/sched/cfs.md)\n- Phase D (syscall ABI specs): per-syscall semantic specs for the ~400-syscall surface\n- Phase E (driver subsystems): drivers/* — likely the largest single area\n\nOut of scope for this session: any code, any decisions about Rust crate layout in the implementation tree (that belongs to the implementing instance). This session writes specs only.",
+  "created_at": "2026-05-09T02:48:21.696211703Z",
+  "kind": "plan",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAlLCgA/7prxGH5yKhy5oER8oe38T5TPdRgT/1yCmgSpovlZWMU9zi4Jfb+gzhy8SFeWevx7CtmCLRtWdK42bdDA=="
+}
