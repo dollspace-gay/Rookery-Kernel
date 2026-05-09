@@ -146,9 +146,27 @@ Suggested order (driven by dependency: lower-level subsystems first, so higher-l
 
 **Phase B complete.** All 14 in-scope subsystems have Tier-2 overviews. ~225 Tier-3 component docs are spawned by these overviews (each names its planned children); Phase C authors them in dependency order.
 
-**Phase C in progress (started 2026-05-09).** Drafted Tier-3 docs:
+**Phase C in progress (started 2026-05-09).** 16 Tier-3 docs drafted so far:
 - `lib/data-structures.md` (foundational; used by every subsystem)
+- `lib/usercopy.md` (UDEREF + USERCOPY enforcement)
 - `arch/x86/boot.md` (substrate)
+- `arch/x86/entry.md` (syscall, IRQ, exception entry)
+- `arch/x86/paging.md` (page tables + fault handling + ioremap)
+- `arch/x86/kernel-platform.md` (CPU bringup + IDT + TSS + FPU + time)
+- `arch/x86/cpu-mitigations.md` (Spectre, kCFI, CET, IBT, retpolines)
+- `arch/x86/signal.md` (signal frames + sigreturn)
+- `arch/x86/vdso.md` (vDSO + vsyscall page)
+- `mm/page-allocator.md` (buddy allocator — MANDATORY L3)
+- `mm/slab.md` (SLUB — MANDATORY L3)
+- `mm/virtual-memory.md` (mm_struct + VMAs — MANDATORY L3)
+- `mm/mmap.md` (mmap-family syscalls + MPROTECT enforcement)
+- `kernel/task-lifecycle.md` (fork/exit/exec/signal/kthread/cred/cap/pid/ns + PR_REQUEST_EXEC_GAIN)
+- `fs/exec-binfmt.md` (exec + binfmt_elf + ELF note recognition for exec-gain)
+- `fs/vfs/dcache.md` (directory entry cache — MANDATORY L3, the fourth)
+
+All four MANDATORY Layer-3 subsystems per `00-overview.md` D4 now have Tier-3 design docs (mm: page-allocator, slab, virtual-memory; arch/x86: paging; fs: vfs/dcache). The verification mandate is fully scoped.
+
+Phase C totals: 16/~225 Tier-3 docs (~7%). The substrate (boot/entry/paging/kernel-platform/mitigations + mm core + task lifecycle + exec-binfmt + dcache + lib core) is largely covered.
 
 Once `mm/00-overview.md` and `arch/x86/00-overview.md` exist, unblock issue #2 to author `00-security-principles.md`.
 
