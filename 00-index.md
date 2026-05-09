@@ -7,16 +7,22 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
+# Foundation: Master design-document index
 
-## Design Specification
+<!--
+baseline-commit: 27a26ccfd528da725a999ea1e3102503c61eb655
+baseline-version: 7.1.0-rc2
+upstream-paths:
+  - (project-wide registry)
+status: draft
+-->
 
-### Summary
-
+## Summary
 Single source of truth listing every Rookery design document, its tier, its status, and the upstream paths it covers. Updated whenever a document is added, status changes, or scope shifts. A reader scanning this file can answer: "what design coverage does Rookery have?" and "what's still missing?".
 
 This file complements the crosslink knowledge base — every design doc is also stored as a knowledge page tagged `design-doc` plus tier-specific tags. The knowledge-page slug equals the doc's relative path with `/` replaced by `-` (e.g. `kernel/sched/cfs.md` → knowledge slug `kernel-sched-cfs`).
 
-### Requirements
+## Requirements
 
 - REQ-1: Every design document under `.design/` (including this one) appears as a row in the Registry section.
 - REQ-2: Every row records: relative path, tier (1–5 per `00-overview.md`), status (`draft` / `reviewed` / `approved`), baseline-commit (matching the doc's frontmatter), and a one-line summary.
@@ -24,7 +30,7 @@ This file complements the crosslink knowledge base — every design doc is also 
 - REQ-4: A "Planned next" section lists the Phase B / Phase C / Phase D / Phase E docs we know we'll need but haven't written yet, with priority hints.
 - REQ-5: Whenever a design doc's status advances (`draft` → `reviewed` → `approved`), this index is updated in the same commit.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 - [ ] AC-1: A walk over `.design/**/*.md` yields the same set of paths as the Registry section's path column. (covers REQ-1)
 - [ ] AC-2: Every Registry row's `Source paths` field cites at least one upstream path verifiable under `/home/doll/linux-src/`. (covers REQ-2 partially — the row's accuracy)
@@ -32,7 +38,7 @@ This file complements the crosslink knowledge base — every design doc is also 
 - [ ] AC-4: A grep for "Phase " in this file finds at least Phase B, C, D, E sections under "Planned next". (covers REQ-4)
 - [ ] AC-5: Each registry row's tier matches the doc's filename convention (Tier 1: `.design/00-*.md`; Tier 2: `.design/<area>/00-*.md`; Tier 3: `.design/<area>/<comp>.md`; Tier 4: `.design/drivers/<class>/...md`; Tier 5: `.design/uapi/...md`). (covers REQ-2 partially — the row's tier accuracy)
 
-### Architecture
+## Architecture
 
 The registry table format:
 
@@ -45,13 +51,7 @@ Status values: `draft` / `reviewed` / `approved`. A `reviewed` doc has had a `--
 
 Baseline column carries the short SHA of the doc's frontmatter `baseline-commit` (e.g. `27a26ccfd5`). When the project-wide pin advances and a doc hasn't been re-reviewed, this column shows the *old* short SHA in red — making staleness visually obvious.
 
-### Out of Scope
-
-- Documents that aren't binding design specs (release notes, READMEs, CHANGELOGs) — those belong in repository-root markdown files, not under `.design/`.
-- Implementation-side documentation (rustdoc, in-source comments) — those live in the implementation tree, not here.
-- Non-x86_64 arch docs in v0 — placeholders only when an arch is named in a Tier-2 overview.
-
-### registry
+## Registry
 
 Last updated: 2026-05-09. Project-wide baseline pin: `27a26ccfd528` (Linux 7.1.0-rc2).
 
@@ -63,14 +63,17 @@ Last updated: 2026-05-09. Project-wide baseline pin: `27a26ccfd528` (Linux 7.1.0
 | `00-glossary.md`              | 1-foundation | draft | `27a26ccfd5` | `include/linux/`, `include/uapi/linux/`, `arch/x86/include/` | 91 kernel terms across process/scheduler, memory, locking, time, VFS, network, block, IPC, boot, IRQ, security, syscalls, observability, x86, and Rookery verification artifacts. |
 | `00-index.md`                 | 1-foundation | draft | `27a26ccfd5` | (project-wide registry) | This document. Master registry of all design docs + coverage map + planned-next backlog. |
 | `references/grsec-pax-notes.md` | 0-reference | draft | `linux-6.6.102` | `/home/doll/grsec-6.6.102.patch` | Reading list — grsecurity / PaX patchset feature catalog mapped to "free in Rust" / "type-system encodable" / "explicit per-subsystem policy" buckets. Source for the deferred `00-security-principles.md`. |
+| `arch/00-overview.md`         | 2-subsystem | draft | `27a26ccfd5` | `arch/`, `arch/Kconfig`, `include/asm-generic/` | arch/ tier meta-doc: states v0 is x86_64-only, deferrals for 21 other arches, per-arch design-doc convention (10 required topics), arch-abstraction extraction policy. 4 REQs, 4 ACs, 2 open. |
+| `arch/x86/00-overview.md`     | 2-subsystem | draft | `27a26ccfd5` | `arch/x86/` (full subtree) | Substantive x86_64 design: enumerates 19+ Tier-3 component docs (boot, entry, paging, kernel-platform, signal, vDSO, cpuinfo, ptrace-abi, ELF, mitigations, COCO, hyperv-guest, xen-guest, KVM, PCI, PMU, crypto-accel, BPF JIT, power, RAS), declares the x86 slice of the compat contract, sets verification-stack expectations (Layer 1 unsafe blocks, Layer 2 TLA+ for vDSO seqlock + SMP boot + IDT install + kexec hand-off, Layer 3 Kani for page-table walker + IDT/TSS/per-CPU invariants, Layer 4 opt-ins for AES-NI). 13 REQs, 13 ACs, 6 open. |
 
-### coverage map
+## Coverage map
 
 Top-level upstream Linux directories at baseline `27a26ccfd528`, listed via `ls /home/doll/linux-src | grep -v '\.'`:
 
 | Upstream dir | Tier-2 design doc | Status |
 |---|---|---|
-| `arch/`         | `arch/00-overview.md` (Phase B) | NOT WRITTEN |
+| `arch/`         | `arch/00-overview.md`           | DRAFT (Phase B) |
+| `arch/x86/`     | `arch/x86/00-overview.md`       | DRAFT (Phase B) |
 | `block/`        | `block/00-overview.md` (Phase B) | NOT WRITTEN |
 | `certs/`        | (out-of-scope for v0 — module-signing certs storage; not a kernel subsystem in design sense) | OUT OF SCOPE v0 |
 | `crypto/`       | `crypto/00-overview.md` (Phase B) | NOT WRITTEN |
@@ -95,9 +98,9 @@ Top-level upstream Linux directories at baseline `27a26ccfd528`, listed via `ls 
 | `usr/`          | (initramfs-cpio packing utility for build — minor; covered under `init/`) | (folded into init) |
 | `virt/`         | `virt/00-overview.md` (Phase B; covers KVM core, x86 KVM in `arch/x86/kvm/`) | NOT WRITTEN |
 
-**Coverage status**: 0 / 14 in-scope subsystems have a Tier-2 overview. Phase A (foundation) is the only tier with content.
+**Coverage status**: 1 / 14 in-scope subsystems has a Tier-2 overview (arch, with arch/x86/ as its in-v0 sub-overview). Phase B started 2026-05-09.
 
-### planned next
+## Planned next
 
 ### Phase B — subsystem overviews (Tier 2)
 
@@ -109,8 +112,8 @@ One `<subsystem>/00-overview.md` per in-scope upstream directory above. Each mus
 
 Suggested order (driven by dependency: lower-level subsystems first, so higher-level ones can reference them):
 
-1. `arch/00-overview.md` (lays out arch-abstraction philosophy and points at x86_64-specific `arch/x86/00-overview.md`)
-2. `arch/x86/00-overview.md` (boot, entry, paging, IDT, CPU bringup)
+1. ~~`arch/00-overview.md`~~ — DRAFT 2026-05-09
+2. ~~`arch/x86/00-overview.md`~~ — DRAFT 2026-05-09
 3. `lib/00-overview.md` (kernel utility library — strings, lists, RB trees, refcounts; mostly thin wrappers)
 4. `mm/00-overview.md` (page allocator, slab, virtual memory, reclaim, swap, THP, NUMA)
 5. `kernel/00-overview.md` (sched, locking, time, fork/exit/signal, cgroup, namespaces, BPF)
@@ -184,3 +187,8 @@ Per `00-overview.md` D3:
   - `drivers/hid/hid-input.md`
   - `drivers/tty/vt/00-overview.md` + `vt-console.md`
 
+## Out of Scope
+
+- Documents that aren't binding design specs (release notes, READMEs, CHANGELOGs) — those belong in repository-root markdown files, not under `.design/`.
+- Implementation-side documentation (rustdoc, in-source comments) — those live in the implementation tree, not here.
+- Non-x86_64 arch docs in v0 — placeholders only when an arch is named in a Tier-2 overview.
