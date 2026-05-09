@@ -7,16 +7,148 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
+# Subsystem: net/ — networking stack
 
-## Design Specification
+<!--
+baseline-commit: 27a26ccfd528da725a999ea1e3102503c61eb655
+baseline-version: 7.1.0-rc2
+status: in-v0
+upstream-paths:
+  - net/
+  - net/core/
+  - net/ipv4/
+  - net/ipv6/
+  - net/socket.c
+  - net/unix/
+  - net/packet/
+  - net/netlink/
+  - net/netfilter/
+  - net/sched/
+  - net/xfrm/
+  - net/xdp/
+  - net/bpf/
+  - net/bridge/
+  - net/8021q/
+  - net/dsa/
+  - net/switchdev/
+  - net/ethernet/
+  - net/ethtool/
+  - net/devlink/
+  - net/tls/
+  - net/mptcp/
+  - net/sctp/
+  - net/wireless/
+  - net/mac80211/
+  - net/bluetooth/
+  - net/sunrpc/
+  - include/linux/skbuff.h
+  - include/linux/netdevice.h
+  - include/net/sock.h
+  - include/net/ip.h
+  - include/net/tcp.h
+  - include/net/udp.h
+  - include/uapi/linux/socket.h
+  - include/uapi/linux/in.h
+  - include/uapi/linux/in6.h
+  - include/uapi/linux/if.h
+  - include/uapi/linux/netlink.h
+  - include/uapi/linux/netfilter.h
+-->
 
-### Summary
-
+## Summary
 Tier-2 overview for `net/` — the kernel networking stack. Owns the socket layer (BSD sockets API), the cross-protocol substrate (sk_buff, net_device, struct sock), every IP version (IPv4 + IPv6 + MPLS), every transport protocol (TCP, UDP, SCTP, MPTCP, DCCP, RDS, RxRPC, TIPC, SMC), the firewall/filter framework (netfilter + iptables/nftables), QoS and traffic control (`net/sched/`), IPsec (`net/xfrm/`), the L2 bridge + VLAN + DSA + switchdev abstractions, ethernet helpers + ethtool ABI, devlink (vendor-driver-management ABI), wireless (cfg80211 + mac80211 + ieee802154), bluetooth, eXpress Data Path (XDP), TLS offload, sunrpc (NFS transport), and ~25 less-common protocol families.
 
 `net/` is the second-largest subsystem after `fs/` by surface area: 67 subdirectories, ~400K LoC. Per-protocol coverage strategy mirrors `fs/`: class-tiered with a named v0 port set; the long tail keeps upstream C via FFI or is dropped (CONFIG=n).
 
-### Requirements
+## Upstream references in scope
+
+| Category | Upstream paths | Planned Tier-3 doc |
+|---|---|---|
+| Socket layer + protocol-family registration | `net/socket.c`, `include/linux/{socket,net}.h`, `include/uapi/linux/socket.h` | `socket-api.md` |
+| sk_buff (canonical packet container) | `net/core/skbuff.c`, `net/core/datagram.c`, `net/core/gro.c`, `net/core/gso.c`, `include/linux/skbuff.h` | `skbuff.md` |
+| net_device + dev rx/tx + GRO/GSO/LRO | `net/core/dev.c`, `net/core/dev_*.c`, `net/core/dev_ioctl.c`, `net/core/dev_api.c`, `net/core/devmem.c`, `net/core/link_watch.c`, `net/core/hotdata.c`, `net/core/gro_cells.c`, `net/core/hwbm.c`, `include/linux/netdevice.h` | `netdev.md` |
+| struct sock + protocol-agnostic socket state | `net/core/sock.c` (probably), `include/net/sock.h` | `struct-sock.md` |
+| BPF on the network path | `net/core/filter.c`, `net/core/lwt_bpf.c`, `net/bpf/`, `net/xdp/`, `net/core/sock_bpf.c` (etc.), `net/core/bpf_sk_storage.c` | `bpf-net.md` (cross-references `kernel/bpf/00-overview.md`) |
+| Routing infrastructure (FIB) | `net/core/fib_notifier.c`, `net/core/fib_rules.c`, `net/core/dst.c`, `net/core/dst_cache.c`, `net/core/flow_*.c` | `fib.md` |
+| netlink (cross-protocol control plane) | `net/netlink/` (af_netlink, genetlink, policy) | `netlink.md` |
+| Packet socket + raw sockets | `net/packet/` | `packet.md` |
+| AF_UNIX (local domain sockets) | `net/unix/` | `unix-socket.md` |
+| IPv4 (TCP/UDP/ICMP/IGMP, FIB, TLS-SOL_IP, TC, …) | `net/ipv4/` | `ipv4/00-overview.md` (Tier 3 hub) spawning `ipv4/{tcp,udp,icmp,igmp,fib,frag,multicast,raw,tunnel,gre,mroute,arp,...}.md` |
+| IPv6 | `net/ipv6/` | `ipv6/00-overview.md` (analogous structure to ipv4) |
+| Netfilter (iptables/nftables/conntrack) | `net/netfilter/` | `netfilter.md` (substantial — spawns sub-docs for nf_tables, ipset, conntrack) |
+| TC / QoS | `net/sched/` (40+ schedulers and classifiers) | `traffic-control.md` |
+| IPsec | `net/xfrm/` | `xfrm.md` |
+| L2 bridging | `net/bridge/`, `net/8021q/` (VLAN), `net/dsa/` (Distributed Switch Architecture), `net/switchdev/` | `l2/00-overview.md` (Tier 3 hub) spawning `l2/{bridge,vlan,dsa,switchdev}.md` |
+| Ethernet helpers + ethtool ABI | `net/ethernet/`, `net/ethtool/` | `ethtool.md` |
+| Devlink (vendor-driver management ABI) | `net/devlink/` | `devlink.md` |
+| TLS in kernel | `net/tls/`, `net/psp/` (Per-packet Security Protocol) | `tls.md` |
+| MPTCP (Multipath TCP) | `net/mptcp/` | `mptcp.md` |
+| SCTP | `net/sctp/` | `sctp.md` |
+| Wireless (cfg80211 + mac80211 + ieee802154 + 6lowpan) | `net/wireless/`, `net/mac80211/`, `net/ieee802154/`, `net/mac802154/`, `net/6lowpan/` | `wireless/00-overview.md` (Tier 3 hub) |
+| Bluetooth | `net/bluetooth/` | `bluetooth.md` |
+| RPC (used by NFS) | `net/sunrpc/`, `net/handshake/` (TLS handshake offload for sunrpc) | `sunrpc.md` (cross-ref `fs/network-fs/nfs-client.md`) |
+| Vsock (host-VM communication) | `net/vmw_vsock/` | `vsock.md` |
+| 9P transport | `net/9p/` | `9p-transport.md` (cross-ref `fs/network-fs/9p.md`) |
+| Generic infra: drop_monitor, link_watch, devmem, hotdata, etc. | listed under the netdev/skb docs above | folded into `netdev.md` |
+| Ceph transport (used by fs/ceph) | `net/ceph/` | folded into `fs/network-fs/ceph.md` (network/transport split documented there) |
+| KCM, RDS, RxRPC | `net/kcm/`, `net/rds/`, `net/rxrpc/` | `niche-transports.md` (covers all three) |
+| Strparser | `net/strparser/` | folded into `tls.md` and `bpf-net.md` |
+| **Niche / dead protocols** (CONFIG=n by default for v0): net/appletalk, net/atm, net/x25, net/lapb, net/llc, net/iucv (s390-only), net/phonet (Nokia), net/dccp (deprecated, may be removed), net/key (PF_KEY), net/qrtr (Qualcomm IPC), net/ife, net/nfc, net/nsh, net/openvswitch, net/batman-adv, net/hsr, net/can, net/dcb, net/dns_resolver, net/dsa shouldn't be there (it's L2), net/ncsi, net/netlabel, net/psample, net/rfkill, net/shaper, net/smc, net/tipc, net/l2tp, net/l3mdev, net/mac802154 listed twice — let's clean: niche set is appletalk, atm, x25, lapb, llc, iucv, phonet, dccp, key, qrtr, ife, can, mctp (?), nfc, nsh, openvswitch, batman-adv, hsr, dcb, dns_resolver, ncsi, netlabel, psample, rfkill, smc, tipc, l2tp | per-protocol Tier-3 docs are deferred; some kept as upstream-C-via-FFI |
+
+## Compatibility contract
+
+`net/` owns the third-largest userspace-visible compat slice (after `mm/` and `kernel/`). The compat target is unusually well-defined because most network protocols are RFC-specified.
+
+### Syscall surface
+
+`socket`, `bind`, `connect`, `accept`, `accept4`, `listen`, `socketpair`, `getsockname`, `getpeername`, `send`, `sendto`, `sendmsg`, `sendmmsg`, `recv`, `recvfrom`, `recvmsg`, `recvmmsg`, `shutdown`, `setsockopt`, `getsockopt`, `socketcall` (compat).
+
+(Each gets a Tier-5 `uapi/syscalls/<name>.md` in Phase D. The set is small but every option to setsockopt/getsockopt is a separate compat surface.)
+
+### Address families (UAPI)
+
+Every value in `enum AF_*` has a documented protocol-family handler. Compat target: every AF_* value upstream supports continues to work (or returns ENOSYS-equivalent identically). UAPI: `include/linux/socket.h` enum `AF_*`.
+
+### `/proc/net/*` surfaces
+
+| Path | Owner doc | Compat level |
+|---|---|---|
+| `/proc/net/{tcp,tcp6,udp,udp6,raw,raw6,unix,packet,netlink}` | per-protocol Tier-3 doc | Format-identical |
+| `/proc/net/{route,fib_trie,fib_triestat,arp,igmp,if_inet6,ipv6_route,sockstat,sockstat6}` | `fib.md`, `ipv4/00-overview.md`, `ipv6/00-overview.md` | Format-identical |
+| `/proc/net/dev`, `/proc/net/dev_mcast`, `/proc/net/wireless` | `netdev.md`, `wireless/00-overview.md` | Format-identical |
+| `/proc/net/netfilter/*` | `netfilter.md` | Format-identical |
+| `/proc/net/{stat/<x>}` (nf_conntrack stats etc.) | `netfilter.md` | Format-identical |
+| `/proc/net/xfrm_stat` | `xfrm.md` | Format-identical |
+| `/proc/net/<proto-specific>` | per-protocol Tier-3 docs | Format-identical |
+
+### `/sys` surfaces
+
+| Path | Owner doc | Compat level |
+|---|---|---|
+| `/sys/class/net/<dev>/{addr_*,carrier,dev_id,duplex,...}` | `netdev.md` | Identical |
+| `/sys/class/net/<dev>/queues/{rx,tx}-<n>/*` | `netdev.md` | Identical |
+| `/sys/class/net/<dev>/statistics/*` | `netdev.md` | Field-identical |
+| `/sys/class/net/<dev>/wireless/*` | `wireless/00-overview.md` | Identical |
+| `/sys/devices/virtual/net/lo/*` | `netdev.md` | Identical |
+
+### Wire-level
+
+- **TCP wire format**: byte-identical (RFC 793 + RFC 7323 + RFC 9293 + IETF-track extensions). Window-scale, SACK, ECN, Timestamps, Fast Open.
+- **UDP wire format**: byte-identical (RFC 768).
+- **IPv4 + IPv6 packet headers**: byte-identical.
+- **ICMP / ICMPv6 message types**: byte-identical.
+- **Netfilter NFNL netlink protocol** (used by nftables): wire-identical.
+- **TC netlink protocol** (used by `tc`): wire-identical.
+- **NFS RPC wire format** (NFSv3 / v4 / v4.1 / pNFS): wire-identical.
+- **TLS wire protocol** (handshake + record layer): RFC-identical (but TLS handshake is userspace; only record-layer offload is in kernel).
+
+### ioctls (mostly socket / netdev)
+
+- **SIOC* family**: SIOCGIFNAME, SIOCSIFFLAGS, SIOCGIFADDR, SIOCETHTOOL (passes through to `ethtool.md`), SIOCBOND* (bonding), SIOCBR* (bridge), SIOCWAN* (WAN), SIOCSI* (interface mgmt)
+- **SO_* setsockopt names + values**: identical
+- **TCP_* options**: identical (TCP_NODELAY, TCP_CORK, TCP_KEEPIDLE, TCP_USER_TIMEOUT, TCP_FASTOPEN, TCP_QUICKACK, TCP_DEFER_ACCEPT, TCP_MD5SIG, …)
+
+## Requirements
 
 - REQ-1: Every socket-level syscall is byte-identical with upstream — entry/exit conventions, address-family dispatch, errno returns.
 - REQ-2: TCP, UDP, ICMP, IPv4, IPv6 wire formats are byte-identical (RFC compliant + Linux's specific extensions).
@@ -37,7 +169,7 @@ Tier-2 overview for `net/` — the kernel networking stack. Owns the socket laye
 - REQ-17: The implementation reuses upstream rust-for-linux's existing net abstractions (`rust/kernel/net.rs`, `rust/kernel/net/`).
 - REQ-18: For each protocol-family in the v0 port set (decided per Q1 below): full Rust implementation with verification artifacts. For each protocol-family NOT in v0: upstream-C-via-FFI or CONFIG=n.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 - [ ] AC-1: Socket-syscall `strace` golden tests pass byte-identically. (covers REQ-1)
 - [ ] AC-2: Wireshark/tcpdump capture of TCP/UDP/ICMP/v4/v6 traffic on Rookery vs. upstream is byte-identical (modulo timestamps). (covers REQ-2)
@@ -57,7 +189,7 @@ Tier-2 overview for `net/` — the kernel networking stack. Owns the socket laye
 - [ ] AC-16: A grep over Rookery for `kernel::net::*` shows reuse of upstream rust-for-linux abstractions. (covers REQ-17)
 - [ ] AC-17: For each protocol in v0 port set: a curated reference workload (e.g., `iperf3` for TCP, `dnsperf` for DNS-over-UDP, `ssh` for TCP/keepalive) runs successfully. (covers REQ-18)
 
-### Architecture
+## Architecture
 
 ### Layout map (Tier-3 docs spawned)
 
@@ -154,104 +286,7 @@ Many of these primitives have nontrivial concurrency contracts. TLA+ models in T
 
 Net-specific common returns: ENETDOWN, ENETUNREACH, EHOSTUNREACH, ENETRESET, ECONNRESET, ECONNREFUSED, ECONNABORTED, ETIMEDOUT, EMSGSIZE, EPROTOTYPE, EPROTONOSUPPORT, EAFNOSUPPORT, EOPNOTSUPP, EADDRINUSE, EADDRNOTAVAIL.
 
-### Out of Scope
-
-- Niche protocols listed in Q1 bucket C.
-- Wireless full Rust port (per Q2 — defer to v1+).
-- Bluetooth full Rust port (per Q3 — defer to v1+).
-- 32-bit-only network paths.
-- Test fixtures.
-- Implementation code — `.design/` contains specs only.
-
-### upstream references in scope
-
-| Category | Upstream paths | Planned Tier-3 doc |
-|---|---|---|
-| Socket layer + protocol-family registration | `net/socket.c`, `include/linux/{socket,net}.h`, `include/uapi/linux/socket.h` | `socket-api.md` |
-| sk_buff (canonical packet container) | `net/core/skbuff.c`, `net/core/datagram.c`, `net/core/gro.c`, `net/core/gso.c`, `include/linux/skbuff.h` | `skbuff.md` |
-| net_device + dev rx/tx + GRO/GSO/LRO | `net/core/dev.c`, `net/core/dev_*.c`, `net/core/dev_ioctl.c`, `net/core/dev_api.c`, `net/core/devmem.c`, `net/core/link_watch.c`, `net/core/hotdata.c`, `net/core/gro_cells.c`, `net/core/hwbm.c`, `include/linux/netdevice.h` | `netdev.md` |
-| struct sock + protocol-agnostic socket state | `net/core/sock.c` (probably), `include/net/sock.h` | `struct-sock.md` |
-| BPF on the network path | `net/core/filter.c`, `net/core/lwt_bpf.c`, `net/bpf/`, `net/xdp/`, `net/core/sock_bpf.c` (etc.), `net/core/bpf_sk_storage.c` | `bpf-net.md` (cross-references `kernel/bpf/00-overview.md`) |
-| Routing infrastructure (FIB) | `net/core/fib_notifier.c`, `net/core/fib_rules.c`, `net/core/dst.c`, `net/core/dst_cache.c`, `net/core/flow_*.c` | `fib.md` |
-| netlink (cross-protocol control plane) | `net/netlink/` (af_netlink, genetlink, policy) | `netlink.md` |
-| Packet socket + raw sockets | `net/packet/` | `packet.md` |
-| AF_UNIX (local domain sockets) | `net/unix/` | `unix-socket.md` |
-| IPv4 (TCP/UDP/ICMP/IGMP, FIB, TLS-SOL_IP, TC, …) | `net/ipv4/` | `ipv4/00-overview.md` (Tier 3 hub) spawning `ipv4/{tcp,udp,icmp,igmp,fib,frag,multicast,raw,tunnel,gre,mroute,arp,...}.md` |
-| IPv6 | `net/ipv6/` | `ipv6/00-overview.md` (analogous structure to ipv4) |
-| Netfilter (iptables/nftables/conntrack) | `net/netfilter/` | `netfilter.md` (substantial — spawns sub-docs for nf_tables, ipset, conntrack) |
-| TC / QoS | `net/sched/` (40+ schedulers and classifiers) | `traffic-control.md` |
-| IPsec | `net/xfrm/` | `xfrm.md` |
-| L2 bridging | `net/bridge/`, `net/8021q/` (VLAN), `net/dsa/` (Distributed Switch Architecture), `net/switchdev/` | `l2/00-overview.md` (Tier 3 hub) spawning `l2/{bridge,vlan,dsa,switchdev}.md` |
-| Ethernet helpers + ethtool ABI | `net/ethernet/`, `net/ethtool/` | `ethtool.md` |
-| Devlink (vendor-driver management ABI) | `net/devlink/` | `devlink.md` |
-| TLS in kernel | `net/tls/`, `net/psp/` (Per-packet Security Protocol) | `tls.md` |
-| MPTCP (Multipath TCP) | `net/mptcp/` | `mptcp.md` |
-| SCTP | `net/sctp/` | `sctp.md` |
-| Wireless (cfg80211 + mac80211 + ieee802154 + 6lowpan) | `net/wireless/`, `net/mac80211/`, `net/ieee802154/`, `net/mac802154/`, `net/6lowpan/` | `wireless/00-overview.md` (Tier 3 hub) |
-| Bluetooth | `net/bluetooth/` | `bluetooth.md` |
-| RPC (used by NFS) | `net/sunrpc/`, `net/handshake/` (TLS handshake offload for sunrpc) | `sunrpc.md` (cross-ref `fs/network-fs/nfs-client.md`) |
-| Vsock (host-VM communication) | `net/vmw_vsock/` | `vsock.md` |
-| 9P transport | `net/9p/` | `9p-transport.md` (cross-ref `fs/network-fs/9p.md`) |
-| Generic infra: drop_monitor, link_watch, devmem, hotdata, etc. | listed under the netdev/skb docs above | folded into `netdev.md` |
-| Ceph transport (used by fs/ceph) | `net/ceph/` | folded into `fs/network-fs/ceph.md` (network/transport split documented there) |
-| KCM, RDS, RxRPC | `net/kcm/`, `net/rds/`, `net/rxrpc/` | `niche-transports.md` (covers all three) |
-| Strparser | `net/strparser/` | folded into `tls.md` and `bpf-net.md` |
-| **Niche / dead protocols** (CONFIG=n by default for v0): net/appletalk, net/atm, net/x25, net/lapb, net/llc, net/iucv (s390-only), net/phonet (Nokia), net/dccp (deprecated, may be removed), net/key (PF_KEY), net/qrtr (Qualcomm IPC), net/ife, net/nfc, net/nsh, net/openvswitch, net/batman-adv, net/hsr, net/can, net/dcb, net/dns_resolver, net/dsa shouldn't be there (it's L2), net/ncsi, net/netlabel, net/psample, net/rfkill, net/shaper, net/smc, net/tipc, net/l2tp, net/l3mdev, net/mac802154 listed twice — let's clean: niche set is appletalk, atm, x25, lapb, llc, iucv, phonet, dccp, key, qrtr, ife, can, mctp (?), nfc, nsh, openvswitch, batman-adv, hsr, dcb, dns_resolver, ncsi, netlabel, psample, rfkill, smc, tipc, l2tp | per-protocol Tier-3 docs are deferred; some kept as upstream-C-via-FFI |
-
-### compatibility contract
-
-`net/` owns the third-largest userspace-visible compat slice (after `mm/` and `kernel/`). The compat target is unusually well-defined because most network protocols are RFC-specified.
-
-### Syscall surface
-
-`socket`, `bind`, `connect`, `accept`, `accept4`, `listen`, `socketpair`, `getsockname`, `getpeername`, `send`, `sendto`, `sendmsg`, `sendmmsg`, `recv`, `recvfrom`, `recvmsg`, `recvmmsg`, `shutdown`, `setsockopt`, `getsockopt`, `socketcall` (compat).
-
-(Each gets a Tier-5 `uapi/syscalls/<name>.md` in Phase D. The set is small but every option to setsockopt/getsockopt is a separate compat surface.)
-
-### Address families (UAPI)
-
-Every value in `enum AF_*` has a documented protocol-family handler. Compat target: every AF_* value upstream supports continues to work (or returns ENOSYS-equivalent identically). UAPI: `include/linux/socket.h` enum `AF_*`.
-
-### `/proc/net/*` surfaces
-
-| Path | Owner doc | Compat level |
-|---|---|---|
-| `/proc/net/{tcp,tcp6,udp,udp6,raw,raw6,unix,packet,netlink}` | per-protocol Tier-3 doc | Format-identical |
-| `/proc/net/{route,fib_trie,fib_triestat,arp,igmp,if_inet6,ipv6_route,sockstat,sockstat6}` | `fib.md`, `ipv4/00-overview.md`, `ipv6/00-overview.md` | Format-identical |
-| `/proc/net/dev`, `/proc/net/dev_mcast`, `/proc/net/wireless` | `netdev.md`, `wireless/00-overview.md` | Format-identical |
-| `/proc/net/netfilter/*` | `netfilter.md` | Format-identical |
-| `/proc/net/{stat/<x>}` (nf_conntrack stats etc.) | `netfilter.md` | Format-identical |
-| `/proc/net/xfrm_stat` | `xfrm.md` | Format-identical |
-| `/proc/net/<proto-specific>` | per-protocol Tier-3 docs | Format-identical |
-
-### `/sys` surfaces
-
-| Path | Owner doc | Compat level |
-|---|---|---|
-| `/sys/class/net/<dev>/{addr_*,carrier,dev_id,duplex,...}` | `netdev.md` | Identical |
-| `/sys/class/net/<dev>/queues/{rx,tx}-<n>/*` | `netdev.md` | Identical |
-| `/sys/class/net/<dev>/statistics/*` | `netdev.md` | Field-identical |
-| `/sys/class/net/<dev>/wireless/*` | `wireless/00-overview.md` | Identical |
-| `/sys/devices/virtual/net/lo/*` | `netdev.md` | Identical |
-
-### Wire-level
-
-- **TCP wire format**: byte-identical (RFC 793 + RFC 7323 + RFC 9293 + IETF-track extensions). Window-scale, SACK, ECN, Timestamps, Fast Open.
-- **UDP wire format**: byte-identical (RFC 768).
-- **IPv4 + IPv6 packet headers**: byte-identical.
-- **ICMP / ICMPv6 message types**: byte-identical.
-- **Netfilter NFNL netlink protocol** (used by nftables): wire-identical.
-- **TC netlink protocol** (used by `tc`): wire-identical.
-- **NFS RPC wire format** (NFSv3 / v4 / v4.1 / pNFS): wire-identical.
-- **TLS wire protocol** (handshake + record layer): RFC-identical (but TLS handshake is userspace; only record-layer offload is in kernel).
-
-### ioctls (mostly socket / netdev)
-
-- **SIOC* family**: SIOCGIFNAME, SIOCSIFFLAGS, SIOCGIFADDR, SIOCETHTOOL (passes through to `ethtool.md`), SIOCBOND* (bonding), SIOCBR* (bridge), SIOCWAN* (WAN), SIOCSI* (interface mgmt)
-- **SO_* setsockopt names + values**: identical
-- **TCP_* options**: identical (TCP_NODELAY, TCP_CORK, TCP_KEEPIDLE, TCP_USER_TIMEOUT, TCP_FASTOPEN, TCP_QUICKACK, TCP_DEFER_ACCEPT, TCP_MD5SIG, …)
-
-### verification
+## Verification
 
 ### Layer 1: Kani SAFETY proofs
 
@@ -291,7 +326,7 @@ Strong opt-in candidates:
 - `xfrm.md` — IPsec replay-window correctness.
 - `bpf-net.md` — XDP verifier soundness (cross-references kernel/bpf/verifier.md).
 
-### hardening
+## Hardening
 
 Placeholder per `00-overview.md` D6. net/ owns implementation of:
 - Netfilter (defense in depth — userspace-controllable firewall)
@@ -305,3 +340,29 @@ Placeholder per `00-overview.md` D6. net/ owns implementation of:
 
 Per D6, binding policy in deferred `00-security-principles.md`.
 
+## Resolved Decisions
+
+### D1 (2026-05-09): Network-protocol v0 port set — 3-bucket split locked
+
+- **Full Rust port + Tier-3 doc**: net/core, net/socket.c, net/unix, net/packet, net/netlink, net/ipv4, net/ipv6, net/netfilter, net/sched (TC), net/xfrm (IPsec), net/bridge, net/8021q (VLAN), net/ethernet+ethtool, net/devlink, net/tls, net/mptcp, net/sctp, net/bpf+xdp, net/sunrpc, net/handshake.
+- **FFI to upstream C — no Rust port in v0**: net/wireless+mac80211, net/bluetooth, net/9p, net/vmw_vsock, net/dsa+switchdev.
+- **CONFIG=n by default**: appletalk, atm, x25, lapb, llc, iucv, phonet, dccp, key, qrtr, ife, can, mctp, nfc, nsh, openvswitch, batman-adv, hsr, dcb, dns_resolver, ncsi, netlabel, psample, rfkill, smc, tipc, l2tp, l3mdev, kcm, rds, rxrpc, 6lowpan, ieee802154, mac802154 (and net/ceph cross-refs `fs/ceph` which stays C).
+
+### D2 (2026-05-09): Wireless (cfg80211 + mac80211) FFI in v0
+~150K LoC, regulatory-tracking, tightly tied to wireless drivers (`drivers/net/wireless/`). Stays as upstream C with FFI shim. Full Rust port deferred to v1+ (porting just mac80211 without the drivers is mostly useless).
+
+### D3 (2026-05-09): Bluetooth FFI in v0
+`net/bluetooth/` (HCI, L2CAP, RFCOMM, A2DP, AVRCP, BLE) tightly tied to userspace BlueZ. Stays as upstream C with FFI shim. v1+ may revisit.
+
+## Open Questions
+
+(none — all open questions for this subsystem document are resolved above)
+
+## Out of Scope
+
+- Niche protocols listed in Q1 bucket C.
+- Wireless full Rust port (per Q2 — defer to v1+).
+- Bluetooth full Rust port (per Q3 — defer to v1+).
+- 32-bit-only network paths.
+- Test fixtures.
+- Implementation code — `.design/` contains specs only.
