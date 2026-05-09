@@ -67,6 +67,7 @@ Last updated: 2026-05-09. Project-wide baseline pin: `27a26ccfd528` (Linux 7.1.0
 | `arch/x86/00-overview.md`     | 2-subsystem | draft | `27a26ccfd5` | `arch/x86/` (full subtree) | Substantive x86_64 design: enumerates 19+ Tier-3 component docs (boot, entry, paging, kernel-platform, signal, vDSO, cpuinfo, ptrace-abi, ELF, mitigations, COCO, hyperv-guest, xen-guest, KVM, PCI, PMU, crypto-accel, BPF JIT, power, RAS), declares the x86 slice of the compat contract, sets verification-stack expectations (Layer 1 unsafe blocks, Layer 2 TLA+ for vDSO seqlock + SMP boot + IDT install + kexec hand-off, Layer 3 Kani for page-table walker + IDT/TSS/per-CPU invariants, Layer 4 opt-ins for AES-NI). 13 REQs, 13 ACs, 6 resolved decisions (D1–D6), 0 open. |
 | `lib/00-overview.md`          | 2-subsystem | draft | `27a26ccfd5` | `lib/` (full subtree) | Kernel utility library: data structures, strings + vsprintf, compression codecs, checksums + hashes, lib/crypto/ lightweight primitives, math helpers, usercopy + iov_iter, debug tooling, KUnit, vdso-core. Spawns 12 Tier-3 docs. Compat surface: vsprintf %p extensions, dynamic_debug control ABI, KUnit TAP output, vdso_data layout, codec/checksum bit-identity. Heavy on Layer 3 (data-structure invariants) Kani harnesses; Layer 4 opt-ins for lightweight crypto + math. 10 REQs, 11 ACs, 0 open. |
 | `mm/00-overview.md`           | 2-subsystem | draft | `27a26ccfd5` | `mm/` (full subtree) + key UAPI headers | Memory management — heart of the kernel. Spawns 24 Tier-3 docs covering page allocator (buddy + per-CPU), SLUB, virtual memory, mmap-family syscalls, page cache (folio), reclaim + OOM, swap + zswap + zsmalloc, THP + hugetlb, migration + compaction, KSM, userfaultfd, memcg, NUMA + mempolicy, memory hotplug, hwpoison, vmalloc, bootmem, percpu, HMM, sanitizers (KASAN/KMSAN/KFENCE), DAMON, debug. Compat surface: every mm syscall, /proc/<pid>/{maps,smaps,pagemap,numa_maps,status,oom_*}, /proc/{meminfo,buddyinfo,zoneinfo,vmstat,slabinfo,vmallocinfo,swaps}, /sys/kernel/mm/*, /sys/devices/system/{memory,node}/*, page-flag bit positions. One of four MANDATORY Layer-3 subsystems per D4 — Kani invariant harnesses required for buddy + slab freelist + VMA tree + LRU + page tables + folio refcount + swap slot + UFFD wait queue. Layer 2 TLA+ models for buddy, SLUB per-CPU, LRU, mmap_lock + per-VMA-lock, userfaultfd, swap_atomic, memcg hierarchy. 16 REQs, 15 ACs, 0 open. |
+| `kernel/00-overview.md`       | 2-subsystem | draft | `27a26ccfd5` | `kernel/` (full subtree) + key UAPI headers | Kernel core — largest single subsystem. Spawns 30+ Tier-3 docs covering scheduler family (CFS/EEVDF, RT, deadline, ext, idle, pelt, topology, clock, cpufreq), locking (mutex, spinlock, rwsem, seqlock, RCU, lockdep), time (hrtimer, clocksource, tick, posix-timers, namespace), task lifecycle (fork/exit/exec/signal/kthread/cred/cap/pid/ns), futex, IRQ infra, workqueue + irq_work + stop_machine, SMP+hotplug, cgroup framework (core/cpuset/pids/freezer), BPF (verifier, programs, maps, BTF, LSM, iter, helpers, arena, struct_ops), perf events, tracing (ftrace, tracepoints, kprobes, uprobes, blktrace, eventfs), module loading, printk, power-mgmt, syscall-entry helpers, DMA-mapping, livepatch, KGDB, unwinder, coverage, audit, crash-kexec, panic-reboot, sysctl-ksysfs, kallsyms, runtime-codepatching, accounting. Compat: every kernel-side syscall (process lifecycle, signals, creds, sched, time, futex, BPF, perf, ftrace, modules, kexec), /proc/<pid>/{stat,status,sched,wchan,stack,...}, /proc/{interrupts,softirqs,sched_debug,timer_list,kallsyms,locks,...}, /sys/kernel/{tracing,debug,livepatch,btf}/*, /sys/devices/system/cpu/*, /sys/fs/{cgroup,bpf}/*, BTF binary, dmesg format. `kernel/sched/` is the third of four MANDATORY Layer-3 subsystems per D4 — Kani harnesses required for CFS rbtree ordering + RT priority arrays + DL deadline ordering + PI-graph acyclicity + cgroup hierarchical accounting. Layer 2 TLA+ models for runqueue, load-balance, preempt counter, qspinlock, qrwlock, RCU grace periods, percpu-rwsem, futex wait/wake, futex PI, cgroup hierarchy, workqueue pool, BPF verifier soundness, printk ringbuf, ftrace ringbuf. 19 REQs, 18 ACs, 5 open. |
 
 ## Coverage map
 
@@ -86,7 +87,7 @@ Top-level upstream Linux directories at baseline `27a26ccfd528`, listed via `ls 
 | `init/`         | `init/00-overview.md` (Phase B) | NOT WRITTEN |
 | `io_uring/`     | `io_uring/00-overview.md` (Phase B) | NOT WRITTEN |
 | `ipc/`          | `ipc/00-overview.md` (Phase B) | NOT WRITTEN |
-| `kernel/`       | `kernel/00-overview.md` (Phase B) | NOT WRITTEN |
+| `kernel/`       | `kernel/00-overview.md`        | DRAFT (Phase B) |
 | `lib/`          | `lib/00-overview.md`           | DRAFT (Phase B) |
 | `LICENSES/`     | (license texts — not a design subject) | OUT OF SCOPE |
 | `mm/`           | `mm/00-overview.md`            | DRAFT (Phase B) |
@@ -100,7 +101,7 @@ Top-level upstream Linux directories at baseline `27a26ccfd528`, listed via `ls 
 | `usr/`          | (initramfs-cpio packing utility for build — minor; covered under `init/`) | (folded into init) |
 | `virt/`         | `virt/00-overview.md` (Phase B; covers KVM core, x86 KVM in `arch/x86/kvm/`) | NOT WRITTEN |
 
-**Coverage status**: 3 / 14 in-scope subsystems have Tier-2 overviews (arch + arch/x86/, lib, mm). Phase B in progress. With mm/ + arch/x86/ both at draft, issue #2 (00-security-principles.md) becomes authorable once they reach `reviewed`.
+**Coverage status**: 4 / 14 in-scope subsystems have Tier-2 overviews (arch + arch/x86/, lib, mm, kernel). Phase B in progress. With mm/ + arch/x86/ both at draft, issue #2 (00-security-principles.md) becomes authorable once they reach `reviewed`.
 
 ## Planned next
 
@@ -118,7 +119,7 @@ Suggested order (driven by dependency: lower-level subsystems first, so higher-l
 2. ~~`arch/x86/00-overview.md`~~ — DRAFT 2026-05-09
 3. ~~`lib/00-overview.md`~~ — DRAFT 2026-05-09
 4. ~~`mm/00-overview.md`~~ — DRAFT 2026-05-09
-5. `kernel/00-overview.md` (sched, locking, time, fork/exit/signal, cgroup, namespaces, BPF)
+5. ~~`kernel/00-overview.md`~~ — DRAFT 2026-05-09
 6. `fs/00-overview.md` (VFS core, dcache, pagecache, then sub-overviews for proc/sysfs/devtmpfs)
 7. `block/00-overview.md` (blk-mq, request_queue, gendisk, bio)
 8. `net/00-overview.md` (core, ipv4, ipv6, sockets, NAPI, netfilter)
