@@ -1,0 +1,10 @@
+{
+  "uuid": "2fc1eac3-1b8f-4828-a4cd-54edb3643910",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 26: 2 Tier-3 xfrm docs (TX pipeline mirror + replay window). net/xfrm/output.md (TX pipeline: per-AF xfrm4_output/xfrm6_output dispatch, generic xfrm_output bundle-walk → per-stage state-validate + replay-allocate + type->output + curlft-bump → per-AF output_finish + dev_queue_xmit; async crypto -EINPROGRESS+xfrm_output_resume; NAT-T UDP-encap RFC 3948 § 3; soft+hard lifetime byte/packet thresholds w/ XFRM_MSG_EXPIRE emission — 11 REQ / 10 AC, 0 open) + net/xfrm/replay.md (anti-replay window: 3 modes legacy-32bit / ESN-bmp-up-to-4096 / no-replay; struct xfrm_replay_state + struct xfrm_replay_state_esn layouts; per-mode check/recheck/advance/notify/overflow vtable; AE-event emission XFRM_MSG_NEWAE driven by XFRMA_REPLAY_THRESH/THRESH_BYTES + xfrm_aevent_etime; owns mandatory models/net/xfrm_replay.tla TLA+ proving no-double-deliver + window-monotonicity + per-SA seq-uniqueness — 10 REQ / 12 AC, 0 open). 7 upstream paths validated against baseline 27a26ccfd528. Total: ~91 .design docs. xfrm IPSec stack core nearly complete: state + policy + input + output + replay done; remaining: algo + user/netlink + per-AF AH/ESP/IPCOMP transforms + device/offload + XFRMi + IPTFS + espintcp + NAT-keepalive + PF_KEYv2.",
+  "created_at": "2026-05-09T19:39:38.932670360Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAE5prl10dCruOUDVsgXcl6LNMx1COptrY/qjuPjxR2RLjBs5d214rZwWT45rI+uCbEc/OofJopnlcRXGGrEBZCA=="
+}
