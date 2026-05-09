@@ -1,0 +1,10 @@
+{
+  "uuid": "58703455-c106-4c73-941d-9983ed65f9b7",
+  "issue_uuid": "8907cae1-be07-4acd-88ab-83ecab256903",
+  "author": "gb9t",
+  "content": "Identified by 00-rust-conventions.md concurrency-primitives table — abstractions Rookery needs that aren't in upstream rust-for-linux at baseline 27a26ccfd528:\n\n1. RwSemaphore<T> — sleepable reader-writer lock; wraps C 'rw_semaphore'. Tier 3 design doc + TLA+ model (proves no-starvation + writer-priority invariants).\n2. Kthread (kernel::task::Kthread or similar) — safe Rust API for spawning kernel threads. Today rust/kernel/task.rs only wraps the existing task_struct handle. Tier 3 design doc + Kani harness for stop/wakeup safety.\n3. PerCpu<T> — safe per-CPU container. rust/kernel/cpu.rs has CPU-id helpers but no container. Tier 3 design doc + harness + TLA+ model (because per-CPU access interacts with preemption).\n\nEach becomes a subissue with its own subsystem doc when Phase B reaches the relevant subsystem (kernel/locking, kernel/, kernel/sched).\n\nBlock by issue #1.",
+  "created_at": "2026-05-09T03:21:06.394337456Z",
+  "kind": "plan",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABArzcFPvcki2y2TuwDOsnextVyHZH1pDKd5XVlxNoplTPcUkeTCUbF8/Lu4A+Sn1xxhSMljpdYYnmQ/cMthi23DA=="
+}
