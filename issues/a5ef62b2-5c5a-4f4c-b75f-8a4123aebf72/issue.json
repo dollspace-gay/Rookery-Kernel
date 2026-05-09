@@ -6,5 +6,8 @@
   "priority": "high",
   "created_by": "gb9t",
   "created_at": "2026-05-09T05:40:47.107139610Z",
-  "updated_at": "2026-05-09T05:40:47.107139610Z"
+  "updated_at": "2026-05-09T05:40:48.420227992Z",
+  "labels": [
+    "design"
+  ]
 }
