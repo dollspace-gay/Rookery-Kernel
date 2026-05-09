@@ -1,0 +1,10 @@
+{
+  "uuid": "4af1b601-e735-4122-b0e1-0a267e74f805",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 46: 2 Tier-3 net/netfilter docs (nft expressions catalog + set storage backends). net/netfilter/nft-expressions.md (35+ expression types covering payload/meta/immediate/cmp/lookup/dynset/objref/range/numgen/hash/ct/ct_fast/counter/quota/limit/connlimit/nat/redir/masq/log/reject/fib/flow_offload/fwd_netdev/dup_netdev/queue/socket/xfrm/exthdr/osf/last/inner/compat/bitwise/byteorder w/ uniform select_ops + nft_expr_type pattern; payload+meta+cmp+lookup detail covered, nft_compat as legacy iptables-nft bridge — 15 REQ / 14 AC, 0 open) + net/netfilter/nft-sets.md (4 set storage backends: nft_set_hash O(1) rhashtable, nft_set_rbtree O(log n) interval w/ INTERVAL flag, nft_set_pipapo PIle PAcket POlicy sparse-bitmap w/ AVX2 acceleration on x86_64 for CONCAT, nft_set_bitmap bit-array for ≤8-bit keys; per-set features negotiation via select_ops; nft_set_ext stacked extensions for key/key_end/data/timeout/expressions/objref/userdata; per-TIMEOUT GC; NFTA_SET_POLICY perf-vs-mem dispatch — 11 REQ / 12 AC, 0 open). 24 upstream paths validated against baseline 27a26ccfd528. Total: 131 .design docs. netfilter: 9 of 22 children done. Next: net/netfilter/conntrack-helper.md + net/netfilter/conntrack-netlink.md (helpers framework + ctnetlink control).",
+  "created_at": "2026-05-09T22:23:34.428260631Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA0phyhuw0zinpoFzvlrNXmm9D6CeDmSbpJk6APiMyAtXzGh2AXqrMpj3MAHAyvBTbpQqAw0f2j2BOo8XunOLdDw=="
+}
