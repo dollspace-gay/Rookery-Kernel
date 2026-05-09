@@ -1,0 +1,10 @@
+{
+  "uuid": "c019a8ba-5a05-47a1-acfa-85e11cb7ab95",
+  "issue_uuid": "054d0a7b-3d8c-4702-8691-4c235615b74b",
+  "author": "gb9t",
+  "content": "Lints referenced from 00-rust-conventions.md REQ-11 / forbidden-patterns table:\n\n- unsafe_without_proof — rejects 'unsafe { ... }' lacking '// SAFETY:' AND '// PROOF:' annotations in preceding 8 lines\n- panic_in_kernel_path — rejects panic!, unwrap, expect, unreachable!, todo!, unimplemented! in production code paths\n- async_in_kernel — rejects async fn, async {}, .await, Future, executor types\n- bare_arithmetic_on_size — rejects bare +, -, *, / on usize/u64/u32 size types (require checked_*/saturating_*/wrapping_*)\n- alloc_without_gfp — rejects Box::new, Vec::new, Vec::push (require KBox/KVec with explicit GFP flag)\n- unstable_feature_without_decision — rejects new #![feature(...)] not in upstream rust-for-linux's allowed set\n\nThese are project-specific clippy plugins. They MUST land before any non-foundation Rust implementation work because the entire codebase needs to grow under their enforcement, not be retrofitted later.\n\nRecommendation in 00-rust-conventions.md Q1: block subsystem-implementation work on these landing first.\n\nBlock by issue #1 (Phase A foundation work).",
+  "created_at": "2026-05-09T03:21:03.788981922Z",
+  "kind": "plan",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2S8Jl2W8xodqin033raNIbAd7uk5ltd/vDbYDRSdQZwOXPszq+4wYALQSFGGcp4Mbiyci0Cc3FgYCrGm614xCQ=="
+}
