@@ -1,0 +1,10 @@
+{
+  "uuid": "368ffa02-0548-42d0-84c6-074489912b44",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 5 (2026-05-09): 2 Tier-3 docs (VFS sweep cont'd).\n\nfs/vfs/super.md (215 lines, 14 REQ / 12 AC, 0 open) — struct super_block + super_operations vtable + filesystem_type registration + sb lifecycle (sget → kill_sb) + freeze/thaw + libfs helpers + per-sb shrinker. Statfs UAPI byte-identity, /proc/filesystems format-identity, mount-flag SB_*/MS_* numeric byte-identity.\n\nfs/vfs/file-table.md (262 lines, 15 REQ / 12 AC, 1 open Q1 about default O_CLOEXEC for legacy syscalls) — struct file + struct fdtable + struct files_struct + file_operations + fd alloc/free + close-on-exec + close_range + dup family + fcntl operation set. /proc/<pid>/fd/* + /proc/<pid>/fdinfo/* format-identity. Owns mandatory L3 'every fd is either NULL or points to a file with refcount ≥ 1' invariant from fs/00-overview.md.\n\nTotal .design/ docs: 49.",
+  "created_at": "2026-05-09T16:49:50.690705486Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAIv5slcvGllbESK5nV0jn4jp4akMFErgcqAqT5ujnrllRM0k6MBoPDiOQyOl9Dluv1atIuLPQpA5EY8VCEgCPBg=="
+}
