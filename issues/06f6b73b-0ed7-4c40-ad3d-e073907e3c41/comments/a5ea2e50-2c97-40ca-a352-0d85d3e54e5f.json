@@ -1,0 +1,10 @@
+{
+  "uuid": "a5ea2e50-2c97-40ca-a352-0d85d3e54e5f",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 6: 2 Tier-3 docs (VFS sweep cont'd).\n\nfs/vfs/mount.md (305 lines, 16 REQ / 16 AC, 0 open) — vfsmount + struct mount + mount namespace tree + propagation rules (shared/private/slave/unbindable) + idmapped mounts + fs_pin + fs_struct + pivot_root + chroot. /proc/<pid>/mountinfo format-identity. MS_*/MOUNT_ATTR_* numeric byte-identity. TLA+ model models/fs/mount_propagation.tla owned here. Mandatory L3 mount-tree-acyclic invariant.\n\nfs/vfs/path-resolution.md (273 lines, 15 REQ / 13 AC, 0 open) — namei.c + LOOKUP_* + RCU-walk fast path + ref-walk fallback + symlink resolution + mount-traversal + d_path family. openat2 RESOLVE_* numeric byte-identity. RCU-walk seqcount safety co-owned with dcache. Walk-state invariants checked.\n\nVFS core sweep complete: 00-overview + dcache + inode + super + file-table + mount + path-resolution = 6 sub-tier-3 docs (plus the existing dcache from earlier batches). Only fs-context.md remains for the modern mount API.\n\nTotal .design/ docs: 51.",
+  "created_at": "2026-05-09T16:58:10.989655162Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAdR2A/v5GrWvkW5zm28LkmPhpAjfn1/5X6tRquIGNzSnS07IwjQmOF1TgDjmsFxypt2EbjPW8sfj84otnEt5UAw=="
+}
