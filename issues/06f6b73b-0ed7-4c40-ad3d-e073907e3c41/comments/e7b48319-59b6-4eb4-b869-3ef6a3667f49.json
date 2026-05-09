@@ -1,0 +1,10 @@
+{
+  "uuid": "e7b48319-59b6-4eb4-b869-3ef6a3667f49",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 47: 2 Tier-3 net/netfilter docs (conntrack helpers + ctnetlink). net/netfilter/conntrack-helper.md (helper framework + 13 protocol modules: Amanda/FTP active+passive PORT+EPRT+227-PASV+EPSV/IRC DCC/PPTP control+GRE/SIP RFC 3261 INVITE+RTP+RTCP/TFTP/SANE/H.323 H.225+H.245+RAS+ASN.1 PER decoder/NetBIOS-NS/SNMP/broadcast; default-OFF auto-attach since upstream 4.7 (defense vs CVE-class helper-bypass); per-helper expect_policy w/ max_expected + timeout caps; userspace cthelper queue_num backward-compat — 12 REQ / 11 AC, 0 open) + net/netfilter/conntrack-netlink.md (NFNL_SUBSYS_CTNETLINK: full IPCTNL_MSG_CT_*+EXP_* surface, complete CTA_*/CTA_EXPECT_* NLA schema incl PROTOINFO/HELP/NAT/MARK/COUNTERS/USE/ID/MASTER/SEQ_ADJ/SECMARK/SECCTX/TIMESTAMP/LABELS/SYNPROXY/FILTER/ZONE, NFNLGRP_CONNTRACK_NEW/UPDATE/DESTROY+EXP_* multicast events, 6 conntrack extensions (ecache/acct/seqadj/timeout/labels/timestamp), GET_DYING/UNCONFIRMED dumps, conntrackd cluster-replication via UDP-mcast — 12 REQ / 11 AC, 0 open). 22 upstream paths validated against baseline 27a26ccfd528. Total: 133 .design docs. netfilter: 11 of 22 children done (50%). Next: net/netfilter/x-tables.md (legacy iptables/ip6tables/ebtables/arptables compatibility layer x_tables.c) + net/netfilter/iptables.md (per-AF iptables core for legacy ABI consumers).",
+  "created_at": "2026-05-09T22:32:34.676924751Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAbs2S5vIkaatb4bwzKJVmHM9IHdOXc2uWGLCsLJvFhnixCmhnfvJBdMOZGaNo0GyIsHSsMikJ31eO1rlwHGUpDA=="
+}
