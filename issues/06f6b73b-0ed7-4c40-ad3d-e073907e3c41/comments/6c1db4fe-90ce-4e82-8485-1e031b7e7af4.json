@@ -1,0 +1,10 @@
+{
+  "uuid": "6c1db4fe-90ce-4e82-8485-1e031b7e7af4",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 38: 2 Tier-3 net/sched docs (legacy u32 + modern BPF classifiers). net/sched/cls-u32.md (32-bit-aligned key match-tree: struct tc_u32_sel + struct tc_u32_key per-key (offset, mask, val), tc_u_hnode hashtables w/ power-of-2 divisor, TCA_U32_LINK chain into next hnode for hierarchical match, indev ingress-iface match, action chain via tcf_exts, HW offload — 11 REQ / 11 AC, 0 open) + net/sched/cls-bpf.md (BPF-driven classifier, foundation of Cilium dataplane: 2 modes (legacy cBPF via TCA_BPF_OPS / modern eBPF via TCA_BPF_FD), TCA_BPF_FLAG_ACT_DIRECT semantics, BPF_PROG_TYPE_SCHED_CLS w/ __sk_buff context + full helper/kfunc set incl bpf_skb_store_bytes/redirect/clone_redirect/conntrack-kfuncs/xfrm-kfuncs, HW offload via TC_SETUP_CLSBPF, verifier-checked program load — 11 REQ / 11 AC, 0 open). 5 upstream paths validated against baseline 27a26ccfd528. Total: 115 .design docs. net/sched: 12 of 18 children done. Next: net/sched/act-mirred.md (mirror/redirect — most-used action) + net/sched/act-police.md (rate-policer — DDoS mitigation primitive).",
+  "created_at": "2026-05-09T21:15:19.836722533Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAnCBrRpZabXpfbDMEAud9s1DaYf2Xugb1I4zx6VyX6xy//2ggyGrzvvaItSTQyWFIxysqx4eEaRWGXXSbLjNWDg=="
+}
