@@ -1,0 +1,10 @@
+{
+  "uuid": "d625b2a4-fe41-4c08-9acc-719a61d59777",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 45: 2 Tier-3 net/netfilter docs (nft VM + flowtable; both own mandatory TLA+ models). net/netfilter/nft-core.md (nftables register-based VM: nft_do_chain w/ NFT_REG_VERDICT + 16 NFT_REG32_* slots, struct nft_expr_ops vtable, NFT_CONTINUE/BREAK/JUMP/GOTO/RETURN + NF_DROP/ACCEPT/QUEUE/STOLEN dispatch w/ NFT_JUMP_STACK_SIZE=16 cap, 3 chain types filter/nat/route, atomic transaction commit via RCU-pointer-swap + generation-counter, per-expression validate callback, __nft_trace_packet emission; OWNS mandatory models/net/nft_vm_eval.tla — 12 REQ / 12 AC, 0 open) + net/netfilter/flowtable.md (fast-path bypass: struct flow_offload + per-direction tuple, nf_flow_offload_add idempotent install, nf_flow_offload_lookup rhashtable hot-path with pre-cached TTL/NAT/checksum/L2-MAC transformations, 3 offload tiers SW/HW/XDP, HW via flow_setup_cb_call(TC_SETUP_FT) w/ ASAP² ConnectX-5+/ice/i40e support, XDP via bpf_xdp_flow_lookup kfunc, BPF kfunc set, periodic GC w/ 30s default; OWNS mandatory models/net/flowtable_offload.tla — 12 REQ / 12 AC, 0 open). 14 upstream paths validated against baseline 27a26ccfd528. Total: 129 .design docs. netfilter: 7 of 22 children done; ALL 4 mandatory TLA+ models now claimed (conntrack_state_machine + nat_translation + nft_vm_eval + flowtable_offload). Next: net/netfilter/nft-expressions.md (per-expression types: payload/meta/immediate/lookup/cmp/bitwise/numgen/random/ct/counter/nat/...) + net/netfilter/nft-sets.md (set storage backends — nft_set_hash + nft_set_rbtree).",
+  "created_at": "2026-05-09T22:14:15.278086159Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsaPslcYHDP9KFQBjGJA1J8Ol7ZeBqw4pki07RKQFWv8Q4zPvZyNhB3WQRoRdaBQ5Z0LBymqvIFKB601Abw04Cw=="
+}
