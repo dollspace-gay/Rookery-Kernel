@@ -1,0 +1,10 @@
+{
+  "uuid": "604261c0-e274-40b5-a451-2a54abfca206",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 35: 2 Tier-3 net/sched docs (HTB + CAKE shaping qdiscs). net/sched/sch-htb.md (Hierarchical Token Bucket: per-class CIR/PIR token-buckets w/ tokens/ctokens/buffer/cbuffer + cmode CANT_SEND/MAY_BORROW/CAN_SEND state machine, 8 priority levels w/ per-prio DRR feed, parent-walk borrow charging via htb_charge_class, RTAB/CTAB pre-computed rate-lookup, 64-bit rate via TCA_HTB_RATE64, HW offload via TCA_HTB_OFFLOAD; OWNS mandatory models/net/sch_htb.tla rate-bound proof — 12 REQ / 10 AC, 0 open) + net/sched/sch-cake.md (Common Applications Kept Enhanced: integrated shaper+AQM, 5 DiffServ tin modes (BESTEFFORT/PRECEDENCE/DIFFSERV3/4/8), 8 hash modes (NONE through TRIPLE), per-tin clock-driven shaper, AutoRate-ingress EWMA, ACK-filter (NONE/FILTER/AGGRESSIVE), GSO split, ATM/PTM overhead modeling, NAT-aware classification, fwmark overrides — 13 REQ / 12 AC, 0 open). 4 upstream paths validated against baseline 27a26ccfd528. Total: 109 .design docs. net/sched core qdiscs nearly complete: sch_api + cls_api + act_api + sch_fq_codel + sch_htb + sch_cake. Next: net/sched/sch-mqprio.md + net/sched/sch-taprio.md (multi-queue priority + IEEE 802.1Qbv TSN time-aware shaper for hardware-accelerated networking).",
+  "created_at": "2026-05-09T20:51:54.685694483Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAI3pc6O4VyUW3i/I0pVN3Rsf3u0kV2UYqpwkrYw0XsKE67OzrWCZirP0U+PNjQ+46j7wHzRPqstRxzudY5qqHDg=="
+}
