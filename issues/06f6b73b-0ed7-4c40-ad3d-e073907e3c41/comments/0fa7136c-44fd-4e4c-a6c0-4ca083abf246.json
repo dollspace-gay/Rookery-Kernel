@@ -1,0 +1,10 @@
+{
+  "uuid": "0fa7136c-44fd-4e4c-a6c0-4ca083abf246",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 28: 2 Tier-3 xfrm docs (PF_KEYv2 legacy ABI + per-AF v4 transforms). net/xfrm/af-key.md (RFC 2367 PF_KEYv2: socket(PF_KEY,SOCK_RAW,V2), full SADB_* msg-type surface incl Linux X-extensions, all SADB_EXT_* TLV types, struct sadb_msg, pfkey_broadcast multicast, SADB_REGISTER algo enumeration, SADB↔xfrm translation, NAT-T TLVs, SEC_CTX LSM, per-netns isolation — 13 REQ / 11 AC, 0 open) + net/xfrm/ah-esp-ipv4.md (per-AF v4 IPSec transforms: AH RFC 4302 w/ mutable-field-zero ICV, ESP RFC 4303 AEAD-mode + separate-cipher+auth-mode, IPCOMP RFC 3173, transport+tunnel modes, esp4_offload HW path, xfrm4_protocol_register chain, replay+algo+state integration — 12 REQ / 11 AC, 0 open). 13 upstream paths validated against baseline 27a26ccfd528. Total: ~95 .design docs. xfrm IPSec stack: 9 of 17 children done (state + policy + input + output + replay + algo + user + af-key + ah-esp-ipv4). Next: net/xfrm/ah-esp-ipv6.md (mirror v6 transforms) + net/xfrm/device.md (HW offload). Also still pending: interface (XFRMi), iptfs, espintcp, nat-keepalive, bpf, compat (deferred for v0).",
+  "created_at": "2026-05-09T19:55:54.684855659Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAslWkAPCUeMWvNNDF7sbLCStrY6ZSSYi2buLi3vIyVnD8ISSq/BjANqc14iUnw2Kvn/xe5Bs3C3Ap+hKpPx1RDQ=="
+}
