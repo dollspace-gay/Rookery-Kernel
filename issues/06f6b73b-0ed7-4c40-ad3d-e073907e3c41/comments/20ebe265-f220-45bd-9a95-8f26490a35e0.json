@@ -1,0 +1,10 @@
+{
+  "uuid": "20ebe265-f220-45bd-9a95-8f26490a35e0",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 19: 2 Tier-3 ipv6 docs (control-plane triangle complete: route ↔ addrconf ↔ ndisc/icmpv6). net/ipv6/ndisc.md (RFC 4861 ND state machine on generic neighbour framework: NS/NA/RS/RA/Redirect parse+emit, INCOMPLETE→REACHABLE→STALE→DELAY→PROBE→FAILED transitions, RA→addrconf+route delivery, proxy ND, RTM_*NEIGH wire — 14 REQ / 12 AC, 0 open) + net/ipv6/icmpv6.md (RFC 4443 generic ICMPv6: error generation w/ RFC § 2.4 suppression rules, PMTU update from PTB, Echo Request/Reply, SOCK_DGRAM ping socket, per-netns rate-limiter w/ ratemask, MLD snoop helpers — 11 REQ / 9 AC, 0 open). 11 upstream paths validated against baseline 27a26ccfd528. Total: ~77 .design docs. Next: net/ipv6/ip6-input.md + net/ipv6/ip6-output.md (RX/TX path; closes the IPv6 stack proper) or pivot to net/ipv6/exthdrs.md (extension-header bounded-walk, security-critical).",
+  "created_at": "2026-05-09T18:43:21.123138354Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYHar5PwRNAN9lqYBMfVtswkPGD6Dv+USIC6kcZ2viYg+I7+oh+RYiiHe/JzxdtJ5yZflX78+IYqUoOVu5hVxCw=="
+}
