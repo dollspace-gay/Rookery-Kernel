@@ -1,0 +1,10 @@
+{
+  "uuid": "0e229c95-8d87-4fff-ac9f-c43f049052aa",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 12: 2 Tier-3 docs (block layer cont'd).\n\nblock/request-queue.md (252 lines, 15 REQ / 14 AC, 0 open) — request_queue + gendisk + block_device + flush + sysfs queue-tunables + rq-qos (wbt/ioc/iolatency) + per-request statistics + runtime PM + Independent Access Ranges + BSG SCSI ioctl pass-through + bad-block tracking. /sys/block/<dev>/queue/* + /proc/diskstats + /proc/partitions format-identity. All BLK* ioctl numbers byte-identical.\n\nblock/io-schedulers.md (157 lines, 12 REQ / 8 AC, 0 open) — elevator framework + mq-deadline (default SSD) + kyber (latency-targeted) + bfq (Budget Fair Queueing; cgroup-aware; default HDD). Per-scheduler sysfs tunables format-identical. TLA+ model models/block/elevator.tla owned here (mandatory L2; covers all 3 scheduler ordering invariants). Layer-4 Verus opt-in for WF2Q+ fairness theorem.\n\nTotal .design/ docs: 63.",
+  "created_at": "2026-05-09T17:48:12.854091721Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAxj//+tjYPLqWOYS0oZkuP5lQVX0Iel8CEq4vbb+nvA7dWKtAbKZPPb5pdAxjUWo9UJnscUbeUawMlwzRPBS3DA=="
+}
