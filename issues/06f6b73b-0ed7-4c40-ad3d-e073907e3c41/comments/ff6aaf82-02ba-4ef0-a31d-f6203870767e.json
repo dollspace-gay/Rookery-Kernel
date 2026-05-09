@@ -1,0 +1,10 @@
+{
+  "uuid": "ff6aaf82-02ba-4ef0-a31d-f6203870767e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 20: 2 Tier-3 ipv6 docs (RX/TX path closes the IPv6 stack proper). net/ipv6/ip6-input.md (ipv6_rcv → bounded extension-header walker → fragment reassembly → local-vs-forward dispatch + netfilter PRE_ROUTING/LOCAL_IN/FORWARD; defense vs CVE-2017-7542 EH-explosion + RFC 5095 RH0 dropped — 13 REQ / 11 AC, 0 open) + net/ipv6/ip6-output.md (ip6_xmit socket-driven egress → EH inject → MTU+frag (RFC 8200 source-only) → neigh-resolve → xmit + GSO/TSO + ident-field generator + multicast — 14 REQ / 12 AC, 0 open). 13 upstream paths validated against baseline 27a26ccfd528. Total: ~79 .design docs. ipv6 stack core complete: af-inet6 + route + addrconf + ndisc + icmpv6 + ip6-input + ip6-output. Next: net/ipv6/exthdrs.md (per-EH-type semantics) or net/ipv6/tcp-v6.md + udp-v6.md (per-IPPROTO v6 wrappers).",
+  "created_at": "2026-05-09T18:51:35.178718490Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABALp5tvaeaTqY/6fSHEFQLHZlLDCasqbq17n7uDSBOZD5WAtNe1yshO3pIEp5g/eXnYbfA3GFjRYbaTE5BazNwDA=="
+}
