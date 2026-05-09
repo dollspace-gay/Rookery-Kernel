@@ -7,16 +7,39 @@ created: 2026-05-09
 updated: 2026-05-09
 ---
 
+# Feature: Rookery-Kernel — Rust drop-in Linux kernel
 
-## Design Specification
+<!--
+baseline-commit: 27a26ccfd528da725a999ea1e3102503c61eb655
+baseline-version: 7.1.0-rc2
+upstream-paths:
+  - (project-wide; this is the foundation document)
+status: draft
+-->
 
-### Summary
-
+## Summary
 Rookery-Kernel is a from-scratch Rust rewrite of the Linux kernel, targeting full-ABI drop-in compatibility with upstream Linux on x86_64 hardware. Existing GNU/Linux distributions, kernel modules built against upstream, and userspace must boot and run unchanged when the upstream `bzImage` is replaced by Rookery's. The project follows a **GPL-clean reference** methodology: we read upstream Linux freely as a behavioral and ABI reference, but write all code from scratch in idiomatic Rust under GPL-2.0.
 
 This document is the project's keystone contract. Every other design document in `.design/` is constrained by the requirements, conventions, and out-of-scope clauses recorded here.
 
-### Requirements
+## Project Vision
+
+The Linux kernel is the most successful systems-software artifact in history, but its 25M-line C codebase carries the cumulative weight of three decades of memory-unsafe practice. Modern Rust offers the first realistic chance to express the same ABI in a memory-safe language without rewriting the surrounding ecosystem. Rookery-Kernel is the bet that we can.
+
+We are not innovating on the kernel/userspace boundary. We are not adding new features. We are not changing the syscall surface, the procfs layout, or the module-loading conventions. Every visible behavior of upstream Linux at the same baseline version is something we strive to reproduce exactly. Innovation, where it occurs, is purely internal: better data structures, safer locking primitives, sharper compile-time checks, more aggressive elimination of `unsafe`. Userspace cannot tell the difference at runtime.
+
+## Foundational Decisions
+
+These four decisions, recorded as `--kind decision` comments on the project's tracking issue, govern everything downstream. They are not revisited inside individual subsystem docs.
+
+| Axis | Decision |
+|---|---|
+| RE methodology | GPL-clean reference: read upstream freely; copy no code; output GPL-2.0 |
+| Architecture priority | x86_64 only for v0; other arches deferred to v1+ |
+| Build system | Integrate with kbuild (Make-driven); follow rust-for-linux conventions |
+| Concurrency model | Sync only; kthreads + workqueues + tasklets + explicit state machines; `async/await` forbidden in v0 |
+
+## Requirements
 
 - REQ-1: **Drop-in substitution** — the produced `rookery-bzImage` MUST be substitutable for an upstream Linux 7.1.0-rc2 `bzImage` on x86_64 hardware, with no modification to userspace, initramfs, or bootloader configuration. The system boots to a usable userspace identically.
 - REQ-2: **Syscall ABI parity** — every syscall enumerated in `arch/x86/entry/syscalls/syscall_64.tbl` (and its 32-bit-compat counterpart) MUST be implemented with byte-identical entry/exit conventions, register usage, error-return semantics, and argument/result struct layouts (per `include/uapi/`).
@@ -31,7 +54,7 @@ This document is the project's keystone contract. Every other design document in
 - REQ-11: **Document hierarchy mirrors upstream** — design docs are organized in nested subdirectories under `.design/` that mirror upstream's source-tree layout (`.design/kernel/sched/cfs.md` describes what `kernel/sched/fair.c` does upstream, etc.). Foundational docs prefix `00-` and live at `.design/` root or at the top of each subsystem subdirectory.
 - REQ-12: **Spec-first, code-later** — this design corpus is consumed by a separate implementation instance. No design doc instructs the reader to write code; specs describe behavior, structures, and Rust module shape. Implementation choices below the spec level are the implementor's prerogative.
 
-### Acceptance Criteria
+## Acceptance Criteria
 
 - [ ] AC-1: The five Phase-A foundational documents (`00-overview.md`, `00-baseline.md`, `00-rust-conventions.md`, `00-glossary.md`, `00-index.md`) are committed to `.design/`.
 - [ ] AC-2: `00-baseline.md` pins the exact upstream commit (`27a26ccfd528da725a999ea1e3102503c61eb655`) and version (`7.1.0-rc2`), with the verification commands present and runnable. (covers REQ-1)
@@ -44,7 +67,7 @@ This document is the project's keystone contract. Every other design document in
 - [ ] AC-9: A subsystem design doc cannot graduate to status `approved` while any `<!-- OPEN -->` block remains.
 - [ ] AC-10: A subsystem design doc cannot graduate to status `reviewed` until a user has signed off via a `crosslink issue comment --kind decision` on the design's tracking issue.
 
-### Architecture
+## Architecture
 
 (All upstream paths are relative to `/home/doll/linux-src` at baseline `27a26ccfd528`.)
 
@@ -124,7 +147,63 @@ A doc cannot graduate while:
 - Any architecture path doesn't resolve under `/home/doll/linux-src`
 - The frontmatter's `baseline-commit` is older than `00-baseline.md`'s pinned commit
 
-### Out of Scope
+## Open Questions
+
+<!-- OPEN: Q1 -->
+### Q1: Versioned vs continuously-tracked baseline
+The clone is currently pinned to commit `27a26ccfd528` (Linux 7.1.0-rc2). Should design docs pin to that commit forever (frozen Linux), to the next stable tag (7.1 final once it lands), or track upstream continuously (rebaseline twice yearly)?
+
+**Recommendation**: Pin to the next stable tag (7.1 final or 7.2, whichever lands first); rebaseline at each LTS or every two stable releases, whichever is sooner. Each design doc's frontmatter records its baseline so stale docs are detectable when we rebaseline.
+
+**To resolve**: User confirms pinning policy and refresh cadence.
+<!-- /OPEN -->
+
+<!-- OPEN: Q2 -->
+### Q2: Module ABI — strict modversion compatibility?
+REQ-4 currently requires modules built against Rookery's `vmlinux` to load identically to those built against upstream's `vmlinux` *from the same source*. The stricter interpretation — that a `.ko` binary built against an *upstream* `vmlinux` loads against Rookery's `vmlinux` — requires byte-identical CONFIG_MODVERSIONS CRC values for every exported symbol, which means internal kernel data structures must match upstream's layouts. This is dramatically more constraining than userspace ABI parity.
+
+**Recommendation**: Drop strict modversion compat for v0. Reframe REQ-4 as the looser version (recompile-from-source compat). Note "binary modversion compat" as an explicit v1+ stretch goal in `Out of Scope`.
+
+**To resolve**: User picks (a) loosen REQ-4 as recommended, (b) keep strict (massively expands scope and cements many internal data layouts), or (c) decide later.
+<!-- /OPEN -->
+
+<!-- OPEN: Q3 -->
+### Q3: Driver coverage strategy
+Linux 7.1 has thousands of individual drivers under `drivers/`. Designing each one in Rust is infeasible. We can: (a) design a stable, Rust-native Driver Model (`struct device`, bus types, probe/remove); port a small set of in-tree drivers as flagship examples (virtio family, e1000e, ahci, hid-input, drm/i915 stub); rely on rust-for-linux's existing C-driver interop for the long tail. (b) Spec every driver class but defer per-driver designs.
+
+**Recommendation**: Tier-4 design docs are PER DRIVER *CLASS* (`drivers/{usb,net,block,char,gpu,input,...}/00-overview.md`) plus per-bus designs (`drivers/base/`, `drivers/pci/`, `drivers/usb/core/`). Per-individual-driver designs only for the v0 port set: virtio-blk, virtio-net, virtio-console, e1000e, ahci, ehci/xhci, ps2-keyboard, hid-input, vt console. Everything else relies on existing in-tree C drivers via rust-for-linux interop.
+
+**To resolve**: User confirms tiered approach + nominates the v0 port set.
+<!-- /OPEN -->
+
+<!-- OPEN: Q4 -->
+### Q4: Verification ambition
+Some Rust kernel projects (RedoxOS, Theseus, Hubris) target formal verification of safety-critical paths. Do we?
+
+**Recommendation**: v0 baseline is "best-effort idiomatic Rust + miri-tested unsafe blocks + mandatory SAFETY comments". No formal proofs. Per-subsystem docs may opt in to stronger verification (e.g. crypto module aiming for constant-time analysis, or paging code aiming for KLEE/CBMC).
+
+**To resolve**: User confirms baseline ambition, or escalates.
+<!-- /OPEN -->
+
+<!-- OPEN: Q6 -->
+### Q6: Security hardening posture and grsec/PaX integration
+A copy of the grsecurity + PaX patchset against linux-6.6.102 is on disk at `/home/doll/grsec-6.6.102.patch` (14 MB, 4,808 files). It is the most rigorously-engineered freely-available Linux hardening patchset and encodes invariants Rookery should absorb. Cataloged in `.design/references/grsec-pax-notes.md`. Many invariants (KERNEXEC, CONSTIFY, REFCOUNT, SIZE_OVERFLOW, AUTOTYPENAME) become free or type-system-encodable in Rust; others (PRIVATE_KSTACKS, RANDKSTACK, RAP, MEMORY_SANITIZE, GRKERNSEC_* policy toggles) remain explicit per-subsystem decisions.
+
+**Recommendation**: Author a separate foundational doc `00-security-principles.md` after Phase A is complete and after the `mm/00-overview.md` and `arch/x86/00-overview.md` subsystem docs exist (so it can reference real hardening points). Per-subsystem docs add a "Hardening" section once the principles doc lands. Off-by-default Kconfig gating for any feature that changes userspace-visible behavior; on-by-default for invisible-to-userspace hardening.
+
+**To resolve**: User confirms the recommendation OR overrides toward (a) defer all grsec integration to v1+, (b) author 00-security-principles.md eagerly before any subsystem overview, (c) something else.
+<!-- /OPEN -->
+
+<!-- OPEN: Q5 -->
+### Q5: Boot path — kexec / hand-off compatibility
+Drop-in compat means existing bootloaders (GRUB, systemd-boot, kexec-tools) hand control to the kernel via the documented x86 boot protocol (`Documentation/arch/x86/boot.rst`, `arch/x86/boot/header.S`). We MUST consume the boot_params struct identically. But: must we *produce* a kexec hand-off identical to upstream's (so a Rookery kernel can kexec into another kernel)? This affects `arch/x86/kernel/machine_kexec_64.c` design.
+
+**Recommendation**: Yes — kexec parity is part of REQ-1 ("substitutable bzImage"). Spec the kexec hand-off in `arch/x86/boot.md` alongside the entry path.
+
+**To resolve**: User confirms, or carves kexec out.
+<!-- /OPEN -->
+
+## Out of Scope
 
 - **Architectures other than x86_64 in v0** — `arch/{arm,arm64,riscv,powerpc,...}/` design docs deferred. Placeholder docs may exist with `status: deferred-v1`.
 - **Userspace** — busybox, glibc, systemd, GRUB, util-linux are upstream-of-the-kernel concerns. We accept them as-is.
@@ -135,21 +214,3 @@ A doc cannot graduate while:
 - **Implementation code** — this design corpus produces specs only. The implementing instance handles all `.rs` and Makefile authorship in a separate session.
 - **Strict CONFIG_MODVERSIONS binary-module compat** — explicitly deferred to v1+ pending Q2 resolution.
 - **Subsystems already deprecated upstream** — anything in `Documentation/process/deprecated.rst` or marked `obsolete` in `Documentation/ABI/` is skipped unless a design doc explicitly opts in.
-
-### project vision
-
-The Linux kernel is the most successful systems-software artifact in history, but its 25M-line C codebase carries the cumulative weight of three decades of memory-unsafe practice. Modern Rust offers the first realistic chance to express the same ABI in a memory-safe language without rewriting the surrounding ecosystem. Rookery-Kernel is the bet that we can.
-
-We are not innovating on the kernel/userspace boundary. We are not adding new features. We are not changing the syscall surface, the procfs layout, or the module-loading conventions. Every visible behavior of upstream Linux at the same baseline version is something we strive to reproduce exactly. Innovation, where it occurs, is purely internal: better data structures, safer locking primitives, sharper compile-time checks, more aggressive elimination of `unsafe`. Userspace cannot tell the difference at runtime.
-
-### foundational decisions
-
-These four decisions, recorded as `--kind decision` comments on the project's tracking issue, govern everything downstream. They are not revisited inside individual subsystem docs.
-
-| Axis | Decision |
-|---|---|
-| RE methodology | GPL-clean reference: read upstream freely; copy no code; output GPL-2.0 |
-| Architecture priority | x86_64 only for v0; other arches deferred to v1+ |
-| Build system | Integrate with kbuild (Make-driven); follow rust-for-linux conventions |
-| Concurrency model | Sync only; kthreads + workqueues + tasklets + explicit state machines; `async/await` forbidden in v0 |
-
