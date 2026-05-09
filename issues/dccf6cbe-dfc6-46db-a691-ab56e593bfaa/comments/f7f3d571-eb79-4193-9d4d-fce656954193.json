@@ -1,0 +1,10 @@
+{
+  "uuid": "f7f3d571-eb79-4193-9d4d-fce656954193",
+  "issue_uuid": "dccf6cbe-dfc6-46db-a691-ab56e593bfaa",
+  "author": "gb9t",
+  "content": "D6 confirmed: defer 00-security-principles.md until Phase A complete + mm/00-overview.md + arch/x86/00-overview.md exist. Approach unchanged from prior plan comment. Status: blocked by issue #1.",
+  "created_at": "2026-05-09T03:14:33.865211846Z",
+  "kind": "decision",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA8x6r5TDHqBqDu9LmkrtJrooEkFPphCMPn+5xpu1C1Sr+QqMOmqqV3BpUKbKK/vJcjF1sOjLIlj5yLqFzOxmWAA=="
+}
