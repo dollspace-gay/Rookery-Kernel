@@ -1,0 +1,10 @@
+{
+  "uuid": "df559b46-cbf9-43c3-a8fc-cc4e464fb19e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 18: 2 Tier-3 ipv6 docs (load-bearing for any v6 connectivity). net/ipv6/route.md (FIB6 trie + source-specific routing RFC 6724 + per-flow PMTU/redirect cache + fib6_rules policy routing + ECMP/multipath + RTM_*ROUTE/NEWNEXTHOP wire — 14 REQ / 11 AC, 0 open) + net/ipv6/addrconf.md (RFC 4862 SLAAC + DAD + RFC 4429 optimistic-DAD + RFC 8981 privacy extensions + RFC 7217 stable-privacy + RFC 6724 source-addr-selection + 4 addr_gen_modes + RTM_*ADDR wire + per-iface sysctls — 13 REQ / 12 AC, 0 open). 13 upstream paths validated against baseline 27a26ccfd528. Total: ~75 .design docs. Next: net/ipv6/ndisc.md + net/ipv6/icmpv6.md (ND state machine + ICMPv6 — completes the v6-control-plane triangle: route ↔ addrconf ↔ ndisc/icmpv6).",
+  "created_at": "2026-05-09T18:35:40.873899285Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2nkgt7BZtHe8URt+bgPJxXNtEAHnLywr0YrrzSYnsz9SphlXGoMqiDiZrae9totgzNIPKs/QxaeXw0yjiaczCg=="
+}
