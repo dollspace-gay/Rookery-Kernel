@@ -64,7 +64,8 @@ Last updated: 2026-05-09. Project-wide baseline pin: `27a26ccfd528` (Linux 7.1.0
 | `00-index.md`                 | 1-foundation | draft | `27a26ccfd5` | (project-wide registry) | This document. Master registry of all design docs + coverage map + planned-next backlog. |
 | `references/grsec-pax-notes.md` | 0-reference | draft | `linux-6.6.102` | `/home/doll/grsec-6.6.102.patch` | Reading list — grsecurity / PaX patchset feature catalog mapped to "free in Rust" / "type-system encodable" / "explicit per-subsystem policy" buckets. Source for the deferred `00-security-principles.md`. |
 | `arch/00-overview.md`         | 2-subsystem | draft | `27a26ccfd5` | `arch/`, `arch/Kconfig`, `include/asm-generic/` | arch/ tier meta-doc: states v0 is x86_64-only, deferrals for 21 other arches, per-arch design-doc convention (10 required topics), arch-abstraction extraction policy. 4 REQs, 4 ACs, 2 open. |
-| `arch/x86/00-overview.md`     | 2-subsystem | draft | `27a26ccfd5` | `arch/x86/` (full subtree) | Substantive x86_64 design: enumerates 19+ Tier-3 component docs (boot, entry, paging, kernel-platform, signal, vDSO, cpuinfo, ptrace-abi, ELF, mitigations, COCO, hyperv-guest, xen-guest, KVM, PCI, PMU, crypto-accel, BPF JIT, power, RAS), declares the x86 slice of the compat contract, sets verification-stack expectations (Layer 1 unsafe blocks, Layer 2 TLA+ for vDSO seqlock + SMP boot + IDT install + kexec hand-off, Layer 3 Kani for page-table walker + IDT/TSS/per-CPU invariants, Layer 4 opt-ins for AES-NI). 13 REQs, 13 ACs, 6 open. |
+| `arch/x86/00-overview.md`     | 2-subsystem | draft | `27a26ccfd5` | `arch/x86/` (full subtree) | Substantive x86_64 design: enumerates 19+ Tier-3 component docs (boot, entry, paging, kernel-platform, signal, vDSO, cpuinfo, ptrace-abi, ELF, mitigations, COCO, hyperv-guest, xen-guest, KVM, PCI, PMU, crypto-accel, BPF JIT, power, RAS), declares the x86 slice of the compat contract, sets verification-stack expectations (Layer 1 unsafe blocks, Layer 2 TLA+ for vDSO seqlock + SMP boot + IDT install + kexec hand-off, Layer 3 Kani for page-table walker + IDT/TSS/per-CPU invariants, Layer 4 opt-ins for AES-NI). 13 REQs, 13 ACs, 6 resolved decisions (D1–D6), 0 open. |
+| `lib/00-overview.md`          | 2-subsystem | draft | `27a26ccfd5` | `lib/` (full subtree) | Kernel utility library: data structures, strings + vsprintf, compression codecs, checksums + hashes, lib/crypto/ lightweight primitives, math helpers, usercopy + iov_iter, debug tooling, KUnit, vdso-core. Spawns 12 Tier-3 docs. Compat surface: vsprintf %p extensions, dynamic_debug control ABI, KUnit TAP output, vdso_data layout, codec/checksum bit-identity. Heavy on Layer 3 (data-structure invariants) Kani harnesses; Layer 4 opt-ins for lightweight crypto + math. 10 REQs, 11 ACs, 0 open. |
 
 ## Coverage map
 
@@ -85,7 +86,7 @@ Top-level upstream Linux directories at baseline `27a26ccfd528`, listed via `ls 
 | `io_uring/`     | `io_uring/00-overview.md` (Phase B) | NOT WRITTEN |
 | `ipc/`          | `ipc/00-overview.md` (Phase B) | NOT WRITTEN |
 | `kernel/`       | `kernel/00-overview.md` (Phase B) | NOT WRITTEN |
-| `lib/`          | `lib/00-overview.md` (Phase B) | NOT WRITTEN |
+| `lib/`          | `lib/00-overview.md`           | DRAFT (Phase B) |
 | `LICENSES/`     | (license texts — not a design subject) | OUT OF SCOPE |
 | `mm/`           | `mm/00-overview.md` (Phase B) | NOT WRITTEN |
 | `net/`          | `net/00-overview.md` (Phase B) | NOT WRITTEN |
@@ -98,7 +99,7 @@ Top-level upstream Linux directories at baseline `27a26ccfd528`, listed via `ls 
 | `usr/`          | (initramfs-cpio packing utility for build — minor; covered under `init/`) | (folded into init) |
 | `virt/`         | `virt/00-overview.md` (Phase B; covers KVM core, x86 KVM in `arch/x86/kvm/`) | NOT WRITTEN |
 
-**Coverage status**: 1 / 14 in-scope subsystems has a Tier-2 overview (arch, with arch/x86/ as its in-v0 sub-overview). Phase B started 2026-05-09.
+**Coverage status**: 2 / 14 in-scope subsystems have Tier-2 overviews (arch + arch/x86/, lib). Phase B in progress.
 
 ## Planned next
 
@@ -114,7 +115,7 @@ Suggested order (driven by dependency: lower-level subsystems first, so higher-l
 
 1. ~~`arch/00-overview.md`~~ — DRAFT 2026-05-09
 2. ~~`arch/x86/00-overview.md`~~ — DRAFT 2026-05-09
-3. `lib/00-overview.md` (kernel utility library — strings, lists, RB trees, refcounts; mostly thin wrappers)
+3. ~~`lib/00-overview.md`~~ — DRAFT 2026-05-09
 4. `mm/00-overview.md` (page allocator, slab, virtual memory, reclaim, swap, THP, NUMA)
 5. `kernel/00-overview.md` (sched, locking, time, fork/exit/signal, cgroup, namespaces, BPF)
 6. `fs/00-overview.md` (VFS core, dcache, pagecache, then sub-overviews for proc/sysfs/devtmpfs)
