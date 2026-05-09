@@ -1,0 +1,10 @@
+{
+  "uuid": "ff2887d5-2d8a-4056-82da-b511718131df",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 27: 2 Tier-3 xfrm docs (algo registry + NETLINK_XFRM wire). net/xfrm/algo.md (xfrm_ealg/aalg/aead/calg lists with full RFC 4305+8221+IANA SADB-num catalog: AES-CBC/CTR/CCM/GCM, ChaCha20-Poly1305, Camellia, HMAC-SHA1/256/384/512, AES-GMAC, RFC 4106/4309/4543 AEAD, deflate; per-class _get_byname/byid/byidx; available flag from kernel crypto API; FIPS-mode DEPRECATED gating — 9 REQ / 8 AC, 0 open) + net/xfrm/user.md (NETLINK_XFRM family: full XFRM_MSG_* surface NEWSA/DELSA/UPDSA/GETSA/NEWPOLICY/etc + ALLOCSPI/EXPIRE/ACQUIRE/REPORT/MIGRATE/MAPPING/NEWAE/GETAE; XFRMA_* NLA schemas; XFRMNLGRP_* multicast groups; multi-part dump protocol; XFRMA_SEC_CTX LSM context; XFRMA_OFFLOAD_DEV HW offload; XFRMA_IF_ID XFRMi; 32-bit compat DEFERRED for v0 — 13 REQ / 12 AC, 0 open). 6 upstream paths validated against baseline 27a26ccfd528. Total: ~93 .design docs. xfrm IPSec stack: state + policy + input + output + replay + algo + user (= 7 of 17 children) done. Next: net/xfrm/af-key.md PF_KEYv2 (legacy IKEv1 interface — racoon, ipsec-tools) + net/xfrm/ah-esp-ipv4.md (per-AF v4 transforms ah4.c+esp4.c+ipcomp.c).",
+  "created_at": "2026-05-09T19:47:35.119616622Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2JfEPTOhlEl1dwlO/M5YokoF3yNTdXabXqtm6wnketKzQC7L2BHBQLEpwQNEvJbMGEJb5PdMhyBM+ysjlnlWCg=="
+}
