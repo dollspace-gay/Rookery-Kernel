@@ -1,0 +1,10 @@
+{
+  "uuid": "b7757bd7-397a-4990-a879-e71dfad2a004",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 21: 2 Tier-3 ipv6 docs (extension-header semantics + flow-label management). net/ipv6/exthdrs.md (TLV encoding + per-EH-type handlers: HBH/Pad1/PadN/RouterAlert/Jumbo/IOAM/Calipso, DestOpt/TunnelEncapLimit/HomeAddr, RH0-dropped-per-RFC-5095, RH2 Mobile IPv6, RH4 SRv6 + all RFC 8986 actions End/End.X/End.T/End.DT/End.AS/End.AM/End.BPF, SRv6 iptunnel + HMAC, Calipso CIPSO labeling, GRO/GSO offload — 13 REQ / 12 AC, 0 open) + net/ipv6/flowlabel.md (RFC 6437 flow-label mgmt: IPV6_FLOWLABEL_MGR setsockopt full surface w/ all sharing modes + flags, auto_flowlabel modes 1/2, flowlabel_consistency, flowlabel_state_ranges, flowlabel_reflect (RFC 7690), per-netns table + fl_max_size, LATENT_ENTROPY-seeded hashrnd — 12 REQ / 11 AC, 0 open). 12 upstream paths validated against baseline 27a26ccfd528. Total: ~81 .design docs. Next: net/ipv6/tcp-v6.md + net/ipv6/udp-v6.md (per-IPPROTO v6 wrappers — mostly inherit IPv4 TCP/UDP Tier-3 abstractions, doc covers v6-only socket-level diffs).",
+  "created_at": "2026-05-09T18:59:18.757030902Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwBaAvSLevtjZujJf9Z+zuzCXTwd9cimwZDaedsqPKDVvA0wp1EV7RaKazGh9P8lwadrAbShKfmoc7oqyU985BA=="
+}
