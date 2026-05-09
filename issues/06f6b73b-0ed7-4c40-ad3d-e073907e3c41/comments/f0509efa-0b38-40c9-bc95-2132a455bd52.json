@@ -1,0 +1,10 @@
+{
+  "uuid": "f0509efa-0b38-40c9-bc95-2132a455bd52",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 9: 2 Tier-3 docs (net pivot cont'd).\n\nnet/struct-sock.md (242 lines, 15 REQ / 12 AC, 0 open) — protocol-agnostic struct sock + sock_common + sock subclasses (inet_sock + inet_connection_sock) + sock_lock semantics + per-sock memory accounting + cgroup integration + sk_filter + SCM helpers. Layout-equivalence for first-cache-line so existing protocol modules work unchanged.\n\nnet/ipv4/tcp.md (316 lines, 17 REQ / 14 AC, 0 open) — TCP transmission control protocol full surface: state machine (RFC 9293), 17 pluggable cong-control algorithms (CUBIC/BBR/Reno/DCTCP/...), RACK+TLP loss recovery, F-RTO, SACK+DSACK, RTT/RTO estimation, TCP Fast Open (RFC 7413), TCP Authentication Option (RFC 5925), TCP-MD5 (RFC 2385), GSO+GRO offload, sockmap BPF integration, per-route metrics caching. **Layer-4 Verus proof of TCP state-machine RFC 9293 conformance is the keystone proof for net** (declared mandatory-recommended in net/00-overview.md). TLA+ model models/net/tcp_state.tla owned here (mandatory L2).\n\nTotal .design/ docs: 57.",
+  "created_at": "2026-05-09T17:24:25.990356891Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAXDvDVbjy2A08h544jLf7WCexvjcpRYpS6KylV5X0fZALbp48HTITKxac895Xw1XSmVdXIEQPnnHO/g03V4mlBA=="
+}
