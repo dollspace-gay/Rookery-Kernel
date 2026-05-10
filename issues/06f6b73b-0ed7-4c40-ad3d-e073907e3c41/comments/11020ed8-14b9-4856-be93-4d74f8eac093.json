@@ -1,0 +1,10 @@
+{
+  "uuid": "11020ed8-14b9-4856-be93-4d74f8eac093",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 85 result: drivers/md/dm-clone.md (block-level cloning - dm-clone-target.c ~2208 + dm-clone-metadata.c ~1020; per-region 64KB origin→dest CoW + per-bio bio_prison cell + bg hydration kthread + persistent metadata via dm-bufio + per-region monotonic Hydrated state + RW/RO/FAIL modes + dmsetup hydration_threshold/_batch_size + delete_old_origin after 100% hydrated) + virt/kvm/x86-host-irq.md (VMX posted-interrupt processing - posted_intr.c ~319 lines; per-vCPU 64-byte aligned PiDesc with PIR/control(ON/SN/NV/NDST) + per-source IPI delivery via test_and_set_pir + IOMMU IRTE.posted=1 direct PIR-write + per-vCPU pre_block/post_block for halted-vCPU + POSTED_INTR_WAKEUP_VECTOR + sync_pir_to_irr at vmenter + NDST cross-CPU migrate). 120 Tier-3s total. Next iter: drivers/md/dm-bow.md (CoW for over-the-air updates) + virt/kvm/x86-mtf.md (Monitor Trap Flag + single-step debugging).",
+  "created_at": "2026-05-10T11:23:17.159173772Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABArOyEOXsx8LURB78OTR8z3g3qZWR7lCrw5E78mtvZC22GxnTj2yE+5ILF26lE4/Ble+IsPAHyScMdg/oCvleuCA=="
+}
