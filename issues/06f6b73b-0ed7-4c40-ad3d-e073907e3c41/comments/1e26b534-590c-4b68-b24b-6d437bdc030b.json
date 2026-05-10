@@ -1,0 +1,10 @@
+{
+  "uuid": "1e26b534-590c-4b68-b24b-6d437bdc030b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 63 result: fs/eventpoll.md (epoll core - eventpoll.c ~2621 lines; per-epoll-fd EventPoll struct + epitem rb-tree + ep_poll_callback hooked into per-file f_op->poll waitqueues + EPOLLET edge-trigger + EPOLLEXCLUSIVE thundering-herd defense + EPOLLONESHOT + cycle-detect for nested epoll + NAPI busy-poll + ovflist concurrent-update protocol) + virt/kvm/x86-pv-ipi.md (KVM PV-IPI suite - in x86.c ~600-800 lines; KVM_HC_SEND_IPI bulk-IPI via single hypercall + KVM_HC_KICK_CPU wake halted vCPU + MSR_KVM_PV_EOI_EN per-vCPU pv_eoi page + KVM_HC_SCHED_YIELD + PV-TLB-FLUSH via steal-time KVM_VCPU_FLUSH_TLB bit; CPUID 0x40000001:EAX feature gating). Pivoted from cgroup-core (already exists) to fs/eventpoll. 76 Tier-3s total. Next iter: io_uring/io_uring.md (io_uring core) + virt/kvm/x86-hyperv.md (Hyper-V hypercall surface for Windows guests).",
+  "created_at": "2026-05-10T08:27:20.881724661Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAh1NVXSfs7/MzXWRBLkiARfh+t6eVOc8oPHeEcOhgotjfonNY4aRRlLzQMubnccp93madwKYY+LMUQ3W5cqhVCg=="
+}
