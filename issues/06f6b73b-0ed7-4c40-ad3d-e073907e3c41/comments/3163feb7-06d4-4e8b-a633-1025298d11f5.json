@@ -1,0 +1,10 @@
+{
+  "uuid": "3163feb7-06d4-4e8b-a633-1025298d11f5",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 146 result: kernel/time/clocksource.md (clocksource time-source selection - kernel/time/clocksource.c ~1600 lines; per-Clocksource struct with read() fn + mask bitwidth + mult/shift cycles→ns precomputed + rating 1..500 + CLOCK_SOURCE_IS_CONTINUOUS/VALID_FOR_HRES/MUST_VERIFY/SUSPEND_NONSTOP/UNSTABLE/RESELECT flags + clocksource_register_hz/khz/scale + clocksource_select picks highest-rated stable + clocksource_watchdog 1s-periodic drift-check against designated watchdog (HPET) + clocksource_watchdog_kthread demotes UNSTABLE to rating=0 + clocksource_change_rating relink + VDSO clock_gettime fast-path for VCLOCK_TSC/HVCLOCK/PVCLOCK sources + per-PM suspend/resume + /sys/devices/system/clocksource/clocksource0/{current_clocksource, available_clocksource} userspace ABI + TSC/HPET/ACPI-PM/jiffies sources) + net/tls/tls_main.md (Kernel TLS KTLS - net/tls/tls_main.c ~1274 lines; per-TlsContext setsockopt(SOL_TCP, TCP_ULP, 'tls') + setsockopt SOL_TLS TLS_TX/TLS_RX crypto_info with per-cipher subfields (AES_GCM_128/256, AES_CCM_128, CHACHA20_POLY1305) + TLS_VERSION_1_2 / 1_3 + per-direction rec_seq monotonic AEAD nonce + tls_sw_sendmsg encrypts per-record AAD = type+version+length + tls_strp framing on TCP-stream + decrypt_skb on rx + auth-fail close + sendfile-TLS zerocopy + TLS_HW NIC-offload + TLS_HW_RECORD partial-offload + NGINX kTLS line-rate + per-rekey via setsockopt). 242 Tier-3s total. Next iter: net/sched/sch-cake.md cross-check + kernel/futex/futex.md or pivot.",
+  "created_at": "2026-05-10T19:46:21.421131110Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA6XcjhZSrlGOJIE8u4QdIPFsUjGZsv3Zl6h64WqvuVtdnwgwk0XiDBpICvvQA0eTNxhKo/dCW+7QmFN2584XpCg=="
+}
