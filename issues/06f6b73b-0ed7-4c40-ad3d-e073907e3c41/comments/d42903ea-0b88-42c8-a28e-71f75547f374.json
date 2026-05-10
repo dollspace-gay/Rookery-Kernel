@@ -1,0 +1,10 @@
+{
+  "uuid": "d42903ea-0b88-42c8-a28e-71f75547f374",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 149 result: kernel/sched/idle.md (idle task scheduling - kernel/sched/idle.c ~590 lines; per-CPU swapper/N idle task in idle_sched_class + do_idle loop with rcu_idle_enter/exit + cpuidle_idle_call dispatcher + cpuidle_select via menu/teo/ladder/haltpoll governor + cpuidle_state with target_residency_ns + exit_latency_ns + power_usage + flags + tick_nohz_idle_enter/exit per-NOHZ + default_idle_call per-arch HLT/WFI fallback + need_resched exits loop + play_idle for test + x86 C-states C0..C10 via MWAIT + ARM WFI + /sys/devices/system/cpu/cpuN/cpuidle/state*/{name, time, usage, latency, residency} + sched_idle_set_state + per-CPU-offline idle_task_exit) + fs/xfs/super.md (XFS journaling filesystem superblock - xfs_super.c ~2721 lines; on-disk xfs_sb with magic 0x58465342 'XFSB' + sb_blocksize/sectsize/inodesize/agcount/agblocks/uuid/rootino/logstart + V4 vs V5 (V5 adds CRC32C sb_crc + meta_uuid + lsn + sb_features_compat/ro_compat/incompat/log_incompat bitmaps) + per-Allocation-Group AG with bnobt/cntbt/ibt/finobt/rmapbt/refcountbt B+trees + reflink + bigtime + sparse-inode + xfs_fs_fill_super opens devices+readsb+validate+initialize_perag+log_mount+mountfs+root-iget + xfs_remount rw↔ro quiesce + xfs_log replay/recovery + xfs_fs_freeze for snapshots + xfs_qm_mount_quotas + multi-device data/log/realtime + SGI IRIX origin + HPC + RHEL/CentOS default). 248 Tier-3s total. Next iter: fs/proc/proc-pid.md (per-pid procfs) + kernel/printk/console.md or pivot.",
+  "created_at": "2026-05-10T20:11:20.398647498Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsXUERt6JkD9WmxBEVwRlcom1j3wkf8q7JMkTwF6RjhytAOOQD/X+Ykz2JKFhPk8B01Au+gMFbSnxdWzgeZM8Ag=="
+}
