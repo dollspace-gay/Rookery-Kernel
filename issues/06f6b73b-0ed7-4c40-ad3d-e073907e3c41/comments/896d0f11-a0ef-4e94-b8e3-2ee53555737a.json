@@ -1,0 +1,10 @@
+{
+  "uuid": "896d0f11-a0ef-4e94-b8e3-2ee53555737a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 150 (250 docs): fs/proc/proc-pid.md (per-PID procfs, /proc/<pid>/{cmdline,exe,maps,status,stat,fd,...}, ptrace_may_access gating, oom_score_adj range, PID-namespace translation, base.c ~4009 lines), kernel/printk/console.md (struct console + register/unregister + console_lock/unlock dispatch + nbcon non-blocking kthread + CON_* flags + add_preferred cmdline). Knowledge pages registered.",
+  "created_at": "2026-05-10T20:22:09.789392776Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAFb+wzwML6OObwB/JwxYq2xNNeyUiVyr4Dsvs2BURpLgkUHFPQ+myKfGC2kuqUeijqdioqgCC7RkC0MVfeuIrCw=="
+}
