@@ -1,0 +1,10 @@
+{
+  "uuid": "e2e99850-dd55-4bdc-8a0b-4821f8458bd6",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 90 result: net/core/skbuff-alloc.md (sk_buff lifecycle - skbuff.c ~7476 lines third-largest networking file; per-skb sk_buff (~232 bytes) + skb_shared_info (frags + GSO + dataref) + __alloc_skb / __build_skb / napi_alloc_skb / netdev_alloc_skb + skb_clone shallow-copy + skb_copy deep-copy + skb_linearize + skb_segment GSO + page_pool DMA-mapped pre-allocation) + virt/kvm/x86-segments.md (segment register virtualization - in vmx.c/svm.c ~300-400 lines; per-vCPU per-segment CS/DS/ES/SS/FS/GS/LDTR/TR + KvmSegment with base/limit/selector/AR-byte-encoded type/S/DPL/P/AVL/L/D/G + VMX vmcs.GUEST_<SEG>_AR_BYTES + SVM vmcb.save.<seg>.attrib + per-vCPU segment_cache + real-mode emulation via rmode.segs shadow + long-mode CS.L=1 + per-vCPU CPL via CS.DPL). 130 Tier-3s total. Next iter: net/core/page_pool.md (per-NAPI page allocator) + virt/kvm/x86-vmexit-reason.md (vmexit-reason dispatch table).",
+  "created_at": "2026-05-10T12:04:15.496497921Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAg5OLLisIE10OGgQCH/ivWD88ljWgdjBBEN1EUKRYehMqDUKQVtGGY6gD8BZdh5zGKTbzyJ80UYIZKtEmWyw1DQ=="
+}
