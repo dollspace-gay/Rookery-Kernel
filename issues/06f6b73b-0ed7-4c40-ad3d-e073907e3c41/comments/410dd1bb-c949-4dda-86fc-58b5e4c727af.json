@@ -1,0 +1,10 @@
+{
+  "uuid": "410dd1bb-c949-4dda-86fc-58b5e4c727af",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 109 result: net/core/flow_dissector.md (per-skb 5-tuple/header walk - flow_dissector.c ~2098 lines; per-FlowDissector config with used_keys bitmap + per-key offset[FlowDissectorKeyId] table + FLOW_DISSECTOR_KEY_CONTROL/BASIC/IPV4_ADDRS/IPV6_ADDRS/PORTS/VLAN/TCP/ICMP/ARP/MPLS/GRE_KEYID/ENC_*/IPSEC/L2TPV3/META + __skb_flow_dissect walks Ethernet/VLAN/IPv4-options/IPv6-extheaders/TCP/UDP/SCTP/ICMP/GRE/IPSEC/L2TPv3 + skb_get_hash via jhash3 4-tuple + bpf_flow_dissect for BPF_PROG_TYPE_FLOW_DISSECTOR + FLOW_DISSECTOR_F_PARSE_1ST_FRAG/STOP_AT_ENCAP/STOP_AT_FLOW_LABEL + flow_keys_dissector default target) + virt/kvm/x86-pit.md (KVM in-kernel 8254 PIT - i8254.c ~816 lines; per-VM 3 channels at 0x40-0x43 + speaker 0x61 + per-channel KvmKpitChannelState count/mode/bcd/gate/rw_state + KVM_PIT_FREQ 1193182 Hz + 6 modes 0..5 with rate-gen/square-wave/one-shot/strobe + per-channel hrtimer with workqueue do_work + ch0 IRQ0 delivery + IRQ-ack notifier + reinject mode for missed-tick catch-up + KVM_PIT_FLAGS_HPET_LEGACY suppress + KVM_CREATE_PIT2/GET_PIT2/SET_PIT2 ABI + speaker bit toggle for ch2). 168 Tier-3s total. Next iter: net/core/gen_estimator.md (rate estimator) + virt/kvm/x86-hpet.md (HPET emulation - check if needed).",
+  "created_at": "2026-05-10T14:45:22.675776781Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABANbYCXsNVCTz2DpGfDls/7BWMq/Ua1Ri4Jg1z5ahN7BA96z4hByhvgyvyGxV5e2VWeL+icI3+dJiyRO0ruKzSAg=="
+}
