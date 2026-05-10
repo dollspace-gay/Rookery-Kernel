@@ -1,0 +1,10 @@
+{
+  "uuid": "f30ea818-dbf9-4c39-a4c3-7168f8e1278c",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 139 result: net/can/bcm.md (CAN BCM Broadcast Manager - net/can/bcm.c ~1875 lines; per-socket BcmSock + per-(can_id, ifindex) BcmOp + TX_SETUP periodic-tx with ival1/ival2/count + TX_COUNTEVT/TX_EXPIRED + TX_SEND one-shot + TX_DELETE/TX_READ + RX_SETUP filter with content-change-detection RX_CHANGED + RX_TIMEOUT (no-rx for ival1) + RX_FILTER_ID id-only + RX_CHECK_DLC + RX_NO_AUTOTIMER + per-throttle ival2 + bcm_rx_handler memcmp content + bcm_tx_timeout_handler hrtimer fire + can_rx_register/unregister + reduces userspace polling for automotive ECU monitoring/J1939/periodic-telemetry) + mm/sanitizers.md (Memory sanitizers KASAN/KMSAN/KFENCE - mm/kasan + kmsan + kfence ~10000 lines combined; KASAN modes generic per-byte 1:8 shadow / sw-tags 4-bit ptr-tag / hw-tags ARM64 MTE + shadow-byte values 0x00-0x07 partially-addressable / 0xFA alloca-redzone / 0xFC stack-redzone / 0xF7 heap-redzone / 0xFB stack-after-return + kasan_save_alloc_info stack-trace + kasan_record_aux_stack wq-callback + 16MB quarantine FIFO catches UAF + KMSAN per-byte shadow + per-4-byte origin-stack-pointer + __msan_load*/store* compiler-instrumented + kmsan_init_alloc init iff GFP_ZERO + kmsan_handle_dma post-DMA + KFENCE pre-allocated 255-slot pool with fence-pages + sample-rate KFENCE_SAMPLE_INTERVAL + handle_page_fault on touch-fence detects OOB/UAF/double-free + production-friendly low-overhead). 228 Tier-3s total. Next iter: net/dsa/dsa.md (Distributed Switch Architecture) + mm/page-flags.md or pivot.",
+  "created_at": "2026-05-10T18:55:47.665419819Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3LjlP1+iO6PzsBav6EqXLJDOCFNbwFVYUTM4+/er3FL7H1AU3KTPU0PRtaYWVOrnY8E+iQfnlIH2mtoVvKheCg=="
+}
