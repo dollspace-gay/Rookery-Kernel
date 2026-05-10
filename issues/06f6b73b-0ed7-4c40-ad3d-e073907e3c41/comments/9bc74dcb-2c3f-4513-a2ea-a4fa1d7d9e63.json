@@ -1,0 +1,10 @@
+{
+  "uuid": "9bc74dcb-2c3f-4513-a2ea-a4fa1d7d9e63",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 68 result: drivers/md/dm-core.md (device-mapper core - dm.c ~3830 + dm-table.c ~2231 + dm-ioctl.c ~2369; per-md mapped_device + dm_table sorted target-list with binary-search-by-sector + per-target dm_target_type vtable map/end_io/ctr/dtr + RCU-protected table-swap on resume + dmsetup ioctl interface + /dev/mapper/control + dmf flags suspend/resume) + virt/kvm/x86-sev.md (AMD SEV/SEV-ES/SEV-SNP - sev.c ~5252 lines; per-VM kvm_sev_info + PSP firmware command dispatch (LAUNCH_START/_UPDATE_DATA/_MEASURE/_FINISH/_DECOMMISSION) + per-VM SEV ASID + SEV-ES encrypted VMSA per-vCPU + GHCB shared-comm with exit-code allow-list + SEV-SNP RMP + PVALIDATE intercept). Pivoted from blk-mq (Tier-2 exists) to dm-core (foundational). 86 Tier-3s total. Next iter: drivers/md/dm-thin.md (thin-provisioning) + virt/kvm/x86-tdx.md (Intel TDX confidential VM).",
+  "created_at": "2026-05-10T09:08:01.724126606Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAah/6HFnj4tktyPq4GNNKXTXxHLU8XP0GzCxTp1sW8HBY547p8HcoD53FajRYfgmNQ4X/Nbx7qOdYf9TwuPRoCw=="
+}
