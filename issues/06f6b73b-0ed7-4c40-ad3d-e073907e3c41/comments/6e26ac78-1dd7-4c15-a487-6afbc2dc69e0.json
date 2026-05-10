@@ -1,0 +1,10 @@
+{
+  "uuid": "6e26ac78-1dd7-4c15-a487-6afbc2dc69e0",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 77 result: drivers/md/dm-snapshot.md (CoW snapshot - dm-snap.c ~2857 + dm-snap-persistent.c ~980 + dm-snap-transient.c ~158; per-snapshot DmSnapshot + DmException records (origin_chunk → cow_chunk) + persistent vs transient store + dm_kcopyd async-copy + tracked_chunk_hash for in-flight bios + per-origin attached-snapshot-list for multi-snap CoW + snapshot-merge for rollback + LVM legacy use case) + virt/kvm/x86-vmx-eventinj.md (VMCS event injection - in vmx.c ~300-400 lines; VM_ENTRY_INTR_INFO_FIELD bits (vector|type|error-code-valid|valid) + Intel SDM priority SMI>NMI>MCE>exception>IRQ + IDT_VECTORING_INFO_FIELD vmexit-mid-inject capture + double-fault auto-conversion + triple-fault detection + per-vCPU exception/NMI/IRQ queue). 104 Tier-3s total. Next iter: drivers/md/dm-mirror.md (legacy mirror target) + virt/kvm/x86-vmx-vmenter.md (vmenter.S asm stub deep-dive).",
+  "created_at": "2026-05-10T10:18:32.342573809Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAzb+Qu0rSW3sYN+H27oQ2jo3lOnKPDYaBG4ggDkbHfRRfwU7ijA/lIr/iE5BxqL1rhI2OA2ViatKysFjgv96uCg=="
+}
