@@ -1,0 +1,10 @@
+{
+  "uuid": "b856b007-f730-4efa-ada2-5e86a2ea2b91",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 95 result: net/ipv4/ip_input.md (IPv4 RX dispatch - ip_input.c ~718 + ip_forward.c ~181; per-skb ip_rcv → ip_rcv_core header validate (version/IHL/csum/tot_len) → NF_INET_PRE_ROUTING NETFILTER hook → ip_rcv_finish → ip_route_input → ip_local_deliver vs ip_forward + per-protocol inet_protos[] dispatch + raw-socket delivery + IP-options SRR + Router-Alert chain + TTL decrement + ICMP send on errors) + virt/kvm/x86-pdptr.md (PAE PDPTR virtualization - load_pdptrs ~100-150 lines in x86.c; per-vCPU 4-PDPTE shadow + per-CR3-write read PDPT from guest + reserved-bit validation + MAXPHYADDR check + vmcs.GUEST_PDPTR0..3 propagation + per-vmenter pdptrs_changed re-check + 32-bit-PAE vs long-mode gating). 140 Tier-3s total. Next iter: net/ipv4/tcp-input.md (TCP RX core) + virt/kvm/x86-svm-pmu-counters.md (AMD PMC overflow handling).",
+  "created_at": "2026-05-10T12:43:57.091663313Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA50etCmx9xuld/sZKAzKG9wGoI4ujcjlA+IdT+QdagtSYp2cF+8nt3ZFA4DrrB7vV15eL8bkSeIG1r3uDtR0LCA=="
+}
