@@ -1,0 +1,10 @@
+{
+  "uuid": "0b40333f-175a-41ad-8112-ef579e5beb05",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 88 result: net/core/neighbour.md (ARP/NDP table - neighbour.c ~3968 lines; per-protocol NeighTable + per-(table, dev, addr) Neighbour with NUD state-machine NONE→INCOMPLETE→REACHABLE→STALE→DELAY→PROBE→FAILED + per-entry timer + per-table GC with gc_thresh1/2/3 + RCU-protected hash + proxy entries (pneigh) + IPv4 ARP + IPv6 NDP shared table) + virt/kvm/x86-fpu.md (FPU/XSAVE virtualization - in x86.c ~300-400 lines; per-vCPU guest_fpu + fpstate (XSAVE-area) + XCR0 shadow + XFD lazy-alloc for AMX 8KB + kvm_load/_put_guest_fpu via XSAVE/XRSTOR + per-vmenter swap host↔guest + fpstate_realloc on XSETBV + confidential FPU SEV-ES/TDX + KVM_GET_XSAVE2/_GET_XCRS migration). Pivoted from dm-zone (already covered in dm-core overview) to net/core/neighbour for breadth. 126 Tier-3s total. Next iter: net/core/dev.md (netdev core dispatch) + virt/kvm/x86-cr0-cr4.md (CR0/CR4 virtualization).",
+  "created_at": "2026-05-10T11:48:15.478549373Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAXRJgGKOr8dQu7bPVG7+6oOS/taHnNla3CJqiKkzdhG+SyaT6SI/3V8JBjRtZLZWgO9+OBn4GalGQljefvbwGDA=="
+}
