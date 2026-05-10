@@ -1,0 +1,10 @@
+{
+  "uuid": "762403b0-a5c1-4208-b706-964a93afdaa5",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 99 result: net/core/dst.md (destination cache - dst.c ~355 + dst.h ~621; per-route DstEntry + per-AF DstOps vtable + dst_alloc/release with refcount + RCU-protected destroy + per-AF input/output dispatch + per-dst metrics with COW + per-rt_genid invalidation + per-NIC dev_hold/_put + per-dst neighbour-binding + PMTU update + link_failure handler) + virt/kvm/x86-feature-msrs.md (feature-control MSRs - in x86.c ~200-300 lines; MSR_IA32_ARCH_CAPABILITIES (RDCL_NO/IBRS_ALL/RSBA/SKIP_L1DFL/SSB_NO/MDS_NO/TAA_NO/etc.) + MSR_IA32_FEAT_CTL with LOCK/VMX/SGX_LC_ENABLE/LMCE_ON + MSR_IA32_TSX_CTRL + MSR_IA32_FLUSH_CMD + MSR_IA32_SPEC_CTRL + MSR_IA32_PRED_CMD IBPB + MSR_IA32_DEBUGCTLMSR + MSR_IA32_PERF_CAPABILITIES; per-vCPU shadow + per-VM mask). Pivoted KVM topic from cpuid-caps (already covered in x86-cpuid.md) to feature-MSRs. 148 Tier-3s total. Next iter: net/ipv4/icmp.md (ICMP echo + error reports) + virt/kvm/x86-vmload-vmsave.md (SVM VMLOAD/VMSAVE for AMD-specific state).",
+  "created_at": "2026-05-10T13:15:35.766044951Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYduaHOnQqWghltd8TlHfivcTzFJn/GBltWQrawWOzwcuHeAR9BD3OV/vbdlF2WL+wymmgbwqUgD7CC/1OR9cAg=="
+}
