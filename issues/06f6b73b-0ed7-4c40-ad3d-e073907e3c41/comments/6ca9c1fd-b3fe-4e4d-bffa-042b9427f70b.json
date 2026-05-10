@@ -1,0 +1,10 @@
+{
+  "uuid": "6ca9c1fd-b3fe-4e4d-bffa-042b9427f70b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 165 (368 docs, +10 via wave-11): drivers/ata/libata-core, drivers/ata/libata-scsi, drivers/thermal/thermal-core, drivers/hwmon, drivers/infiniband/core/device, drivers/infiniband/core/verbs, drivers/dma-buf, drivers/dma-fence, arch/x86/bpf-jit, kernel/bpf/hashmap. 11 waves = 110 new docs this session.",
+  "created_at": "2026-05-10T22:49:25.388238233Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA52v5B6Hj/wx+x3qaoRuqRHyhE6Tbz4oGhqvHrT+h6NkUQYmhrTetFblOtL4ssGSKdpggi281LJpE+82KKh7wDA=="
+}
