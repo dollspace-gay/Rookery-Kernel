@@ -1,0 +1,10 @@
+{
+  "uuid": "82bfd74c-5824-479d-bc00-20d1444f0e15",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 97 result: net/ipv4/tcp-output.md (TCP TX core - tcp_output.c ~4658 lines second-largest TCP file; per-sock tcp_sendmsg → tcp_write_xmit dispatch + per-skb tcp_transmit_skb construct (header + options + checksum) + TSO + TLP + pacing per-skb hrtimer + retransmit-queue + RTO retransmit + PMTU update + tcp_send_ack/_fin/_synack pure-control segments) + virt/kvm/x86-tsc-deadline.md (TSC-deadline timer mode - in lapic.c ~200-300 lines; per-vCPU MSR_IA32_TSC_DEADLINE + apic.lapic_timer.tscdeadline shadow + hrtimer arm with timer_advance_ns early-fire compensation + adaptive adjust_lapic_timer_advance + __wait_lapic_expire spin-bridge for vmenter-overhead absorption + APICv direct-inject coordination + live-migration deadline preservation). 144 Tier-3s total. Next iter: net/ipv4/tcp-cong.md (CC plug-in framework + Reno/CUBIC) + virt/kvm/x86-init-sipi.md (INIT/SIPI handling + AP boot).",
+  "created_at": "2026-05-10T12:59:19.903862842Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAZeRSFJkL2jSsmtSXW4LeukCoo1e2XXVJc27U4LNWlFEiuAD4TpMlz6S+0B1Vt3DPq+96pHQrkvQdoJ2qqDSVAA=="
+}
