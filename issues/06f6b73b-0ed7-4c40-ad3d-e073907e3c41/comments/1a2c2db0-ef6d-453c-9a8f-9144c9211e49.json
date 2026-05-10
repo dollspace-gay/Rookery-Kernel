@@ -1,0 +1,10 @@
+{
+  "uuid": "1a2c2db0-ef6d-453c-9a8f-9144c9211e49",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 87 result: drivers/md/dm-raid.md (dm bridge to md-raid - dm-raid.c ~4176 lines; per-target RaidSet with embedded mddev + per-disk RaidDev (meta_dev, data_dev, rdev) + setup_md_personality binding raid1/4/5/6/10 + analyse_superblocks for md-superblock parsing + dmsetup raid args + takeover support raid1→raid5 etc + bitmap/journal/write-mostly features + LVM2 RAID-LV backend) + virt/kvm/x86-rdtsc.md (TSC virtualization - in x86.c ~500-700 lines; per-vCPU l1_tsc_offset + tsc_scaling_ratio + vmcs.TSC_OFFSET/_MULTIPLIER (VMX) / vmcb.tsc_offset/_scale (SVM) + MSR_IA32_TSC + MSR_IA32_TSC_ADJUST + per-VM master_kernel_ns/master_cycle_now sync + cross-CPU migrate adjust + synchronize_tsc multi-vCPU matching + nested L2 offset combine). Pivoted from dm-error (trivial) to dm-raid (LVM2 backend bridge). 124 Tier-3s total. Next iter: drivers/md/dm-zone.md (zoned block-device support in dm-core) + virt/kvm/x86-cpuid-overrides.md (guest CPUID feature-mask overrides).",
+  "created_at": "2026-05-10T11:39:12.864465149Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAhBlx3MKgLjBK90XCRZYKUtxqSOvXT2vts8ZwOd/v6mLDD2mFoCQ7JPEJ3XewutUiqVUsfODEFIiZLYPm318ECQ=="
+}
