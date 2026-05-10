@@ -1,0 +1,10 @@
+{
+  "uuid": "8dc4223a-e0d3-4776-851b-8932f2fac710",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 120 result: net/sched/sch-multiq.md (MULTIQ multi-queue dispatcher - sch_multiq.c ~414 lines; per-skb skb_get_queue_mapping → per-NIC HW TX-queue band + per-band inner pfifo + round-robin dequeue with curband + multiq_tune NETDEV_CHANGE handling + bands ≤ dev.real_num_tx_queues + per-class TC API + leaf integration with mqprio + XPS/RFS NIC steering) + virt/kvm/x86-irq-arch.md (KVM x86 IRQ delivery dispatch - arch/x86/kvm/irq.c ~634 lines; kvm_set_msi MSI message decode address_lo/hi/data → KvmLapicIrq + kvm_set_pic_irq routes through master/slave PIC + kvm_set_ioapic_irq pin-asserted + kvm_arch_set_irq_inatomic posted-IRQ atomic fast-path + kvm_set_routing_entry parses KVM_IRQ_ROUTING_IRQCHIP/MSI/HV_SINT/XEN_EVTCHN + kvm_msi_to_lapic_irq xAPIC vs x2APIC dest_id decode + LowestPriority + irq-ack notifiers for PIT reinject + kvm_arch_irq_bypass_add_producer for VFIO posted-IRQ IRTE update). 190 Tier-3s total. Next iter: net/sched/sch-fifo.md (PFIFO/BFIFO simple FIFO) + virt/kvm/x86-irq-injection.md (vCPU IRQ injection state).",
+  "created_at": "2026-05-10T16:23:16.566032003Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUQfGLvymJ49uRqqbHAYi3/mHp/3cFSYSENO9l3T3jQcl/t9xoRa0im9DNilHdkkmICT4x6AJYQW2I7fy8UEFDg=="
+}
