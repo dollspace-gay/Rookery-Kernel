@@ -1,0 +1,10 @@
+{
+  "uuid": "d6f5c300-4f5e-4484-863d-4ed5e557e17c",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 93 result: net/socket.md (BSD socket-API entry-points - socket.c ~3836 lines; per-syscall __sys_socket/_bind/_connect/_listen/_accept4/_sendmsg/_recvmsg/_sendmmsg/_recvmmsg + per-fd Socket+ProtoOps lookup + msghdr parsing + MSG_* flag handling + SCM_RIGHTS fd-passing + kernel_sendmsg/_recvmsg helpers + COMPAT 32-bit-on-64-bit + sock_register per-AF) + virt/kvm/x86-tpr-shadow.md (TPR/CR8 virtualization - in lapic.c ~150-200 lines; per-vCPU virtual_apic_page TPR + vmcs.TPR_THRESHOLD + vmcs.USE_TPR_SHADOW + AMD vmcb.v_tpr/_v_intr_prio + 64-bit MOV CR8 + 32-bit MMIO LAPIC.TASKPRI + EXIT_REASON_TPR_BELOW_THRESHOLD handler + update_cr8_intercept on IRR-change + per-vCPU TPR-class vs max-IRR-priority comparison). 136 Tier-3s total. Next iter: net/ipv4/route.md (FIB + route lookup) + virt/kvm/x86-mmu-zap.md (per-VM MMU zap deep-dive).",
+  "created_at": "2026-05-10T12:28:14.861835657Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAgmI2AggmhUpBiAL80kjG7j9mF7ml9hL1U6nI1hQJ9oRo14BGu4xZkXm7vvuCIQyeiUhfs9FPH4YnMm97i7bkAQ=="
+}
