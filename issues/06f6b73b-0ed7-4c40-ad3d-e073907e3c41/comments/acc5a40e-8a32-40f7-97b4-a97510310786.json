@@ -1,0 +1,10 @@
+{
+  "uuid": "acc5a40e-8a32-40f7-97b4-a97510310786",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 123 result: net/unix/af_unix.md (AF_UNIX socket family - af_unix.c ~3981 lines; 3 types SOCK_STREAM/DGRAM/SEQPACKET + per-socket bind to filesystem-path or abstract-name (NUL-prefix per-netns) + SCM_RIGHTS fd-passing via cmsg + SCM_CREDENTIALS ucred + SO_PEERCRED + abstract-namespace per-netns + UNIX_HASH_SIZE 256 hash table + unix_sock with iolock/bindlock/state_lock + zero-copy via splice/sendfile + unix_gc walks SCM_RIGHTS reachability for cycle-break + dgram message-boundary preserved + stream-byte-stream + seqpacket sequenced+boundary + dockersocket/D-Bus/X11/Wayland/postgres backbone) + virt/kvm/x86-mmu-cache.md (KVM MMU memory cache - kvm_main.c mmu-cache subset ~100 lines; per-vCPU kvm_mmu_memory_cache pre-allocates pte_list_desc/mmu_page_header/mmu_shadow_page/mmu_shadowed_info objects + KVM_ARCH_NR_OBJS_PER_MEMORY_CACHE=40 capacity + kvm_mmu_topup_memory_cache(mc, min) at fault-entry + kvm_mmu_memory_cache_alloc no-sleep within mmu_lock spinlock + kmem_cache or page backing dispatch + gfp_zero/init_value + kvm_mmu_free_memory_cache at vCPU teardown + atomic GFP_ATOMIC fallback if cache empty in atomic ctx). 196 Tier-3s total. Next iter: net/dccp/dccp.md (DCCP) + virt/kvm/x86-pml.md (Page-Modification Logging).",
+  "created_at": "2026-05-10T16:46:08.338635727Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATd8fLsqzRLmXN3ZdEeMKAwaaayVMfAsJAeGt46jO8XQdH/6SN4pW3Mlx2PNZ/9rJG99j6lKJt9pcMA+CxbzmAg=="
+}
