@@ -1,0 +1,10 @@
+{
+  "uuid": "d6db662b-ff8d-407c-9d58-6289ee5c5751",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 118 result: net/sched/sch-cbs.md (Credit-Based Shaper IEEE 802.1Qav AVB - sch_cbs.c ~578 lines; per-qdisc credits counter signed-bytes + idleslope refill rate + sendslope=idleslope-port_rate negative drain rate + hicredit/locredit caps + soft mode kernel-managed credits + offload mode TC_SETUP_QDISC_CBS HW shaper + cbs_dequeue_soft credit-gate + watchdog_schedule on negative-credits with delay_from_credits + max_interference_size deadline budget + AVB classes A/B 1ms latency + TSN scheduled traffic) + virt/kvm/binary-stats.md (KVM binary-stats interface - binary_stats.c ~144 lines; KVM_GET_STATS_FD on VM-fd or vCPU-fd returns anon-inode read-only fd + struct kvm_stats_header with id/desc/data offsets + struct kvm_stats_desc with flags type CUMULATIVE/INSTANT/PEAK/LINEAR_HIST/LOG_HIST + unit NONE/BYTES/SECONDS/CYCLES/BOOLEAN + base POW10/POW2 + exponent + bucket_size + per-VM stats mmu_shadow_zapped/mmu_unsync/etc + per-vCPU stats halt_exits/exits/pf_fixed/halt_poll_success_ns histogram + libkvm-stats userspace ABI). 186 Tier-3s total. Next iter: net/sched/sch-etf.md (Earliest TxTime First) + virt/kvm/coalesced-mmio-impl.md or pivot.",
+  "created_at": "2026-05-10T16:08:55.490756709Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABApRQE7oKZdT2MTHg5OXLe3VczC9aW3B8ndtL1IjhJl36xnGHRDUwUHRs+AePND2UpDm/ujIDBJn6Sl94kNRcPAQ=="
+}
