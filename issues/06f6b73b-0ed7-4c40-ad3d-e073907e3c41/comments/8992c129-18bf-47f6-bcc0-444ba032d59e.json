@@ -1,0 +1,10 @@
+{
+  "uuid": "8992c129-18bf-47f6-bcc0-444ba032d59e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 112 result: net/sched/sch-prio.md (PRIO multi-band qdisc - sch_prio.c ~437 lines; per-qdisc PrioSchedData with bands 1..16 default 3 + priomap[16] u8 skb-priority-to-band map + per-band inner qdisc default pfifo + strict-priority dequeue iterates bands 0..N-1 + per-class id parent:band+1 + tc_prio_qopt UAPI + TC_PRIO_INTERACTIVE/CONTROL/BULK/BESTEFFORT default mapping + classifier override via tcf_classify TC_ACT_OK/RECLASSIFY + prio_change atomic alloc/free per-band qdisc + prio_graft swap inner qdisc) + virt/kvm/irqchip.md (KVM cross-arch IRQ routing - virt/kvm/irqchip.c ~261 lines; per-VM kvm_irq_routing_table with chip[KVM_NR_IRQCHIPS][PINS] + per-GSI hlist map + KVM_IRQ_ROUTING_IRQCHIP/MSI/HV_SINT/XEN_EVTCHN entry types + per-entry e.set arch dispatch fn + KVM_SET_GSI_ROUTING ioctl publishes new rt with rcu_assign_pointer + srcu read-lock fast-path + synchronize_srcu_expedited before free old + kvm_send_userspace_msi stack-built entry + KVM_MSI_VALID_DEVID for IOMMU IRTE + kvm_arch_irq_routing_update propagates to VFIO posted-intr). 174 Tier-3s total. Next iter: net/sched/sch-netem.md (network emulator) + virt/kvm/x86-vfio.md (VFIO integration).",
+  "created_at": "2026-05-10T15:08:01.401890442Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPzRk+317k9qlxZszlidmdABnWlrkZkfF0vrvjezO1UmSIu4tqTGzMscNS2p1BAy0+yXwY53CmzVaNnLc7RBeDg=="
+}
