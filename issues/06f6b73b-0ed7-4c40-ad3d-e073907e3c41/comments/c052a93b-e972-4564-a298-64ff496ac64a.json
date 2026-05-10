@@ -1,0 +1,10 @@
+{
+  "uuid": "c052a93b-e972-4564-a298-64ff496ac64a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 135 result: net/openvswitch/datapath.md (Open vSwitch datapath - datapath.c ~2891 lines + flow_table.c ~1217 lines; per-DP datapath struct + per-vport NETDEV/INTERNAL/TUNNEL{VXLAN,GRE,GENEVE} + sw_flow_key canonical 5-tuple+headers + flow_table per-mask rhashtable + ovs_dp_process_packet pipeline extract→lookup→action-or-upcall + do_execute_actions OVS_ACTION_ATTR_OUTPUT/SET/PUSH_VLAN/POP_VLAN/CT/RECIRC/HASH/DROP/USERSPACE + ovs_dp_upcall genetlink to ovs-vswitchd userspace + OVS_DP_CMD_NEW/VPORT_CMD/FLOW_CMD/PACKET_CMD genl ABI + conntrack action via NF + per-namespace + ovs-vsctl/ovs-ofctl tools + OpenStack Neutron / Kubernetes CNI / NFV) + mm/zsmalloc.md (zsmalloc compressed-page allocator - mm/zsmalloc.c ~2271 lines; slab-style for variable-size compressed pages from zswap/zram + per-pool with size_class[~256] indexed by 32-bytes-step + per-class pages_per_zspage 1..4 + per-zspage = N contiguous 4KB pages with magic+inuse+freeobj+class+fullness + ZS_EMPTY/ALMOST_EMPTY/ALMOST_FULL/FULL state-machine + zs_malloc returns u64 handle = (zspage, obj_idx) + zs_map_object kmap-window 2-pages-contiguous + zs_free + per-class spinlock + zspage migration handle-table for compaction + ZS_HUGE_OBJECT_SIZE ~3KB cap + zswap/zram backing). 220 Tier-3s total. Next iter: net/xfrm/xfrm_state.md cross-check + mm/memory-hotplug.md.",
+  "created_at": "2026-05-10T18:23:43.482310661Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAe01FkBvwB9IK5tTPBSis5KQiZLEsscwTnpdH5Lq1kw8GxhGdyzHnMeABdvHukufoCutBshqbUbX40TnPPcN8AA=="
+}
