@@ -1,0 +1,10 @@
+{
+  "uuid": "66813177-4099-4a22-9adc-25ed321d9faf",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 57 result: virt/kvm/x86-irq.md (KVM in-kernel IRQ chip - irq.c ~634 + i8259.c ~655 + ioapic.c ~779 + i8254.c ~816; per-VM PIC master+slave + 24-pin IOAPIC + 3-channel PIT + per-vCPU dispatch via cpu_get_interrupt + KVM_SET_GSI_ROUTING via RCU + per-(GSI, source) ref-count + irqfd integration + KVM_GET/SET_IRQCHIP for migration) + kernel/workqueue.md (CMWQ - workqueue.c ~8450 lines third-largest kernel file; per-CPU + per-NUMA-node worker_pools + concurrency-managed via scheduler hooks + WQ_MEM_RECLAIM rescuer + max_active gating + cancel_work_sync semantics + PENDING-bit serialization). Pivoted away from kernel/sched/fair.md since cfs.md already exists. 64 Tier-3s total. Next iter: kernel/locking/spinlock.md (raw + qspinlock + per-arch fallback) + virt/kvm/x86-mtrr.md (MTRR + PAT virtualization).",
+  "created_at": "2026-05-10T07:38:08.322272706Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAJezZWlxqZtklaDlcgpFtBXs/kFwJMvBnEA7EnCqqL6scTJ1unf79J0yFKzFkvQ8h0g1CzIiW5jcXvZbnA2i/AA=="
+}
