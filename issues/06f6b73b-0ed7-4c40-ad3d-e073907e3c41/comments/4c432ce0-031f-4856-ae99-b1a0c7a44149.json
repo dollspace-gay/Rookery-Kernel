@@ -1,0 +1,10 @@
+{
+  "uuid": "4c432ce0-031f-4856-ae99-b1a0c7a44149",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 60 result: kernel/time/timer.md (timer-wheel - timer.c ~2580 lines; per-CPU 9-level cascading wheel + 576 buckets + TIMER_DEFERRABLE/_PINNED/_IRQSAFE flags + TIMER_SOFTIRQ run + del_timer_sync wait-for-executing + NOHZ timer migration via tmigr) + virt/kvm/x86-pvclock.md (KVM paravirt clock kvmclock - in x86.c ~600+ lines; per-vCPU pvclock_vcpu_time_info 32-byte struct + version sequence-counter atomic-update + MSR_KVM_SYSTEM_TIME/_NEW + WALL_CLOCK + tsc_to_system_mul/shift + cpufreq-notifier integration + PVCLOCK_TSC_STABLE/_GUEST_STOPPED flags + live-migration pause). 70 Tier-3s total. Next iter: kernel/time/hrtimer.md + virt/kvm/x86-async-pf.md (async page fault paravirt).",
+  "created_at": "2026-05-10T08:02:31.143937260Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAoEtrqXKH+iW2UPvWvgqFmE5kJcOiLQdPpq//tvIUnkH5B0DN+1wyRujhts0ZdK0NQHzFWB+gDnlxepfWdo2FBQ=="
+}
