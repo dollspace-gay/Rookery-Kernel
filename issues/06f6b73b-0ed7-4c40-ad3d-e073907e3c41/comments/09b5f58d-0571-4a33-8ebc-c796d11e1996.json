@@ -1,0 +1,10 @@
+{
+  "uuid": "09b5f58d-0571-4a33-8ebc-c796d11e1996",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 130 result: net/bridge/br_stp.md (IEEE 802.1D STP / 802.1w RSTP - br_stp.c ~713 + br_stp_bpdu.c ~247 lines; per-bridge BridgeId priority+MAC + root election lowest-id wins + per-port states DISABLED/LISTENING/LEARNING/FORWARDING/BLOCKING + BR_STATE_* transitions per forward_delay 15s + Configuration BPDU 35-byte format protocol_id/version/type/flags/root_id/path_cost/bridge_id/port_id/timers + TCN BPDU + br_received_config_bpdu supersedes_port_info compare + br_root_selection lowest-cost path-to-root + br_topology_change_detection TCN propagation + hello_timer 2s + max_age 20s + BR_KERNEL_STP/BR_USER_STP/BR_NO_STP modes for mstpd userspace fallback + STP-mcast 01:80:c2:00:00:00 LLC encap + sysfs /sys/class/net/<br>/bridge/{stp_state,root_id,...}) + mm/thp.md (Transparent Huge Pages - huge_memory.c ~5093 lines; PMD-sized 2MB huge folios for anon+shmem+file VMAs + transparent_hugepage_flags TRANSPARENT_HUGEPAGE_FLAG/REQ_MADV_FLAG/DEFRAG_DIRECT/KSWAPD/USE_ZERO_PAGE + do_huge_pmd_anonymous_page allocates HPAGE_PMD_ORDER 9 folio + set_huge_pmd installs PMD + split_huge_pmd PMD→PTE-table + split_huge_page folio→512x4KB + khugepaged background daemon collapses 4KB-mapped runs + MADV_HUGEPAGE/MADV_NOHUGEPAGE + /sys/kernel/mm/transparent_hugepage/{enabled,defrag,shmem_enabled} always/madvise/never + mTHP per-order /sys/.../hugepages-NkB + COW + memcg_charge before install). 210 Tier-3s total. Next iter: net/can/raw.md (CAN raw socket) + mm/migration-compaction.md.",
+  "created_at": "2026-05-10T17:42:28.428450923Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAAbQbn4Gvy2EgfoAd/RG1WZxFXe2bgqwRj54fszWdE8We0PApKsJw/41O1GrlqXSmwDOLTkOLYdSyKJ8kzTDgDg=="
+}
