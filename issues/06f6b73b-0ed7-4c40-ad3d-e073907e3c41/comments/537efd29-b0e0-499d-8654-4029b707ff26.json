@@ -1,0 +1,10 @@
+{
+  "uuid": "537efd29-b0e0-499d-8654-4029b707ff26",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 102 result: net/ipv4/inet-hashtables.md (per-protocol socket hashes - inet_hashtables.c ~1393 lines; per-AF InetHashinfo with lhash2 (per-port listener hash) + ehash (per-tuple established hash) + bhash (per-port bind hash) + bhash2 (per-(port, addr) for IPv6/VLAN) + per-bucket spinlock + RCU walk + SO_REUSEPORT reuseport-group + SO_BINDTODEVICE + per-namespace isolation + inet_ehash_secret per-boot random) + virt/kvm/x86-cet.md (CET shadow-stack + IBT - in x86.c ~150-200 lines; per-vCPU MSR_IA32_S_CET + U_CET + PL[0-3]_SSP per-privilege shadow-stack pointers + INT_SSP_TAB + XSAVE components 11+12 + CR4.CET enable + #CP exception (vector 21) on SHSTK-mismatch / IBT-violation / etc. + CPUID 0x07.0:ECX[7] SHSTK + EDX[20] IBT). 154 Tier-3s total. Next iter: net/netlink/af_netlink.md (netlink socket family) + virt/kvm/x86-pat.md (PAT MSR virtualization).",
+  "created_at": "2026-05-10T13:39:06.171603480Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAeZg6qasNDP113yscdreHDAWYNDfrbkgJX9+1mJckK5zB8kWeXqIPheCDKPcCJ2M+vZJ0o4x3m2pf53TNH5VNBA=="
+}
