@@ -1,0 +1,10 @@
+{
+  "uuid": "a056ff46-6d4a-43a2-b981-a18936a57f89",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 126 result: net/8021q/vlan_dev.md (VLAN-dev netdev_ops detail - vlan_dev.c ~1087 lines; ndo_init/uninit/open/stop/start_xmit/change_mtu/set_mac_address/set_rx_mode/change_rx_flags/select_queue/get_stats64/eth_ioctl + features inherited from real_dev.vlan_features minus NETIF_F_HW_VLAN_* + MTU caps real_dev.mtu - VLAN_HLEN sw-mode + dev_uc_add propagation on MAC-change + dev_uc_sync/mc_sync on rx-mode + IFF_PROMISC/ALLMULTI ±1 propagation + per-cpu vlan_pcpu_stats + ingress_priority_map PCP→skb.priority + napi_gro_receive + skb_vlan_push or __vlan_hwaccel_put_tag) + virt/kvm/x86-vmx-msr-autoload.md (VMX MSR autoload/store - vmx.c msr-autoload subset ~200 lines; per-vCPU 3 lists msr_autoload.guest/host + msr_autostore + struct vmx_msr_entry {index, reserved, value} 16-byte + VM_ENTRY_MSR_LOAD_COUNT/ADDR + VM_EXIT_MSR_LOAD_COUNT/ADDR + VM_EXIT_MSR_STORE_COUNT/ADDR vmcs fields + VMX_MSR_LIST_SIZE 512 cap + add/clear_atomic_switch_msr + special-case MSR_EFER via vmcs.GUEST_IA32_EFER + VM_ENTRY_LOAD_IA32_EFER bit + special-case MSR_IA32_PERF_GLOBAL_CTRL via vmcs.GUEST_IA32_PERF_GLOBAL_CTRL + HW atomic save/restore eliminating manual RDMSR/WRMSR per-vmenter/vmexit). 202 Tier-3s total. Next iter: net/bonding/bond.md (bonding driver) + virt/kvm/x86-vmx-vpid.md cross-check or pivot.",
+  "created_at": "2026-05-10T17:10:11.779137749Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+hf9H+AcJDLBS4BaJtKB73+C+B96wMWQ28C8oN7StGs2RiH8cbX7kDXgCfCqAg/p16ShoNq3qKjYRzShaw5DBg=="
+}
