@@ -1,0 +1,10 @@
+{
+  "uuid": "c2dcac99-1dc4-4176-8a12-269091942a5a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 167 (386 docs, +10 via wave-13): kernel/bpf/ringbuf, net/core/sock-map, drivers/vhost/scsi+vdpa, net/openvswitch/actions+flow, drivers/media/v4l2-dev+videobuf2, arch/x86/kvm-cpuid+mm-init. 13 waves = 130 new docs this session. ~78% along.",
+  "created_at": "2026-05-10T23:11:11.402631364Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABALHm0af5Vvrg2m3HKNcl+2b7t5iE3T+G9nDyd8cfeS0WIG1frhhXBdj7j8Uqe2563f4ztYvN4qyQDoe1hID9UDQ=="
+}
