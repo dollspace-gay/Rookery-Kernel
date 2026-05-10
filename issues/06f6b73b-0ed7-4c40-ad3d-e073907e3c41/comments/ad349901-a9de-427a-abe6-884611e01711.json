@@ -1,0 +1,10 @@
+{
+  "uuid": "ad349901-a9de-427a-abe6-884611e01711",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 58 result: kernel/locking/spinlock.md (generic spinlock API - spinlock.c ~427 + spinlock.h ~678 + spinlock_types.h; spin_lock/_irq/_irqsave/_bh/_trylock dispatchers + lockdep AB-BA detection + LOCKDEP_RECURSION_LIMIT + PREEMPT_RT remap to rt_mutex + lockstat) + virt/kvm/x86-mtrr.md (KVM MTRR+PAT virtualization - mtrr.c ~133; per-vCPU fixed/var MTRR shadow + MSR_IA32_MTRRCAP/_DEF_TYPE/_PHYSBASE0..7/_PHYSMASK0..7/_FIX*/PAT + per-gfn memory-type lookup + SPTE memory-type integration + SR-IOV force-UC for device MMIO + Intel SDM combine table). 66 Tier-3s total. Next iter: kernel/futex/core.md + virt/kvm/x86-smm.md (SMM emulation).",
+  "created_at": "2026-05-10T07:46:14.811010885Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATWzfbcj3T1x1Cz+yyinnYT3MkjyV1s5QIKQQRX92WxG8n67WScUSSE4w4rItVaOnYqJxjJmsh20QH7YnprIcDw=="
+}
