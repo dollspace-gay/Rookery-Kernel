@@ -1,0 +1,10 @@
+{
+  "uuid": "0117786c-c283-4c8c-997b-9c5a2211b023",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 156 (278 docs, +10 via 5 parallel Opus subagents wave-2): mm/mlock.md, mm/mprotect.md, mm/highmem.md, mm/zswap.md, fs/fuse/dev.md, fs/overlayfs/super.md, kernel/irq/chip.md, kernel/irq/manage.md, net/mptcp/subflow.md, net/sctp/associola.md. Knowledge pages registered. Pace at ~10 docs / wave with 5x parallelism.",
+  "created_at": "2026-05-10T21:15:35.040600207Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAEu8WFHEe9+rPNflRMRcfmpftltZdA9K8B0jKTCnLEIUyK3XrUXwqNp9lUt5IgLjCJIUazqgOjD/RJSvJuHa2Cg=="
+}
