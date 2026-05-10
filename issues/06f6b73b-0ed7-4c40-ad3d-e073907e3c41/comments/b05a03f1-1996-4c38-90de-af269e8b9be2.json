@@ -1,0 +1,10 @@
+{
+  "uuid": "b05a03f1-1996-4c38-90de-af269e8b9be2",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 147 result: fs/ext4/super.md (ext4 superblock + mount - super.c ~7606 lines; on-disk ext4_super_block 1024 bytes at offset 1024 with magic 0xEF53 + s_log_block_size + s_inodes_count + s_blocks_count_lo + s_free_blocks_count_lo + s_uuid + s_volume_name + s_journal_inum + s_feature_compat/incompat/ro_compat bitmaps + s_csum CRC32C self-checksum + s_first_error_time/last_error_time history + ext4_fill_super loads + validates + ext4_check_features INCOMPAT-supported-or-EOPNOTSUPP + RO_COMPAT-rw-block + ext4_load_journal jbd2 + ext4_setup_super marks NOT_VALID_FS + iget_locked root + d_make_root + ext4_remount rw↔ro flush+commit + ext4_statfs / show_options / sync_fs + s_errors panic/continue/remount-ro + ext4_freeze for LVM snapshots + /sys/fs/ext4/<dev>/ sysfs) + net/netfilter/ipvs/ipvs.md (IPVS LVS L4 load-balancer - ip_vs_core.c ~2632 lines; per-IpVsService (af, proto, VIP, vport) + per-IpVsDest RS backends with weight/conn_flags/thresholds + per-IpVsConn (client, virtual, dest) 6-tuple hash-table + schedulers RR/WRR/LC/WLC/LBLC/LBLCR/SH/DH/FO/OVF/MH-Maglev/SED/NQ + forwarding modes NAT/DROUTE/TUNNEL/LOCALNODE + ip_vs_in/out NF_INET_LOCAL_IN/OUT hooks + ip_vs_schedule picks RS + ip_vs_conn_new creates per-conn entry + ip_vs_xmit per-mode dispatch + ip_vs_nat_xmit DNAT + ip_vs_dr_xmit MAC-rewrite + ip_vs_tunnel_xmit IP-in-IP + ip_vs_sync master/backup UDP-multicast replication + ipvsadm tool + ip_vs_genl netlink + OpenStack-LBaaS / DC L4 LB). 244 Tier-3s total. Next iter: fs/ext4/inode.md or fs/proc/proc-net.md + kernel/futex/futex2.md or pivot.",
+  "created_at": "2026-05-10T19:55:10.726781350Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAeZNkyG+IW0VEFxD+ShyG1HR6TGyqf/RWrto31Cb98KVhRJyX691JGEGcZf5GuDqUI3fTNBots7KmhpVPQY8kAQ=="
+}
