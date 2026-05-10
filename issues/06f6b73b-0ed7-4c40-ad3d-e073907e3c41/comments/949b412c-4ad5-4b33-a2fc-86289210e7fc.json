@@ -1,0 +1,10 @@
+{
+  "uuid": "949b412c-4ad5-4b33-a2fc-86289210e7fc",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 52 result: drivers/iommu/intel-prq.md (PCIe PRI Page-Request queue - prq.c ~396 lines; per-IOMMU 128-entry ring + per-PASID demand-paging via handle_mm_fault + page-response via QI + per-PASID drain on detach + iommufd-eventq dispatch + vSVA guest-PASID injection) + virt/kvm/x86-vmx.md (Intel VMX vendor half - vmx.c ~8866 + vmx.h + main.c + vmcs.h + vmcs12 + vmcs_shadow_fields + vmenter.S; per-vCPU VMCS + LoadedVmcs per-CPU + EXIT_HANDLERS dispatch + EPT-violation handler + posted-IRQ sync_pir_to_irr + MSR bitmap pass-through + event injection). 54 Tier-3s total. Next iter: drivers/iommu/intel-nested.md (vIOMMU nested-translation backend) + virt/kvm/x86-svm.md (AMD SVM vendor half).",
+  "created_at": "2026-05-10T06:57:52.992560680Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4OZ1scYPn1+knt4CEBwC/vmfTserDgg7cMz9loVvBPjNICAd8gezqGEZ41qRSS31++XsjtkFNtYsccEugJkFCw=="
+}
