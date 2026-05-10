@@ -1,0 +1,10 @@
+{
+  "uuid": "4bfa35c6-bc98-4f2e-adfb-fb1dfef74280",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 116 result: net/sched/sch-codel.md (Controlled Delay AQM - sch_codel.c ~286 lines + codel.h ~167 lines; per-skb sojourn-time tracking via skb.tstamp + per-pkt should_drop test sojourn>=target 5ms continuously for >=interval 100ms + dropping state machine + control_law(t, interval, count)=t+interval/sqrt(count) Newton-Raphson rec_inv_sqrt + ECN-mark + ce_threshold pre-drop CE-mark + Nichols-Jacobson 2012 parameterless self-tuning + bufferbloat mitigation + count -=2 vs reset on re-entry within 16xinterval) + virt/kvm/pfncache.md (KVM gfn-to-pfn cache - pfncache.c ~484 lines; per-(GPA,len) gfn_to_pfn_cache hot-mapped guest page kva for steal-time/pvclock/async-pf/HV-SynIC/STIMER + per-rwlock fast-read + write-lock refresh + kvm_gpc_init/activate/check/refresh/deactivate/mark_dirty + kvm_gpc_activate_hva HVA-anchored variant + per-VM kvm.gpc_list + gpc_invalidate_start on memslot mutation + 2-page span via vmap-contiguous + MMU-notifier integration + KVM_HVA_ERR_BAD sentinel). 182 Tier-3s total. Next iter: net/sched/sch-pie.md (PIE proportional-integral) + virt/kvm/guest-memfd.md (guest_memfd for confidential VMs).",
+  "created_at": "2026-05-10T15:54:59.012496900Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAxuqcwlXkdIXSIHxLoncs8mLF5KOEVeUzedxeb861vDlkIliR3GLjA4IHjRFuqOeHueFyUMfpRpNk0An7O775Aw=="
+}
