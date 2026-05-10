@@ -1,0 +1,258 @@
+---
+title: "Tier-3: net/9p/client.c — 9P (Plan 9) protocol client"
+tags: ["tier-3", "net", "design-doc"]
+sources: []
+contributors: ["gb9t"]
+created: 2026-05-10
+updated: 2026-05-10
+---
+
+
+## Design Specification
+
+### Summary
+
+9P (Plan 9 from Bell Labs file-protocol; RFC-via-Plan9 spec) is a per-file remote-FS protocol used by Linux as `9pfs` for VM/container file-sharing (virtio-9p in QEMU/KVM). Per-msg request-response via per-tag matching: T-message (T-version / T-attach / T-walk / T-open / T-read / T-write / T-clunk / T-stat / etc.) → R-message. Per-fid (file-identifier) tracks an open file or path. Per-protocol-version: 9P2000 (orig), 9P2000.u (Unix-extensions), 9P2000.L (Linux-extensions: lstat, lopen, lcreate, etc.). Per-transport: trans_fd (TCP/Unix), trans_virtio (virtio-vsock-style), trans_xen, trans_rdma. Critical for: VM file-passthrough (qemu -virtfs), container shared-fs, plan9-style services.
+
+This Tier-3 covers `client.c` (~2209 lines) + protocol overview.
+
+### Acceptance Criteria
+
+- [ ] AC-1: mount -t 9p ... transport=virtio: p9_client_create succeeds.
+- [ ] AC-2: T-VERSION exchange: protocol version + msize negotiated.
+- [ ] AC-3: T-ATTACH: root-fid established.
+- [ ] AC-4: T-WALK to "/etc/passwd": per-component-list walked; new-fid returned.
+- [ ] AC-5: T-LOPEN with O_RDONLY: fid opened.
+- [ ] AC-6: T-READ at offset 0, count 4096: 4096 bytes returned.
+- [ ] AC-7: T-WRITE at offset 0, count 4096: file written.
+- [ ] AC-8: T-CLUNK: fid released.
+- [ ] AC-9: T-FLUSH: pending tag cancelled.
+- [ ] AC-10: 9P2000.L T-XATTRWALK: xattr walked.
+- [ ] AC-11: virtio-9p QEMU passthrough: file-ops work end-to-end.
+
+### Architecture
+
+Per-mount state:
+
+```
+struct P9Client {
+  trans_mod: *P9TransModule,
+  status: u8,                                    // P9_DISCONNECTED / Connected
+  proto_version: u8,                             // 9P2000 / 9P2000.U / 9P2000.L
+  msize: u32,
+  trans: *void,                                   // trans-private data
+  fids: IdrTree<P9Fid>,
+  reqs: IdrTree<P9Req>,
+  lock: SpinLock,
+  recv_wq: WaitQueueHead,
+  ...
+}
+
+struct P9Fid {
+  fid: u32,
+  uid: KuidT,
+  client: *P9Client,
+  qid: P9Qid,
+  iounit: u32,
+  mode: u32,
+  ...
+}
+
+struct P9Req {
+  tag: u16,
+  status: P9ReqStatus,
+  tc: P9Buffer,                                   // T-msg
+  rc: P9Buffer,                                   // R-msg
+  wq: WaitQueueHead,
+  refcount: AtomicI32,
+  ...
+}
+```
+
+`P9::client_create(fs_context) -> Result<*P9Client>`:
+1. clnt = kzalloc.
+2. parse mount-options (transport, msize, version).
+3. trans_mod = v9fs_get_trans_by_name(opts.trans_name).
+4. err = trans_mod.create(clnt, opts.devname).
+5. err = P9::client_version(clnt).
+6. Return clnt.
+
+`P9::client_rpc(c, type, fmt, ...) -> *P9Req`:
+1. req = P9::tag_alloc(c).
+2. /* Per-fmt encode T-msg into req.tc */
+3. p9pdu_writef(&req.tc, type, fmt, args).
+4. err = c.trans_mod.request(c, req).
+5. wait_event(req.wq, req.status >= P9_REQ_STATUS_RCVD).
+6. Return req.
+
+`P9::client_attach(c, afid, uname, aname, n_uname) -> Result<*P9Fid>`:
+1. fid = p9_fid_create(c).
+2. req = P9::client_rpc(c, P9_TATTACH, "ddssd", fid.fid, ...).
+3. /* Decode R-attach: qid */
+4. p9pdu_readf(&req.rc, "Q", &fid.qid).
+5. Return fid.
+
+`P9::client_walk(oldfid, nwname, wnames) -> Result<*P9Fid>`:
+1. newfid = p9_fid_create(c).
+2. req = P9::client_rpc(c, P9_TWALK, "dd...", oldfid.fid, newfid.fid, nwname, wnames).
+3. /* Decode wqid-list */
+4. Return newfid.
+
+`P9::client_read_once(fid, offset, max_count) -> Result<...>`:
+1. count = min(max_count, c.msize - 11).
+2. req = P9::client_rpc(c, P9_TREAD, "dqd", fid.fid, offset, count).
+3. /* Decode r.data */
+4. memcpy data; return count.
+
+### Out of Scope
+
+- net/9p/{trans_fd, trans_virtio, trans_xen, trans_rdma}.c (covered separately if expanded)
+- 9P protocol encoding (covered separately if expanded)
+- 9pfs filesystem (fs/9p/ — covered separately)
+- Plan 9 spec (out-of-tree)
+- Implementation code
+
+### upstream references
+
+| Upstream symbol | Purpose | Rookery owner |
+|---|---|---|
+| `struct p9_client` | per-mount state | `P9Client` |
+| `struct p9_fid` | per-(open file or path) | `P9Fid` |
+| `struct p9_req_t` | per-T-message | `P9Req` |
+| `struct p9_trans_module` | per-transport ops | `P9TransModule` |
+| `p9_client_create()` | per-mount create | `P9::client_create` |
+| `p9_client_destroy()` | per-mount destroy | `P9::client_destroy` |
+| `p9_client_rpc()` | per-RPC send+wait | `P9::client_rpc` |
+| `p9_client_version()` | T-VERSION negotiation | `P9::client_version` |
+| `p9_client_attach()` | T-ATTACH | `P9::client_attach` |
+| `p9_client_walk()` | T-WALK | `P9::client_walk` |
+| `p9_client_open()` | T-OPEN / T-LOPEN | `P9::client_open` |
+| `p9_client_clunk()` | T-CLUNK | `P9::client_clunk` |
+| `p9_client_read_once()` / `_write_once()` | T-READ / T-WRITE | `P9::client_read` / `write` |
+| `p9_client_stat()` | T-STAT | `P9::client_stat` |
+| `p9_client_remove()` | T-REMOVE | `P9::client_remove` |
+| `p9_client_create()` (file) | T-CREATE / T-LCREATE | `P9::client_create_file` |
+| `p9_tag_alloc()` / `_remove()` | per-tag-id tracking | `P9::tag_alloc` / `remove` |
+| `P9_T*` / `P9_R*` enum | msg types | UAPI |
+
+### compatibility contract
+
+REQ-1: 9P message format:
+- size (u32 LE).
+- type (u8) T-* or R-*.
+- tag (u16) per-msg unique.
+- ... per-msg-type body.
+
+REQ-2: Message types (subset):
+- T-VERSION / R-VERSION: protocol version negotiation.
+- T-ATTACH / R-ATTACH: associate root-fid with file-tree.
+- T-WALK / R-WALK: per-fid walk path-component-list.
+- T-OPEN / R-OPEN (9P2000): open-mode.
+- T-LOPEN / R-LOPEN (9P2000.L): Linux open-flags.
+- T-CREATE / T-LCREATE: new file.
+- T-READ / R-READ: per-offset read.
+- T-WRITE / R-WRITE: per-offset write.
+- T-CLUNK / R-CLUNK: release fid.
+- T-REMOVE / R-REMOVE: delete + release.
+- T-STAT / R-STAT (9P2000) / T-GETATTR / R-GETATTR (9P2000.L).
+- T-WSTAT / T-SETATTR.
+- T-FLUSH / R-FLUSH: cancel pending tag.
+
+REQ-3: 9P2000.L Linux extensions:
+- T-LCREATE / T-MKDIR / T-MKNOD / T-RENAME.
+- T-SYMLINK / T-LINK / T-READLINK.
+- T-STATFS / T-LSTAT / T-LOPEN.
+- T-XATTRWALK / T-XATTRCREATE.
+- T-LOCK / T-GETLOCK.
+
+REQ-4: Per-fid lifecycle:
+- T-ATTACH returns root-fid.
+- T-WALK from existing fid clones-and-walks; new-fid attached.
+- T-OPEN / T-LOPEN attaches FILE-mode to fid.
+- T-READ / T-WRITE per-offset.
+- T-CLUNK releases.
+
+REQ-5: Per-tag:
+- T-msg has tag (u16); R-msg echoes.
+- 0xFFFF reserved for T-VERSION.
+- Per-tag tracks pending request.
+- T-FLUSH(oldtag) cancels.
+
+REQ-6: Per-transport:
+- trans_fd: socket-based (TCP / Unix).
+- trans_virtio: per-virtio-9p PCI-device.
+- trans_xen: per-Xen-vchan.
+- trans_rdma: per-RDMA queue-pair.
+
+REQ-7: Per-MSIZE:
+- max msg size negotiated at T-VERSION.
+- per-9pfs mount cmsg-size limited.
+
+REQ-8: Per-QID:
+- struct qid: { type, version, path } - per-file identity.
+- type: dir / append-only / locked / etc.
+
+REQ-9: p9_client_rpc:
+- Allocate p9_req_t with tag.
+- Build T-msg per fmt (e.g. "ds" = u32 + string).
+- Call trans.request(req).
+- Wait on req.wq for response.
+- Return R-msg or err.
+
+REQ-10: Per-mount sysfs:
+- /proc/net/9p/clients (per-mount stats).
+
+REQ-11: Per-namespace:
+- 9P client lifetime tied to fs_context / mount.
+
+### verification
+
+### Layer 1: Kani SAFETY
+
+| Property | Kind | Statement |
+|---|---|---|
+| `tag_unique_pending` | INVARIANT | per-pending-req: tag unique. |
+| `fid_unique_per_client` | INVARIANT | per-client.fids: fid unique. |
+| `msize_le_negotiated` | INVARIANT | per-msg payload ≤ c.msize. |
+| `proto_version_in_set` | INVARIANT | c.proto_version ∈ {9P2000, 9P2000.U, 9P2000.L}. |
+| `req_status_machine` | INVARIANT | req.status ∈ {ALLOCATED, UNSENT, SENT, RCVD, FLUSHED, ERROR}. |
+
+### Layer 2: TLA+
+
+`net/9p/client.tla`:
+- Per-RPC tag-allocation + send + wait + receive.
+- Properties:
+  - `safety_no_orphan_pending` — per-T-msg sent ⟹ eventually R-msg or FLUSHed.
+  - `safety_per_fid_walk_progresses` — per-T-WALK: clones from existing fid.
+  - `liveness_request_eventually_completes` — per-trans-up + T-msg ⟹ R-msg returned.
+
+### Layer 3: Kani + Verus invariants
+
+| Invariant | Component |
+|---|---|
+| `P9::client_create` post: clnt allocated; trans_mod set | `P9::client_create` |
+| `P9::client_rpc` post: req in c.reqs; T-msg encoded | `P9::client_rpc` |
+| `P9::client_attach` post: fid bound to root; qid populated | `P9::client_attach` |
+| `P9::client_walk` post: newfid created; clones oldfid path-extended | `P9::client_walk` |
+
+### Layer 4: Verus/Creusot functional
+
+`Per-mount 9P client + per-fid file-ops + per-tag T/R-msg pairing` semantic equivalence: per-Plan 9 9P2000.L spec + Linux 9pfs documentation.
+
+### hardening
+
+(Inherits row-1 features from `net/00-overview.md` § Hardening.)
+
+9P-specific reinforcement:
+
+- **Per-msize cap on T/R-msg** — defense against per-malformed-msg OOM.
+- **Per-tag re-use after R-msg** — defense against per-tag-collision.
+- **Per-fid id-allocator atomic** — defense against per-fid race.
+- **Per-9P2000.L extension feature-gated** — defense against per-non-Linux server crash.
+- **Per-trans-disconnect re-attach** — defense against per-disconnect leaking fids.
+- **Per-virtio-9p uses virtqueue refcount** — defense against per-VM-stop UAF.
+- **Per-T-FLUSH cancel pending tag** — defense against per-stuck-tag fd-leak.
+- **Per-9P2000.U / .L distinct opcodes** — defense against per-version-mix protocol-confusion.
+- **Per-CAP_SYS_ADMIN for mount** — defense against unprivileged mount-9p.
+- **Per-namespace mount scoped** — defense against cross-ns leak.
+
