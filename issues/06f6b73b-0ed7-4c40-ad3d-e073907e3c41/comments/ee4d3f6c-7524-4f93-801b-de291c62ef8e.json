@@ -1,0 +1,10 @@
+{
+  "uuid": "ee4d3f6c-7524-4f93-801b-de291c62ef8e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 113 result: net/sched/sch-netem.md (Network Emulator qdisc - sch_netem.c ~1426 lines; per-qdisc NetemSchedData with latency mean+jitter stddev + correlation + tabledist NETEM_DIST_SCALE 8192-entry distribution-table {uniform/normal/pareto/paretonormal} + Gilbert-Elliot 4-state {Good/Burst/Bad/Bad-Good} loss model + simplified 2-state + uncorrelated random loss + duplicate prob + corruption prob + reorder prob + ECN-mark instead of drop + per-skb time_to_send in NetemSkbCb + rb-tree ordered by send-time + watchdog at earliest + last_send anti-reorder enforcement + slot batch + rate shaping) + virt/kvm/vfio.md (KVM-VFIO bridge - vfio.c ~387 lines; per-VM kvm_vfio device via KVM_CREATE_DEVICE(KVM_DEV_TYPE_VFIO) + kvm_vfio_file list of bound VFIO container/file fds + KVM_DEV_VFIO_FILE_ADD/DEL/SET_SPAPR_TCE attrs + kvm_vfio_file_set_kvm bind + kvm_vfio_file_enforced_coherent per-fd capability + kvm_vfio_update_coherency recompute + kvm_arch_register/unregister_noncoherent_dma → kvm.arch.noncoherent_dma_count gates vmx_ignore_guest_pat → EPT memtype follows guest-PAT for assigned-device DMA correctness). 176 Tier-3s total. Next iter: net/sched/sch-red.md (RED qdisc) + virt/kvm/x86-pmu-counters.md or pivot.",
+  "created_at": "2026-05-10T15:15:09.531605685Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3MzhzWCmcPlTPQCdkK6Ll/8PIpasI/a35mggj3DjmKG7q8dxGcEp8uabUinlXG5S15i84Xo1oHm62NepqJs1DQ=="
+}
