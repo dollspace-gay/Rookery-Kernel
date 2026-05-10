@@ -1,0 +1,10 @@
+{
+  "uuid": "6e24a8f6-58f0-4547-abf2-c0199b8818e0",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 56 result: kernel/rcu/srcu.md (Sleepable-RCU - srcutree.c ~2203 + srcu.h + srcutree.h; per-domain srcu_struct + per-CPU lock/unlock counters per-idx + two-flip GP discipline + per-CPU cb_list + KVM memslot use-case rationale) + virt/kvm/x86-pmu.md (KVM architectural PMU - pmu.c ~1407 + pmu.h + vmx/pmu_intel.c ~850 + svm/pmu.c ~286; per-vCPU virtual PMC + per-PMC host perf_event backing + PMI delivery + RDPMC pass-through + vendor MSR dispatch + CPUID.0x0A enumeration). 62 Tier-3s total. Next iter: kernel/sched/fair.md (CFS scheduler in detail) + virt/kvm/x86-irq.md (KVM in-kernel IRQ chip dispatch).",
+  "created_at": "2026-05-10T07:29:36.064072362Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABrLtcKXCsU2VBC6MkEHFDP9hUkZprpVp+Vk0VlIYUd0u3EXvf6/k2uBelQ1W4sxiBsHuAEkcjk64Z8RVEa8UCg=="
+}
