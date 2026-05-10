@@ -1,0 +1,10 @@
+{
+  "uuid": "af8b3d93-7c68-48b1-8ddb-a983e996f5d4",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 122 result: net/packet/af_packet.md (AF_PACKET socket family - af_packet.c ~4819 lines; raw L2 socket per-(ifindex, protocol) bind via sockaddr_ll + per-ptype-list dispatch in net/core/dev.c + PACKET_RX_RING/TX_RING zero-copy mmap'd ring with TPACKET_V1/V2/V3 frame formats + tpacket3 per-block aggregation with retire-timeout + PACKET_FANOUT hash/CPU/RR/CBPF/eBPF dispatch across multiple sockets + PACKET_AUXDATA cmsg vlan-tag + SO_ATTACH_FILTER BPF + CAP_NET_RAW gate + tcpdump/libpcap baseline) + virt/kvm/x86-mmu-rmap.md (KVM MMU reverse-mapping - mmu.c rmap subset ~400 lines; per-(memslot, level, gfn) kvm_rmap_head atomic-pointer with LSB tag for single-vs-multi-spte + struct pte_list_desc 14-spte chained block + cmpxchg-acquire lock-bit + pte_list_add/remove per-(spte, rmap) link + gfn_to_rmap per-level index + slot_handle_level_range walker + kvm_zap_rmap/write_protect/clear_dirty/age_rmap MMU-notifier-driven mass-ops + shadow-MMU only TDP bypasses). 194 Tier-3s total. Next iter: net/unix/af_unix.md (AF_UNIX) + virt/kvm/x86-mmu-cache.md (MMU memory caches).",
+  "created_at": "2026-05-10T16:38:38.746547989Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPS21yzgiHqDsqU3BIHpG4hJ0o8O3K3hANLdx4WhLtNUZIRLf1LwCsLGdDdAxb6jrpZy4PfLq5kNlg76m7hmeCw=="
+}
