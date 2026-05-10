@@ -1,0 +1,10 @@
+{
+  "uuid": "4724da4e-71f8-4ffb-9680-cbb032988507",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter Phase C continues — 2 high-impact foundation Tier-3s.\n\n- kernel/bpf/bpf-core.md: covers kernel/bpf/core.c — BPF runtime core: bpf_prog struct + refcount, interpreter (__bpf_prog_run computed-goto switch over eBPF ISA), JIT bridge to per-arch jit_compile, tail-call infrastructure (MAX_TAIL_CALL_CNT=33 cap), dispatcher (text-poke trampoline patching for chained progs), prog_array (cgroup/kprobe/tp/xdp attach), prog kallsyms registration. 8 REQ / 7 AC / Layer-1 Kani SAFETY (UAF + tailcall-overflow + dispatcher-atomicity + pack-pool-OOB) / Layer-2 TLA+ (dispatcher_swap + tail_call_chain) / Layer-3 invariants / Layer-4 Verus interpreter↔JIT semantic equivalence.\n- drivers/iommu/iommu-core.md: covers drivers/iommu/iommu.c — vendor-agnostic IOMMU API: iommu_ops trait, iommu_domain (DMA/UNMANAGED/IDENTITY/SVA/BLOCKED/NESTED types), iommu_group (DMA-alias + ACS-isolation grouping), per-device probe/attach/detach lifecycle, default-domain selection per cmdline + RMRR + group policy, sysfs /sys/kernel/iommu_groups/ surface, per-device fault handler dispatch, reserved-region enumeration (MSI-X + RMRR + soft-MSI). 8 REQ / 7 AC / Layer-1 Kani SAFETY (UAF + OOB + alignment) / Layer-3 invariants / Layer-4 Verus map↔unmap inverse.\n\nTotal state: 238 .design docs, 100 Tier-2 + 4 Tier-3s.\n\nKnowledge pages: design-kernel-bpf-bpf-core, design-drivers-iommu-iommu-core.\n\nNext iter plan: virt/kvm/kvm-core.md (KVM main vm/vcpu fd lifecycle + ioctl dispatch + vCPU thread loop) + drivers/pci/probe.md (PCI bus enumeration + recursive scan + device creation).",
+  "created_at": "2026-05-10T03:18:38.287785595Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAZZb+XyDBQ7B7DQu0+hSxYn37GEH1IzDngNI1I25ryuN5BflFjRnf4DtZzxicLXwuJmArBfgi+aHhKwFJq44CCQ=="
+}
