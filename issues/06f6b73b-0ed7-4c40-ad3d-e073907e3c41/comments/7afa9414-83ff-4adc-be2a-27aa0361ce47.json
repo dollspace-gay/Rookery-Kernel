@@ -1,0 +1,10 @@
+{
+  "uuid": "7afa9414-83ff-4adc-be2a-27aa0361ce47",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 69 result: drivers/md/dm-thin.md (thin-provisioning - dm-thin.c ~4558 + dm-thin-metadata.c ~2160; per-pool block-allocation B-tree mapping (thin_id, LBA-block) → data-block + dm_bio_prison per-block cell + COW for snapshots + provision_block on hole-write + pool out-of-data-space states + persistent-data dm-btree+dm-bufio transactional commit + zero_new_blocks data-leak defense + Docker overlay use case) + virt/kvm/x86-tdx.md (Intel TDX confidential VM - tdx.c ~3428 lines; per-TD HKID + TDR+TDCS+TDVPR+TDVPS pages + SEAMCALL TDH.MNG.CREATE/_INIT/_FINALIZE/.MEM.PAGE.ADD/_AUG/.VP.CREATE/_INIT/_ENTER/_RD/_WR + TDX module in SEAM + S-EPT TDX-managed + TDVMCALL guest-issued hypercall via shared TDVPS + per-vCPU posted-IRQ + MRTD measurement). 88 Tier-3s total. Next iter: drivers/md/dm-crypt.md (LUKS / encrypted block device) + virt/kvm/x86-vmx-sgx.md (SGX-in-VM virtualization).",
+  "created_at": "2026-05-10T09:15:47.094127170Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAJa5CZkSfj/6MWNStZ0x1gfkzZopztUHHzKQivjWmn9IBuYRqVXbKykNLRtlYatn+3XLBID3Q7BGX1YS1VaQpDw=="
+}
