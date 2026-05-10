@@ -1,0 +1,10 @@
+{
+  "uuid": "c464aa29-78a1-440b-9340-68a321461c78",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 53 result: drivers/iommu/intel-nested.md (VT-d 2-stage nested - nested.c ~241 lines; per-PASID S1+S2 nested-domain alloc + per-PASID nested-attach via pasid-entry write + cache_invalidate_user batched QI submit + iommufd-eventq fault routing) + virt/kvm/x86-svm.md (AMD SVM vendor half - svm.c ~5747 + svm.h + vmenter.S + avic.c ~1319; per-vCPU VMCB + AVIC IPI bypass + NPT TDP-MMU integration + per-VM ASID + SEV gate + Hyper-V accel hooks). 56 Tier-3s total. Next iter: drivers/iommu/intel-cache.c (IOTLB + DEV-IOTLB + PIOTLB cache mgmt API surface) + virt/kvm/x86-mmu-spte.md (per-SPTE bit layout + make_spte details, currently glossed in mmu-tdp/shadow Tier-3s).",
+  "created_at": "2026-05-10T07:05:39.432272344Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA8Ots/P8j+b1VudFJ/9VRd4o7NOG2kb/xh4mU4v6gMTJV0ZoMQamazL7B/CYrNOKxmTR+dDjW6N2/SdqQwhAVDg=="
+}
