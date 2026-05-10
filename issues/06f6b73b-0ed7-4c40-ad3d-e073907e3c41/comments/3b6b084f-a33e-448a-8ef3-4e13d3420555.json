@@ -1,0 +1,10 @@
+{
+  "uuid": "3b6b084f-a33e-448a-8ef3-4e13d3420555",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 154 (258 docs): mm/oom-kill.md (~1257 lines, OOM killer, oom_badness scoring, select_bad_process, oom_kill_process+SIGKILL+oom_reaper kthread, MMF_OOM_VICTIM/REAPED, OOM_SCORE_ADJ_MIN protection, panic_on_oom 0/1/2, memcg-OOM, kill_allocating_task), kernel/futex/pi.md (~1304 lines, FUTEX_LOCK_PI/UNLOCK_PI/TRYLOCK_PI/WAIT_REQUEUE_PI, rt_mutex backend, futex word format TID|WAITERS|OWNER_DIED, attach_to_pi_state, lock_pi_atomic fast/slow path, fixup_pi_state_owner, robust-futex, priority-inheritance chain-walk).",
+  "created_at": "2026-05-10T20:55:32.381453906Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwf9Qj9U06CMaTuxuxAliBpqBoqkG+2p3RRMq1QgrglOdmm5OgmHBKtL36QWiopHhtFcO82LqmLzms1IsXQWXBw=="
+}
