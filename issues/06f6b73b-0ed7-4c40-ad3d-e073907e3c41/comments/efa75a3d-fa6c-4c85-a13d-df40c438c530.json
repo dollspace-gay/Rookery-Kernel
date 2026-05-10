@@ -1,0 +1,10 @@
+{
+  "uuid": "efa75a3d-fa6c-4c85-a13d-df40c438c530",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter result: virt/kvm/x86-cpuid.md (per-vCPU CPUID virtualization tables + KVM_GET_SUPPORTED_CPUID + KVM_SET_CPUID2 + KVM-PV signature 0x40000000 + Hyper-V/Xen leaves + reverse_cpuid mapping; ~2200 lines covered) + drivers/iommu/intel-dmar.md (DMAR ACPI table parser + per-DRHD/RMRR/ATSR/RHSA/SATC entry-walk + per-IOMMU MMIO ioremap + dev-scope two-phase PCI resolution + PCI hotplug notifier + IOMMU PMU registration via perf.c+perfmon.c; ~3300 lines combined). 50 Tier-3s now drafted total. Next iter plan: virt/kvm/x86-mmu-shadow.md (legacy shadow paging fallback) + drivers/iommu/intel-irq-remap.md (interrupt-remap unit init + IRTE programming).",
+  "created_at": "2026-05-10T06:41:15.478762621Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAHmzgqRjtdUOxFZkeL7sl3q+BIXCtLbJDEuF6I39DVT4i2DUKSchA8HPHga2YkeTiAUhlukz2ExgJW8p8KjxxAQ=="
+}
