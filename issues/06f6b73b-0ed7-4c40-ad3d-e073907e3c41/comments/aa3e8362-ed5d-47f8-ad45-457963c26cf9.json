@@ -1,0 +1,10 @@
+{
+  "uuid": "aa3e8362-ed5d-47f8-ad45-457963c26cf9",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 115 result: net/sched/sch-sfq.md (Stochastic Fairness Queueing - sch_sfq.c ~982 lines; per-skb skb_get_hash_perturb into divisor=1024 buckets + per-bucket SfqSlot FIFO + DRR allot quantum deficit + active-list circular DLL + maxdepth 127 per-bucket + perturb_period jhash-key reseed mitigates hash-flooding + headdrop vs taildrop + optional per-bucket RED + SFQ_MAX_DIVISOR 32768 + power-of-2 divisor + O(1) per-skb + class API per-flow stats) + virt/kvm/dirty-ring.md (KVM per-vCPU dirty-page ring buffer - dirty_ring.c ~271 lines; KVM_CAP_DIRTY_LOG_RING + per-vCPU mmap'd ring of kvm_dirty_gfn{slot,offset,flags} + KVM_DIRTY_GFN_F_DIRTY/F_RESET/INVALID 3-state per-entry + kvm_dirty_ring_push under mmu_lock + kvm_dirty_ring_reset userspace-ack + KVM_EXIT_DIRTY_RING_FULL vmexit on near-full + KVM_DIRTY_RING_RSVD_ENTRIES soft-limit + per-arch cpu_dirty_log_size + power-of-2 ring size + KVM_RESET_DIRTY_RINGS ioctl + replaces global dirty-bitmap for live-migration). 180 Tier-3s total. Next iter: net/sched/sch-codel.md (CoDel) + virt/kvm/pfncache.md (KVM PFN cache for hot-mapped guest pages).",
+  "created_at": "2026-05-10T15:47:33.479997614Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAqof6B0eo0NTSOHcl3YCiPcuAiFhnQmlaBRFoKsHsrL1h4qZqZ23cKSDPz88F00+gfG0qIB61Jbb6cH/pwj38AQ=="
+}
