@@ -1,0 +1,10 @@
+{
+  "uuid": "84eb1f66-b029-4cf2-b2e3-8b5cb8459fd4",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 65 — breadth-first Tier-2 wrappers:\n\n- kernel/perf/00-overview.md: perf_event_open subsystem — events core + ring-buffer (incl AUX area for Intel-PT/CoreSight) + callchain unwinder (ORC/FP/DWARF/LBR) + hw_breakpoint generic alloc + uprobes inode-based + trace_kprobe/trace_uprobe tracefs frontends + x86 PMU dispatch (Intel core + intel-PT + intel-BTS + intel uncore + AMD core + AMD IBS + AMD uncore + MSR pseudo-PMU). Heavy cross-ref into bpf, kvm-PMU, sched, cgroup, NMI watchdog. 14 REQ-O / 12 AC-O / 3 mandatory TLA+ models / 3 Verus contracts / 14 Tier-3 children declared.\n- drivers/pci/00-overview.md: PCI/PCIe core — bus enumeration + setup-bus/setup-res BAR assignment + access (CF8/CFC + ECAM) + capability scan (std + ext) + MSI/MSI-X via msi_domain + pci-driver bind/match + pci-acpi (_PRT/_OSC/ACPI hotplug) + AER + DPC + PME + PTM + bwctrl + portdrv + rcec + tlp + aer_inject + edr + ASPM + SR-IOV + ATS/PRI/PASID + p2pdma + DOE + VPD + quirks (~9000 lines) + hotplug (pciehp/acpiphp/shpchp/cpqphp/ibmphp/cpci) + bridge-emul + stub + npem + irq INTx aggregation. 14 REQ-O / 12 AC-O / 5 mandatory TLA+ models / 3 Verus contracts / 30 Tier-3 children declared.\n\nTotal state: 168 .design docs, 33 Tier-2 wrappers (15 top-level + 18 sub-tier-2).\n\nKnowledge pages: design-kernel-perf-overview, design-drivers-pci-overview.\n\nIter 66 plan: drivers/iommu/00-overview.md (intel/amd/arm-smmu IOMMU + DMAR + SVM/PASID — tightly paired with PCI ATS) + drivers/vfio/00-overview.md (VFIO core + vfio-pci + vfio-platform + IOMMU group + iommufd — completes the passthrough triangle KVM↔IOMMU↔VFIO).",
+  "created_at": "2026-05-10T01:02:25.482698890Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAglwnTb3Q3k2yJXC/aEKCJ5GKAq2m4F3O7Lfxo+gG7LTF41/g1mCCMKBYHLY6QahVHBdjnlXMpGgmPZHke+/BBA=="
+}
