@@ -1,0 +1,10 @@
+{
+  "uuid": "c04c1c85-cd62-450c-a349-c6fa1d090a66",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 121 result: net/sched/sch-fifo.md (PFIFO/BFIFO/PFIFO_HEAD_DROP simple FIFO qdiscs - sch_fifo.c ~276 lines; pfifo packet-count limit + bfifo byte-count limit + pfifo_head_drop drops oldest TCP-friendly + qdisc_dequeue_head + __qdisc_enqueue_tail + sch.limit default tx_queue_len + leaf-qdisc for PRIO/MULTIQ/HTB/MQPRIO + per-overflow drop reason logged) + virt/kvm/x86-irq-injection.md (KVM x86 per-vCPU IRQ injection state machine - x86.c ~250 lines; priority order exception.injected > nmi.injected > exception.pending > smi > nmi > extint > apic + KvmQueuedException pending/injected/error_code/payload + nmi_pending capped + smi_pending + interrupt.pending ExtINT + inject_pending_event vmenter dispatcher + kvm_cpu_has_injectable_intr + kvm_cpu_get_interrupt PIC vs LAPIC + double-fault detection + triple-fault → KVM_EXIT_SHUTDOWN + IF=0/MOV-SS/STI blocking → enable_irq_window + nested_run_pending defers + vmcs.entry-interrupt-info-field + vmcb.control.event_inj). 192 Tier-3s total. Next iter: net/sched/sch-pfifo-fast.md (pfifo_fast in sch-generic.md? pivot) + virt/kvm/x86-vmexit-handlers.md or pivot.",
+  "created_at": "2026-05-10T16:30:57.164235579Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOaXxxb7dFJc6Dt0vsrnY5G71wUfDRzZz/il2C1SBwkDxqt++3LnRQXxe5XXFRqSc+Q+ILRi19xdW1ktQ5+i4Dw=="
+}
