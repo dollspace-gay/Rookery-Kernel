@@ -1,0 +1,10 @@
+{
+  "uuid": "95c2cc8b-3e6b-4417-bc22-2add7ac29c95",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 168 (397 docs, +11 via wave-14): drivers/clk/clk-core, drivers/char/random, kernel/dma/mapping, mm/workingset, ipc/msg+sem+shm, net/rds/connection, net/rxrpc/call-object, io_uring/kbuf+register. 14 waves = 141 new docs this session. ~80% along — major milestone.",
+  "created_at": "2026-05-10T23:20:17.825645786Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAy59vJQnKZiuBgqnO7JhHPWdkW2Pg2cVJSsG/9bkIl//Pj2hQALTwtnX0mfwQ+vge8m65mdasIa63O9kAuQ+xDA=="
+}
