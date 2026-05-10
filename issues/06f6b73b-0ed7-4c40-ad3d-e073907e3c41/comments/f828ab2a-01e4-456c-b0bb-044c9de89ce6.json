@@ -1,0 +1,10 @@
+{
+  "uuid": "f828ab2a-01e4-456c-b0bb-044c9de89ce6",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 153 (256 docs): fs/btrfs/transaction.md (atomic CoW commit, ~2754 lines, btrfs_transaction state-machine RUNNING→COMMIT_PREP/START/DOING→SUPER_COMMITTED→COMPLETED, start/join/end/commit/abort handles, transaction_kthread interval, run_delayed_refs+commit_fs_roots+commit_cowonly_roots+update_super_roots+write_all_supers PREFLUSH+FUA), net/ipv4/tcp-timer.md (~905 lines, write/delack/keepalive timers, ICSK_TIME_RETRANS/PROBE0/LOSS_PROBE/REO_TIMEOUT, RTO Karn-backoff, TLP, RACK, keepalive 9-probes).",
+  "created_at": "2026-05-10T20:47:01.944450502Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAQiIvzBSPePCL1u+qIyuzFUkzDWAVc4mAYcZ+3ROcgZp24ay66kMyAJH0dExvI/azA9puAC8h2wjVRIbNGOwhCw=="
+}
