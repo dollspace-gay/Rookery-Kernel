@@ -1,0 +1,10 @@
+{
+  "uuid": "aec16ba9-1e47-4982-8a6a-d97899007757",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 80 result: drivers/md/dm-multipath.md (multipath block target - dm-mpath.c ~2385 + dm-path-selector.c ~138; per-target Multipath + priority_groups[] + per-PG path_selector (round-robin/queue-length/service-time/io-affinity) + active-passive vs active-active modes + queue_if_no_path + ALUA/RDAC HW-handlers + multipathd uevent integration) + virt/kvm/x86-pmu-amd.md (AMD PMU vendor backend - svm/pmu.c ~286 lines; perfmon-v1 (4 GP counters via MSR_K7_EVNTSEL/_PERFCTR) + perfmon-v2 (6 GP counters + GLOBAL_CTL/_STATUS via MSR_AMD64_PERF_*) + Family15h+ extended via MSR_F15H_PERF_CTL/CTR + amd_pmu_ops vtable hooks into pmu.c arch-agnostic core). 110 Tier-3s total. Next iter: drivers/md/dm-zoned.md (host-managed SMR drives) + virt/kvm/x86-svm-avic.md (AVIC deep-dive).",
+  "created_at": "2026-05-10T10:42:19.400417490Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWZiiGUr8xWctT9Dra3bDK0KTByTR8n8dLCNT5aDPYE05a7vbfhazJGl8onsYsXh7v/GCS//fpQNjX4AKbJ9oCg=="
+}
