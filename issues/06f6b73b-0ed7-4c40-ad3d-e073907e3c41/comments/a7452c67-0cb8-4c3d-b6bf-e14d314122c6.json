@@ -1,0 +1,10 @@
+{
+  "uuid": "a7452c67-0cb8-4c3d-b6bf-e14d314122c6",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 81 result: drivers/md/dm-zoned.md (host-managed SMR target - dm-zoned-target.c ~1160 + dm-zoned-metadata.c ~3001 + dm-zoned-reclaim.c ~640; per-target DmzTarget + per-zone DmzZone (conventional/sequential/random) + per-chunk indirection mapping + buffer-zone for random-write-on-sequential redirection + bg reclaim worker + BLKRESETZONE + dm-bufio metadata cache + persistent superblock) + virt/kvm/x86-svm-avic.md (AMD AVIC - avic.c ~1319 lines; per-VM physical_id_table + logical_id_table + per-vCPU backing-page IO-coherent + is_running flag for HW IPI direct-delivery + AVIC_INCOMPLETE_IPI vmexit for halted-target + posted-IRQ via IOMMU IRTE + per-VM inhibit reasons (x2APIC/NESTED/BLOCKIRQ)). 112 Tier-3s total. Next iter: drivers/md/dm-bufio.md (block buffer cache for dm-targets) + virt/kvm/x86-vmx-apicv.md (Intel APICv deep-dive).",
+  "created_at": "2026-05-10T10:50:22.382365282Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsQEmWsMBfHHV1jTTI0cMTW8G2D8A24SKRpbWzq4M5q6bXWg56oC0UIQqXb0RW2C63iy1+6JCAsfqvBSysfYEAA=="
+}
