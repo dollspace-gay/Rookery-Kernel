@@ -1,0 +1,10 @@
+{
+  "uuid": "f9dcd74b-b48a-4a05-b03f-a37ef36a1451",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 76 result: drivers/md/raid0.md (md raid0 - raid0.c ~841 lines smallest md driver; per-array R0Conf with strip_zone[] + per-zone non-uniform-disk grouping + per-bio chunk-boundary split + sector→(zone, disk, offset) mapping + any-disk-fail → array-fail strict) + virt/kvm/x86-svm-asid.md (AMD ASID TLB-tagging - in svm.c ~150-200 lines; per-CPU SvmCpuData with next_asid+asid_generation+min/max_asid + new_asid per-vCPU assign + per-vmenter generation-check + ASID overflow → FLUSH_ALL_ASIDS + SEV ASID range reserved (1..max_sev_asid) + nested-SVM distinct L2 ASID + Intel-VPID analog). 102 Tier-3s total. Next iter: drivers/md/dm-snapshot.md (CoW snapshot target) + virt/kvm/x86-vmx-eventinj.md (vmcs event injection deep-dive).",
+  "created_at": "2026-05-10T10:10:52.024918388Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAZ8xdD1K0vy8pYTQNWTyyKzgIXAG8XExEF/N9mhs4HXfu3OBx5GUyxnQkRsS2qb/fjB/As2nOya5ScDN/xtxACg=="
+}
