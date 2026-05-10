@@ -1,0 +1,10 @@
+{
+  "uuid": "df8c76fe-7cbe-4bf1-86fc-b63db0911b3b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 75 result: drivers/md/raid5.md (md raid5/raid6 - raid5.c ~9173 + raid5-cache.c ~3187 + raid5-ppl.c ~1521; per-stripe StripeHead cache + state machine (Reading/Computing/Writing) + RMW vs RCW heuristic + RAID-6 dual parity P+Q via Galois-Field RS + async-tx DMA-engine integration + journal device write-hole-defense + PPL alternative + reshape) + virt/kvm/x86-vmx-vpid.md (VPID TLB-tagging - in vmx.c ~200-300 lines; per-host vmx_vpid_bitmap with VMX_NR_VPIDS=16384 + per-vCPU unique 16-bit VPID + INVVPID instruction with 4 types + per-CR3-change selective flush + cross-CPU migrate flush + nested-VMX distinct L2-VPID). 100 Tier-3s total. Next iter: drivers/md/raid0.md (linear striping) + virt/kvm/x86-svm-asid.md (AMD ASID equivalent of VPID).",
+  "created_at": "2026-05-10T10:03:22.712192253Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAChdRqx4jZ2LVBFcHXC1hsCPJ5e3HNzeOPltHkHVmAxC10BYyf0c7sAm9jcFioPkMkz3BkKjHMsnN5xoGdEL3Bg=="
+}
