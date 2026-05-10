@@ -1,0 +1,10 @@
+{
+  "uuid": "7d10453d-360a-47a0-9805-eceee86f9250",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 110 result: net/core/gen_estimator.md (TC rate estimator - gen_estimator.c ~280 lines; per-(stats, est) NetRateEstimator computing EWMA pps+bps over per-tc-class GnetStatsBasicSync counter + per-bucket idx 0..5 with intervals 0.25/0.5/1/2/4/8 sec + ewma_log smoothing + shared per-bucket timer scheduler iterates est-list + delta-based pps/bps computation per tick + RCU-free + gen_new/replace/kill_estimator + tc UAPI gnet_estimator interval+ewma_log) + virt/kvm/x86-pause-filter.md (PAUSE-loop-exiting + Pause-Filter - vmx.c ~80 lines + svm.c sections; VMX vmcs.secondary-controls PAUSE_LOOP_EXITING + ple_gap 128 + ple_window 4096 + adaptive grow/shrink/max + ple_window_dirty + handle_pause vmexit reason 40 + SVM vmcb.control.pause_filter_count 3000 + pause_filter_thresh decrement-per-PAUSE + kvm_vcpu_on_spin + kvm_vcpu_yield_to with target.mutex try_lock + last_boosted_vcpu round-robin + 2-pass in_kernel-priority yield + LHP mitigation under over-committed CPU). 170 Tier-3s total. Next iter: net/sched/sch_htb.md (HTB hierarchical) + virt/kvm/x86-msr-passthrough.md (MSR passthrough bitmap).",
+  "created_at": "2026-05-10T14:53:05.396058079Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA0nu/LKBRRGN9sjQaE9reKnvxyvAE0bH+8RYhjZXQsMgK2BOXFeYHAzsl+pu02rR46VSjl1Ty2GcGMNoqJyvVCA=="
+}
