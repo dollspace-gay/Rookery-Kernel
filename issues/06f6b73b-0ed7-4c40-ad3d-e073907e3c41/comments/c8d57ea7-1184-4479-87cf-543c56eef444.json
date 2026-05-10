@@ -1,0 +1,10 @@
+{
+  "uuid": "c8d57ea7-1184-4479-87cf-543c56eef444",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 143 result: net/openvswitch/flow_table.md (OVS flow table - flow_table.c ~1217 lines; per-DP FlowTable with TableInstance rhashtable + ufid_ti UFID-rhashtable + per-CPU mask_cache + sorted-by-usage mask_array + per-(SwFlowMask range+key, masked-key rhashtable) tuple-space search + ovs_flow_tbl_insert with mask refcount + ovs_flow_tbl_lookup_stats fast-path per-CPU-cache hash hint + slow-path walks mask_array + masked_lookup (key & mask) → rhashtable + ovs_flow_tbl_remove with mask-refcount-zero cleanup + ovs_rht_params custom + rcu_assign_pointer atomic replace + OVS megaflow algorithm) + mm/mm-debug.md (mm subsystem debug + introspection - mm/debug.c + debug_*.c ~700 lines; dump_page per-folio refcount/mapcount/mapping/index/pfn + flag-decode + dump_vma vm_start..vm_end + dump_mm counters + dump_pte/pmd/pud/pgd per-arch decode + page_init_poison 0xAA pre-real-use + debug_vm_pgtable_init synthetic walker validation + rodata_test write-to-.rodata-faults + VM_BUG_ON_FOLIO/PAGE/VMA/MM CONFIG_DEBUG_VM gating + debug_page_ref TRACE_EVENT + pageflag_names decode-table + production-triage friendly + /sys/kernel/debug/page_alloc_debug). 236 Tier-3s total. Next iter: net/openvswitch/vport-vxlan.md or net/wireless/ + mm/zoneinfo or pivot.",
+  "created_at": "2026-05-10T19:23:30.410730808Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA6kJAQJAApZHDwzPqekpxV/dHGyq3+CPW41cRxc9mo7zGgDDVndQ4ZZV4CEW0iXwPGsyGwuNSm4WcqxIXTakYAQ=="
+}
