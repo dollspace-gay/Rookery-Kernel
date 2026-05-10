@@ -1,0 +1,10 @@
+{
+  "uuid": "e5ad653a-0f61-4326-a979-6070b6378c20",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 59 result: kernel/futex/core.md (Fast Userspace Mutex - core.c ~2015 + futex.h + waitwake.c + requeue.c + pi.c; per-(mm, addr) FutexKey + per-bucket plist waitqueue + FUTEX_WAIT/WAKE/REQUEUE/LOCK_PI/UNLOCK_PI ops + PI rt_mutex backend + robust-list per-task cleanup + FUTEX_REQUEUE_PI for cond-var broadcast) + virt/kvm/x86-smm.md (KVM SMM emulation - smm.c ~663 + smm.h ~171; SMI entry save_state_32/_64 + RSM exit load_state_32/_64 + per-vCPU SMBASE relocation + per-VM SMRAM memslot + SMI/NMI priority + KVM_CAP_X86_SMM gating + OVMF secure-boot use-case). 68 Tier-3s total. Next iter: kernel/time/timer-wheel.md (timer.c timer wheel) + virt/kvm/x86-pvclock.md (kvm-clock paravirt timer).",
+  "created_at": "2026-05-10T07:54:25.969180611Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAFqNvdv/Ek9UciJ0yjZ30Rs0bYscQ8L98WRgovUl3tsKewJecUCN5qO00T4tZcA6nei1kpvq/kn22zuKqKJOMDw=="
+}
