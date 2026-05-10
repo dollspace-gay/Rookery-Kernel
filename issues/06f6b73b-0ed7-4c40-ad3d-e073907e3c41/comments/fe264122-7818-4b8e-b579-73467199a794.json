@@ -1,0 +1,10 @@
+{
+  "uuid": "fe264122-7818-4b8e-b579-73467199a794",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 108 result: net/core/skbuff-misc.md (sk_buff helpers - skbuff.c helpers ~3000 lines: skb_clone shallow shared-frag + skb_copy deep + pskb_expand_head grow headroom/tailroom + skb_push/pull pointer moves + skb_trim shrink + ___pskb_trim non-linear-aware + __pskb_pull_tail copy-frag-to-linear + skb_copy_bits gather scatter + skb_split linear-split-at-offset + skb_segment GSO MSS-based fragmentation + skb_unshare/skb_share_check writeable copy-on-write + skb_seq_read iterate frags + dataref shared-frag refcount) + virt/kvm/x86-pic.md (KVM in-kernel 8259 PIC emulation - i8259.c ~655 lines; per-VM dual cascaded master+slave PIC at I/O 0x20-0x21 + 0xA0-0xA1 + ELCR at 0x4D0/0x4D1 + KvmKpicState IRR/IMR/ISR/ICW1-4/OCW1-3 state machine + cascade slave through master IRQ2 + edge vs level via ELCR + AEOI + kvm_pic_set_irq + kvm_pic_read_irq INTA-cycle + pic_update_irq → BSP lapic + KVM_GET/SET_IRQCHIP migration + KVM_CAP_SPLIT_IRQCHIP toggle). 166 Tier-3s total. Next iter: net/core/flow_dissector.md (per-pkt 5-tuple extract) + virt/kvm/x86-pit.md (8254 PIT).",
+  "created_at": "2026-05-10T14:37:25.012004140Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWtxozJewJFl5kVPF0ow2fn1alg0dkoBT/gcN2dZjuofP8olT5/fjsuBRwpTgtC3qfG+fcg3nXtBjiszGgJUhAg=="
+}
