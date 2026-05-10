@@ -1,0 +1,10 @@
+{
+  "uuid": "90810b54-94cc-4559-9939-f802b7aace90",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 83 result: drivers/md/dm-stats.md (per-target IO statistics - dm-stats.c ~1264 lines; per-target DmStats with multiple stats-areas + per-area DmStat covering [start,end] step regions + per-CPU DmStatPercpu counters (sectors/ios/merges/ticks/time_in_queue) + optional per-bin latency histogram + precise_timestamps + per-cgroup integration + dmsetup message protocol @stats_create/_delete/_clear/_print) + virt/kvm/x86-mca.md (KVM Machine-Check Architecture - in x86.c ~200-300 lines; per-vCPU mcg_cap with bank-count + features (MCG_CTL_P/EXT_P/CMCI_P/TES_P/LMCE_P) + per-bank MSR_IA32_MCx_CTL/_STATUS/_ADDR/_MISC/_CTL2 + KVM_X86_SETUP_MCE ioctl + KVM_X86_SET_MCE inject + LMCE local-MCE + CMCI corrected-IRQ + #MC vector inject). 116 Tier-3s total. Next iter: drivers/md/dm-verity.md (FS-verity-on-block authenticated read) + virt/kvm/x86-msr.md (MSR auto-load/store list + MSR pass-through deep-dive).",
+  "created_at": "2026-05-10T11:07:26.703790351Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYBDFzgHFZgd/rXyLeMmjGgfCC8R+HSCC2GPCUTjEeUd6LlFlZE/na94EHdWWfjREGxzXbpLSUjHgUYQ3Cm9nCw=="
+}
