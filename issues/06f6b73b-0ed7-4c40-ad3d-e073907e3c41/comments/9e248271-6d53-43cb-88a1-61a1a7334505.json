@@ -1,0 +1,10 @@
+{
+  "uuid": "9e248271-6d53-43cb-88a1-61a1a7334505",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 94 result: net/ipv4/route.md (IPv4 routing core - route.c ~3799 + fib_trie.c ~3041 + fib_frontend.c ~1713; per-route Rtable + per-table FibTable LC-Trie + per-route FibInfo (gw/dev/prefsrc/metrics/multipath) + per-flow flowi4 + ip_route_output_flow + ip_route_input_noref/_slow + per-CPU rt_cache + ICMP redirect + PMTU update + per-namespace tables + ECMP multipath) + virt/kvm/x86-mmu-zap.md (KVM MMU SPTE invalidation - in mmu.c ~600-800 lines + tdp_mmu.c; kvm_zap_gfn_range / kvm_mmu_zap_all / kvm_mmu_zap_all_fast via mmu_valid_gen + per-mmu-notifier callbacks (unmap_gfn_range/age_gfn/test_age_gfn/set_pte_gfn) + per-vCPU INVLPG/INVPCID + zap_collapsible_sptes for THP merge + kvm_flush_remote_tlbs IPI). 138 Tier-3s total. Next iter: net/ipv4/ip_input.md (IPv4 RX path) + virt/kvm/x86-pdptr.md (PDPTR PAE-paging virtualization).",
+  "created_at": "2026-05-10T12:36:39.137969942Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWKu0C5N/+upHa0wn0VLvnY3wLmEQf1vOz96ViWQVbHy4ULZ6vkjTIG/H28zC87C2h+1Ff+rDZ1o8ytE5pYA2CA=="
+}
