@@ -1,0 +1,10 @@
+{
+  "uuid": "27ac7b30-dc47-44bd-beda-e922ed8e0a72",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 141 result: net/sched/cls-matchall.md (matchall TC classifier - cls_matchall.c ~420 lines; per-(tcf_proto, prio) single-filter unconditional-match + ClsMallHead with tcf_exts action-list + mall_classify always-match + tcf_exts_exec runs per-skb actions + TCA_MATCHALL_CLASSID/ACT/FLAGS UAPI + HW-offload via TC_SETUP_CLSMATCHALL + TCA_CLS_FLAGS_SKIP_SW/SKIP_HW flags + simplest classifier: mirror-all-egress, rate-limit-all, BPF-prog-all use-cases) + mm/hmm.md (Heterogeneous Memory Management - mm/hmm.c ~895 lines; shared CPU-host + device-GPU virtual-memory + hmm_range_fault driver-entry to walk and fault-in + HMM_PFN_VALID/WRITE/ERROR/REQ_FAULT/REQ_WRITE per-pfn flags + mmu_interval_notifier device-mm-change invalidation + notifier_seq check-and-retry pattern + MEMORY_DEVICE_PRIVATE device-private pages with vma.vm_ops.fault migrate-to-ram + migrate_vma_setup/pages/finalize device<->host migration + ZONE_DEVICE memory-type + dev_pagemap + nouveau/amdgpu/kfd SVM-like CUDA-managed-memory + ROCm + OpenCL SVM workloads). 232 Tier-3s total. Next iter: net/openvswitch/conntrack.md (OVS conntrack action) + mm/page-flags.md or pivot.",
+  "created_at": "2026-05-10T19:09:27.437927774Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATUDJhRMvtwY2RaxmtdR4bAGT+hIYK/qXmTDhqekGjJWx5/2+7Jo0iH86GpOfINX1bKdq8Qhf0SHUHej6jrvgAw=="
+}
