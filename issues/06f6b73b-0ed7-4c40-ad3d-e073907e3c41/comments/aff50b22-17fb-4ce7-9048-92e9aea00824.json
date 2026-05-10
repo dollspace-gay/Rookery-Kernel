@@ -1,0 +1,10 @@
+{
+  "uuid": "aff50b22-17fb-4ce7-9048-92e9aea00824",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 159 (308 docs, +10 via wave-5 parallel Opus subagents): net/ipv4/ip-output, net/ipv4/ip-fragment, mm/secretmem, mm/page-isolation, kernel/events/uprobes, kernel/events/hw-breakpoint, fs/nfs/dir, fs/smb/client-connect, drivers/virtio/virtio-pci, drivers/scsi/scsi-scan. 5 waves complete = 50 new docs in this session via parallel Opus dispatch. Commit bf7c940 → ?.",
+  "created_at": "2026-05-10T21:46:22.817745532Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATwL6EsZzCi7A1ucCpX7EpzWrbjEZhEpL0iSJ0Xe3UULMTgAkO5R/BdHsc2nIi4zkh1N+9h9o4kCBLPNTEBsVDA=="
+}
