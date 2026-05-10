@@ -1,0 +1,10 @@
+{
+  "uuid": "d5b5001c-5337-4013-89f4-50db89bdf597",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 78/79 result: drivers/md/dm-flakey.md (fault-injection target - dm-flakey.c ~709 + dm-delay.c ~470 + dm-zero.c ~81 + dm-linear.c ~234 + dm-stripe.c ~516; per-target FlakeyC + up/down interval cycle + DROP_WRITES/ERROR_WRITES/ERROR_READS/RANDOM corrupt modes + per-byte controlled corruption + xfstests transient-failure use case) + virt/kvm/x86-svm-vmenter.md (SVM vmenter asm stub - vmenter.S ~404 lines; __svm_vcpu_run ABI RDI=vcpu + host GPR push/pop + VMSAVE host_save + VMRUN with vmcb_pa + VMLOAD host_save + Spectre-v2 retpoline + IBRS save/restore + IBPB at vCPU-switch + CR2 round-trip + SEV-ES variant skips GPR-access). 108 Tier-3s total. Next iter: drivers/md/dm-multipath.md (multipath block target) + virt/kvm/x86-pmu-amd.md (AMD perfmon-v2 specific).",
+  "created_at": "2026-05-10T10:34:05.447209943Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyzvgsZzSJyEf7jTwvw4KOX0bnZi9PovYiOGw+yXbZcrUev0X9hmfNSbMWBF/EeX+iul4wzjFSWwCxcFnh35DBQ=="
+}
