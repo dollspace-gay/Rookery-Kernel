@@ -1,0 +1,10 @@
+{
+  "uuid": "4c747667-0423-46d4-8133-771430092f18",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 152 (254 docs): kernel/bpf/btf.md (BTF type-format, ~9810 lines, btf_parse + check_all_metas + resolve + struct_access + check_kfunc_arg_match + KIND_INT/PTR/STRUCT/FUNC_PROTO/VAR/DATASEC/FLOAT/DECL_TAG/TYPE_TAG, vmlinux+module BTF), net/ipv4/fib-trie.md (LC-trie route table, ~3041 lines, key_vector tnode/leaf with fib_alias list, fib_info+fib_nh, table_lookup/insert/delete/flush, multipath ECMP weight, RCU-walk lookup, NETLINK dump).",
+  "created_at": "2026-05-10T20:38:54.876103573Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3yoORMCnqnoSgMG5lQvwVgOonDB4P6G7NwCIOkknxg3iDGXJ50j1SdfYDk+dhfplv7QsLaNVMikfkWiPOu4ACg=="
+}
