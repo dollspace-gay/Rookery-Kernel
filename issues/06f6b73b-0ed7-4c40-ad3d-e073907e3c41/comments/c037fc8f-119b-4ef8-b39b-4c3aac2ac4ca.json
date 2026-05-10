@@ -1,0 +1,10 @@
+{
+  "uuid": "c037fc8f-119b-4ef8-b39b-4c3aac2ac4ca",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 91 result: net/core/page_pool.md (per-NIC page allocator - page_pool.c ~1374 lines; per-pool PagePool with NAPI-bound + per-CPU NUMA-aware cache + lockless ptr_ring for cross-CPU recycle + DMA-mapped pre-allocation + per-page pp_magic validation + PP_FLAG_DMA_MAP/_DMA_SYNC_DEV/_PAGE_FRAG + XDP redirect-target + recycled-on-skb-release for high-PPS NICs) + virt/kvm/x86-vmexit-reason.md (vmexit dispatch table - in vmx.c ~600-800 lines; vmcs.EXIT_REASON 32-bit encoding (basic + qualifier flags) + kvm_vmx_exit_handlers[] table for ~60 reasons + categories: hardware-emulate (CR/DR/IO/MSR/CPUID), TDP-fault (EPT_VIOLATION/MISCONFIG), IRQ-window, nested-VMX, virt-IRQ (APIC_ACCESS/_WRITE/EOI), userspace-return + per-vCPU exit_qualification + skip_emulated_instruction + fastpath optimization). 132 Tier-3s total. Next iter: net/core/sock-core.md (struct sock allocation + per-protocol ops) + virt/kvm/x86-mwait.md (MWAIT/PAUSE virtualization).",
+  "created_at": "2026-05-10T12:12:49.710257941Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA8JwKmgohyp5DwaDHtxCJo6aUxQIjNK6oPwCQbqPD4YhIyiobizVyK18Sq5ZTJslfpOqMdmR4RD1YgMt3W+WlDQ=="
+}
