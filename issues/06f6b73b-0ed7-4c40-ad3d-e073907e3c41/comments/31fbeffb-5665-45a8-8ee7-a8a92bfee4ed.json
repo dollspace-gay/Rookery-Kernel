@@ -1,0 +1,10 @@
+{
+  "uuid": "31fbeffb-5665-45a8-8ee7-a8a92bfee4ed",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 164 (358 docs, +10 via wave-10 parallel Opus subagents): drivers/gpio/gpiolib, drivers/regulator/core, drivers/mtd/mtdcore, drivers/leds/led-class, kernel/tracepoint, kernel/kallsyms, mm/page-io, mm/vmstat, drivers/pci/pci-core, drivers/iommu/dma-iommu. 10 waves = 100 new docs this session. ~72% along.",
+  "created_at": "2026-05-10T22:37:56.004895681Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2uO6jwau2mrISN6Ifil/qzpHERaWOTpy6VuWf4hA52+/vo94aaxn8WEp8xQ/l6k5eiyIkEtxwPY/WhU2xX3kCw=="
+}
