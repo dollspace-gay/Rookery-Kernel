@@ -1,0 +1,10 @@
+{
+  "uuid": "af906b41-f5ce-48de-8a6c-31a300bc6ec7",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 86 result: drivers/md/dm-log-writes.md (write-tracking target - dm-log-writes.c ~947 lines; per-bio LogWriteEntry header + payload to logdev + per-target log_kthread + dmsetup mark messages for xfstests-replay use case + log_only mode + FUA/FLUSH flag tracking + log-writes-replay tool integration) + virt/kvm/x86-mtf.md (Monitor Trap Flag + guest-debug - in vmx.c ~200-300 lines; KVM_SET_GUEST_DEBUG ioctl + KVM_GUESTDBG_ENABLE/_SINGLESTEP/_USE_SW_BP/_USE_HW_BP/_INJECT_DB/_INJECT_BP/_BLOCKIRQ + MTF one-shot vmexit + exception bitmap dynamic toggle + DR0..7 HW-breakpoint config + KVM_EXIT_DEBUG userspace + nested-VMX MTF cascade). Pivoted from dm-bow (not in mainline) to dm-log-writes. 122 Tier-3s total. Next iter: drivers/md/dm-error.md (always-error target; trivial bookkeeping) + virt/kvm/x86-rdtsc.md (TSC virtualization with offset/scaling).",
+  "created_at": "2026-05-10T11:31:39.705668498Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAE2BVoV8VQCq3KxYzTs2IszsZmGZ/+ZVhIaBch4TqpYXHKQOW6wOaNbfzGepJCfeXIFVxMGiAtqdHXgQu9W03AQ=="
+}
