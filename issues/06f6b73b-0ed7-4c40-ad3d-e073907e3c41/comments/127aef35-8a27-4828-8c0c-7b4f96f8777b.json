@@ -1,0 +1,10 @@
+{
+  "uuid": "127aef35-8a27-4828-8c0c-7b4f96f8777b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 60: 2 Tier-3 fs/sysfs docs (kernfs underlying + kobject framework). fs/sysfs/kernfs.md (struct kernfs_node + root + open_file + ops layouts, active-path locking via per-node atomic active counter w/ kernfs_get_active+_put_active+_drain — cornerstone of safe attribute removal during in-progress reads, kernfs_create_dir_ns+_file_ns+_link, recursive kernfs_remove w/ drain, KERNFS_NS_TAG per-namespace lookup, per-fd kernfs_open_file w/ atomic_write_len, struct kernfs_root per-instance state w/ kernfs_rwsem; OWNS mandatory models/fs/kernfs_active_path.tla — 11 REQ / 11 AC, 0 open) + fs/sysfs/kobject.md (kobject framework: struct kobject+kobj_type+kset+sysfs_ops layouts, lifecycle kobject_init→add (sysfs dir+ADD uevent)→del (REMOVE uevent)→put (kref→release), kref atomic refcount, 8 KOBJ_ACTION constants ADD/REMOVE/CHANGE/MOVE/ONLINE/OFFLINE/BIND/UNBIND, kobject_uevent+uevent_env via NETLINK_KOBJECT_UEVENT broadcast for udev integration, struct kset_uevent_ops filter+name+uevent hooks, default_groups auto-create, namespace-aware kobject_ns — 12 REQ / 11 AC, 0 open). 10 upstream paths validated against baseline 27a26ccfd528. Total: 159 .design docs. fs/sysfs Tier-2 COMPLETE: all 4 children done (overview + sysfs-core + kernfs + kobject). Next: pivot to fs/ext4/00-overview.md (the most-deployed Linux filesystem) or kernel/cgroup/00-overview.md (cgroup-v2 — backbone of containers/systemd resource control).",
+  "created_at": "2026-05-10T00:15:42.745312235Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASoisvrfeSZ4xnffTjD3+xxFge3E5dXqdXCeJYLqWCR12t6k29kr0bV2U3ZCIMTa3/1eaGdkve7nuKazPGh3PDw=="
+}
