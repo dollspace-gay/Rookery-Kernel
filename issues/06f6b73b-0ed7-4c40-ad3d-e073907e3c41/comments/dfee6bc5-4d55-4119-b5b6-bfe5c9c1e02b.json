@@ -1,0 +1,10 @@
+{
+  "uuid": "dfee6bc5-4d55-4119-b5b6-bfe5c9c1e02b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 107 result: net/core/dev_addr_lists.md (per-netdev HW addr lists - dev_addr_lists.c ~1434 lines; per-netdev dev_addr primary MAC + dev_addrs multi-MAC + uc secondary unicast + mc multicast + struct netdev_hw_addr ref-counted entries with sync_cnt for master/slave + dev_uc_add/del/sync/unsync + dev_mc_add/del + __dev_set_rx_mode dispatches to ndo_set_rx_mode + IFF_PROMISC/ALLMULTI overrun fall-back + bonding/VLAN/macvlan inheritance + RCU-free) + virt/kvm/x86-ioapic.md (KVM in-kernel IOAPIC emulation - ioapic.c ~779 lines; per-VM Intel-82093 with 24 redirection-table-entries 64-bit each + base 0xFEC00000 MMIO + IOREGSEL/IOWIN/EOI registers + per-RTE vector/delivery_mode/dest_mode/polarity/remote_IRR/trig_mode/mask/dest_id + edge vs level trigger + kvm_ioapic_set_irq + kvm_ioapic_send_eoi broadcast + kvm_irq_delivery_to_apic + KVM_CREATE_IRQCHIP per-VM allocation + kvm_io_bus_register_dev + irqfd integration + KVM_GET/SET_IRQCHIP migration). NOTE: x86-pmu-amd.md already exists; pivoted to x86-ioapic.md. 164 Tier-3s total. Next iter: net/core/skbuff-misc.md (skb helpers/ops) + virt/kvm/x86-pic.md (8259 PIC emulation).",
+  "created_at": "2026-05-10T14:29:27.370620355Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASRBDTI3E0L2eZq4t0230AaL6fDf/Mpu3au1xUcuW/y/x8JLzmAywVijpUfoEhc+pcplLpMuTPD5T3mf59jQQBg=="
+}
