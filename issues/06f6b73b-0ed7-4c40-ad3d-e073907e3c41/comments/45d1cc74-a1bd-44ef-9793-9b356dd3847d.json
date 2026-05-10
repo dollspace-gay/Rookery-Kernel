@@ -1,0 +1,10 @@
+{
+  "uuid": "45d1cc74-a1bd-44ef-9793-9b356dd3847d",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 166 (376 docs after upgrades, +10 via wave-12, 2 are upgrades): drivers/tty/tty-io, drivers/tty/n-tty, sound/core/init, sound/core/pcm, drivers/vfio/vfio-main, io_uring/msg-ring, kernel/bpf/arraymap, kernel/bpf/cgroup, net/sched/cls-api+act-api upgrades. 12 waves = 120 doc-writes this session.",
+  "created_at": "2026-05-10T23:01:25.406341173Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA0reHcFHxgCYtybRLMIhnpXhkmdS4iyrfJMOYkSyNS4SUoaUqAPHTyC/T4lJqYj9e/sO1INkzYf+1PZWgC6A2BQ=="
+}
