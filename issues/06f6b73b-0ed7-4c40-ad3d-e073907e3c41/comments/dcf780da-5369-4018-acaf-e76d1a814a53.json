@@ -1,0 +1,10 @@
+{
+  "uuid": "dcf780da-5369-4018-acaf-e76d1a814a53",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 92 result: net/core/sock-core.md (struct sock allocation - sock.c ~4570 lines; per-sock Sock + per-protocol Proto vtable + per-AF ProtoOps + sk_alloc/release + sock_sendmsg/recvmsg dispatch + per-sock memory accounting (sk_wmem_alloc + sk_rmem_alloc + sk_forward_alloc) + per-protocol slab + per-protocol memory_allocated + memcg integration + per-sock callbacks (sk_data_ready, _write_space, _error_report, _state_change) + sk_filter BPF) + virt/kvm/x86-mwait.md (MWAIT/MONITOR/PAUSE intercept - in vmx.c ~150-200 lines; default MWAIT_EXITING + MONITOR_EXITING + PAUSE_EXITING via vmcs CPU_BASED_EXEC_CTRL + handle_mwait → kvm_emulate_halt + handle_pause → kvm_vcpu_on_spin + PLE-window/gap for spin-loop-detect + yield_to-loop + KVM_X86_DISABLE_EXITS opt-in + KVM_FEATURE_PV_UNHALT alternative). 134 Tier-3s total. Next iter: net/socket.c (BSD socket-API top-level dispatch) + virt/kvm/x86-tpr-shadow.md (TPR / CR8 shadow virtualization).",
+  "created_at": "2026-05-10T12:20:26.940811647Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAX98yG0Q+QEy0b3KvxfQLkPVlgKVv1zA5ZT0nuycGAoyH34fT/yd1/kDKsXPVWbeOnDvWvr8U8ps9rIC5YTOrBg=="
+}
