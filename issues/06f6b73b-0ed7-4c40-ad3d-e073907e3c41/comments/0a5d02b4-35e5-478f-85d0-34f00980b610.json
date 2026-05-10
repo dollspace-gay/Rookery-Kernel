@@ -1,0 +1,10 @@
+{
+  "uuid": "0a5d02b4-35e5-478f-85d0-34f00980b610",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 61 result: kernel/time/hrtimer.md (high-res timer - hrtimer.c ~2503 + hrtimer.h; per-CPU per-clock-base RB-tree + ns-resolution + HARD/SOFT/PINNED modes + clockevent-device program + range-ns coalescing + hrtimer_forward + hrtimer_cancel wait-for-executing + schedule_hrtimeout integration with sleep) + virt/kvm/x86-async-pf.md (KVM async page-fault paravirt - virt/kvm/async_pf.c ~241 + arch/x86/kvm/x86.c integration; per-vCPU not-present-inject token-encoded + control-page write + workqueue host-paging + ready-inject on completion + ASYNC_PF_PER_VCPU=64 cap + async-pf-INT vector mode + KVM_FEATURE_ASYNC_PF/_INT/_VMEXIT CPUID gates). 72 Tier-3s total. Next iter: kernel/sched/wait.md (waitqueue) + virt/kvm/x86-steal-time.md (KVM_FEATURE_STEAL_TIME paravirt).",
+  "created_at": "2026-05-10T08:10:45.046589450Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA1aSCRn4Nx3CADgGDn7uukaLJ2gf7Ae1SmFfclWpTC5eE71eiGYp4Y1zYY2JPlASIVm18NxoJjChaT7Lr+3sYBA=="
+}
