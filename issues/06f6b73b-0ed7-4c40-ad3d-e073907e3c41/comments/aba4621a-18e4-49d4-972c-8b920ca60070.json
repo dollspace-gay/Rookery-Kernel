@@ -1,0 +1,10 @@
+{
+  "uuid": "aba4621a-18e4-49d4-972c-8b920ca60070",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 111 result: net/sched/sch-tbf.md (Token Bucket Filter qdisc - sch_tbf.c ~632 lines; per-qdisc TbfSchedData with main+peak buckets + tokens/ptokens i64 + buffer/mtu sizes + rate/peak PschedRatecfg with mult+shift+linklayer + max_size cap + inner-qdisc enqueue/dequeue + ktime_get_ns based token-refresh + qdisc_watchdog_schedule_ns for retry + psched_l2t_ns bytes->ns conversion + per-ATM cell-padding + per-pkt overhead + leaky-bucket bandwidth contract). NOTE: sch-htb.md already exists; pivoted to sch-tbf.md. + virt/kvm/x86-msr-passthrough.md (MSR-bitmap intercept policy - vmx.c + svm.c subset ~150 lines; VMX 4KB msr-bitmap with read[0..2KB] + write[2KB..4KB] split per MSR-range + SVM 8KB msrpm 2-bits-per-MSR for read/write intercept + default-intercept all 0xff init + per-MSR vmx_disable/enable_intercept_for_msr + vmx_clear/set_msr_bitmap_read/write helpers + nested L2 vmcs02 = OR(vmcs01, vmcs12) intercept + per-x2APIC mode-toggling APIC MSRs 0x800..0x83F + LBR-passthrough on DEBUGCTL.LBR=1 + PMU-passthrough gated by CPUID + PRED_CMD W-only passthrough + msr_bitmap_l01_changed nested dirty-flag). 172 Tier-3s total. Next iter: net/sched/sch-prio.md (PRIO band qdisc) + virt/kvm/x86-svm-msrpm.md or pivot.",
+  "created_at": "2026-05-10T15:00:20.083447269Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABANIMOx89PFqUgZ8p/BxO/bVSc8mnuKrizlCsW2BwUzxH9hAMiTFmSchgjP3OGdbgd9yPaAjXFA7OGR/mbLvCYAw=="
+}
