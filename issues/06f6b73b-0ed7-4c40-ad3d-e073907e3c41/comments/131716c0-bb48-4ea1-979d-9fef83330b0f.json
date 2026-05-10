@@ -1,0 +1,10 @@
+{
+  "uuid": "131716c0-bb48-4ea1-979d-9fef83330b0f",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 103 result: net/netlink/af_netlink.md (AF_NETLINK socket family - af_netlink.c ~2953 lines; per-protocol netlink_table[] x32 + per-PID rhashtable + per-group mc_list multicast subscribers + per-namespace + netlink_kernel_create kernel-side input handler + nlmsg_parse policy validation + NETLINK_CB(skb) origin-PID/dst-group/creds + NLM_F_DUMP iteration + NLM_F_ACK + extack error attrs + NETLINK_LISTEN_ALL_NSID + NETLINK_NO_ENOBUFS) + virt/kvm/x86-pat.md (PAT MSR virtualization - x86.c at ~4027/~4438 + vmx.c ~2434 + svm.c ~2968; per-vCPU vcpu.arch.pat shadow of MSR_IA32_CR_PAT 0x277 + 8-entry x 8-bit memtype table {UC,WC,WT,WP,WB,UC-} + per-byte WRMSR validation #GP on reserved + VMX vmcs.guest_ia32_pat auto-load + SVM vmcb.save.g_pat + vmx_ignore_guest_pat quirk for non-coherent-DMA-aware EPT memtype resolution). 156 Tier-3s total. Next iter: net/netlink/genetlink.md (generic netlink) + virt/kvm/x86-mtrr.md (MTRR virtualization).",
+  "created_at": "2026-05-10T13:49:40.191460933Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASTk3aMotEhCd6Kchbok4oMGMsga34OyArqn/cn/H7haDJ0T7BnonRHF9we1lEyX1peZMF5mqNhTckGdecfD4AQ=="
+}
