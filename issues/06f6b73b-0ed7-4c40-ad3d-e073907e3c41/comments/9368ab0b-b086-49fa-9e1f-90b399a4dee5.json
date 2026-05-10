@@ -1,0 +1,10 @@
+{
+  "uuid": "9368ab0b-b086-49fa-9e1f-90b399a4dee5",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 104 result: net/netlink/genetlink.md (Generic netlink multiplexer - genetlink.c ~1996 lines; per-family registration genl_register_family with id+name+version+ops[]+mcgrps[]+policy + per-cmd dispatch with GENL_ADMIN_PERM CAP-check + nlmsg_parse policy validation + per-cmd doit/dumpit/start/done callbacks + per-family pre_doit/post_doit hooks + per-family parallel_ops mutex gating + per-mcast multicast group with global mc_group_idr offset + GENL_ID_CTRL nlctrl family CTRL_CMD_GETFAMILY/NEWFAMILY/DELFAMILY) + virt/kvm/x86-posted-intr.md (Intel VT-d Posted Interrupts - posted_intr.c 319 lines; per-vCPU 64-byte PiDesc with PIR 256-bit pending-vector bitmap + control with ON+SN+NV+NDST + POSTED_INTR_VECTOR 0xF2 in-guest notification + POSTED_INTR_WAKEUP_VECTOR 0xF1 host wakeup ISR + pi_pre_block/post_block sleep-transition + pi_wakeup_handler per-CPU walking pi_wakeup_list + vmx_pi_update_irte for VFIO-assigned IRQ direct-posting via IOMMU IRTE.posted=1). NOTE: x86-mtrr.md already existed; pivoted to x86-posted-intr.md. 158 Tier-3s total. Next iter: net/netlink/policy.md (NLA policy validation) + virt/kvm/x86-tsc-scaling.md (TSC scaling for live migration).",
+  "created_at": "2026-05-10T13:59:10.244861933Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATNoiTd66ZJ+vKxDlDfxb4YfFz5Fsb/DESJwF0Vr0q/Jp01ulXWaHk+0rGWp7IXelvoHEpPenmH2YGa2JomTSBA=="
+}
