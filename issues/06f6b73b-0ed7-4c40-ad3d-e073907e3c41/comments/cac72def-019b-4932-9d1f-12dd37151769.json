@@ -1,0 +1,10 @@
+{
+  "uuid": "cac72def-019b-4932-9d1f-12dd37151769",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 73 result: drivers/md/raid10.md (md raid10 - raid10.c ~5090 lines; per-array R10Conf with mirrors[] + Geom (near/far/offset layouts) + per-bio R10Bio with devs[copies] + read_balance for nearest-mirror + per-write all-copies submit + barrier-vs-resync sync + reshape near→far) + virt/kvm/x86-msr-filter.md (KVM_X86_SET_MSR_FILTER - in x86.c ~200-300 lines; per-VM kvm_x86_msr_filter with up to 16 MsrBitmapRange + DEFAULT_DENY/_ALLOW modes + SRCU-protected swap + per-MSR allow/deny/userspace-route + KVM_EXIT_X86_RDMSR/_WRMSR for QEMU emulation + KVM_REQ_MSR_FILTER_CHANGED per-vCPU invalidation). Pivoted from svm-ibs (not yet mainline) to msr-filter (already mainline + practical). 96 Tier-3s total. Next iter: drivers/md/md-core.md (md.c personality framework) + virt/kvm/x86-x2apic.md (x2APIC mode virtualization).",
+  "created_at": "2026-05-10T09:47:21.883029665Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+opMj9P3X3xgzAb0ij4b5m07iCObqfAJXC07Dm0TAl0ECnmxB8jShZEkI/zmUMgf5l6GT+jZwevCoGbTMbKKCQ=="
+}
