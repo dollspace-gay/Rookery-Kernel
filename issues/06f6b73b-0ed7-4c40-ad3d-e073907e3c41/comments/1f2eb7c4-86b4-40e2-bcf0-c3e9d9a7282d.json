@@ -1,0 +1,10 @@
+{
+  "uuid": "1f2eb7c4-86b4-40e2-bcf0-c3e9d9a7282d",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 124 result: net/bridge/br_input.md (Linux bridge ingress path - br_input.c ~485 lines; per-port br_handle_frame rx_handler from __netif_receive_skb + per-skb classify link-local MAC (BPDU/PAUSE/LLDP) vs unicast/multicast vs broadcast + per-port STP-state gate (DISABLED/BLOCKING/LISTENING/LEARNING/FORWARDING) + br_handle_frame_finish post-NF_BR_PRE_ROUTING + br_fdb_update src-MAC learning + br_fdb_find_rcu dst-MAC lookup + br_forward known-unicast OR br_flood unknown-unicast/multicast/broadcast + br_pass_frame_up local-MAC up-pass to br0 + br_multicast_rcv IGMP/MLD snooping + br_handle_ingress_vlan_tunnel + per-VLAN-aware allowed-vid filtering). NOTE: DCCP not in mainline 7.x; pivoted to bridge. + virt/kvm/x86-pml.md (Intel Page-Modification-Logging - vmx.c PML subset ~150 lines; per-vCPU 4KB pml_pg buffer 512 entries x 8B GPA + vmcs.PML_ADDRESS + PML_INDEX wraps 0x1FF→0xFFFF + HW pushes GPA on EPT-WP-page write A+D-bit-set + PML_FULL vmexit on wrap + vmx_flush_pml_buffer per-vmexit walks entries → kvm_vcpu_mark_page_dirty + ENABLE_PML secondary control gated by enable_pml module-param + nr_memslots_dirty_logging > 0 + Broadwell+ HW dirty-tracking for live-migration). 198 Tier-3s total. Next iter: net/8021q/vlan.md (VLAN driver) + virt/kvm/x86-vmwrite-vmread.md or pivot.",
+  "created_at": "2026-05-10T16:54:27.789844939Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABdRp4LBUwcXQCfCiQ+sxBMEofvZRexFhQkBAjEHhaHV7S30ZeVRxd9pfgJCgtZLOoqbne7nY7pSCWX49YC5tBQ=="
+}
