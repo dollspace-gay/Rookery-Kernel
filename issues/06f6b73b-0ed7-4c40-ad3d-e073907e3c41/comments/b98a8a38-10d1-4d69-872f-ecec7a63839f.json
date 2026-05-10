@@ -1,0 +1,10 @@
+{
+  "uuid": "b98a8a38-10d1-4d69-872f-ecec7a63839f",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 125 result: net/8021q/vlan.md (IEEE 802.1Q VLAN driver - vlan.c ~770 + vlan_dev.c ~1087 lines; per-VID virtual netdev e.g. eth0.10 over real netdev + 4-byte 802.1Q tag with TPID + TCI{PCP, DEI, VID} + per-real-dev vlan_group [4][4096] per-(proto, vid) lookup + register_vlan_dev rtnl_link + vlan_dev_hard_start_xmit __vlan_hwaccel_put_tag (HW-CTAG-TX) or skb_vlan_push manual + vlan_skb_recv per-tagged-RX dispatches to vlan_dev + ETH_P_8021Q 0x8100 + ETH_P_8021AD 0x88A8 QinQ + NETIF_F_HW_VLAN_CTAG_FILTER ndo_vlan_rx_add/kill_vid + vlan_dev_set_mac propagates to real_dev UC list + ingress/egress_priority_map PCP-skb.priority) + virt/kvm/x86-vmx-shadow-vmcs.md (KVM nested-VMX shadow-VMCS - nested.c shadow-vmcs subset ~250 lines; per-vCPU vmcs01.shadow_vmcs page + VMREAD_BITMAP + VMWRITE_BITMAP 4KB pages with bit-per-VMCS-field + shadow_read_only_fields + shadow_read_write_fields lists from vmcs_shadow_fields.h + init_vmcs_shadow_fields builds bitmaps default-0xff intercept + cleared-bit means HW handles directly + cached_shadow_vmcs12 per-VMPTRLD + nested_cache_shadow_vmcs12 reads guest mem + copy_vmcs02_to_shadow on vmenter + copy_shadow_to_vmcs12 on vmexit + SHADOW_VMCS secondary-control + VMCS_LINK_POINTER + Sky-Lake+ HW-accel for L2 VMREAD/VMWRITE no-vmexit). 200 Tier-3s total. Next iter: net/8021q/vlan_dev.md (vlan_dev TX/RX detail) + virt/kvm/x86-vmx-vpid.md cross-check or pivot.",
+  "created_at": "2026-05-10T17:02:34.614636157Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyZbPdO2w9gfBYyYGKmTVeWY0SfiCuVirz4kS1IcZ7c1T+vAi6NPr5TTReDMB2VdvH/e50kexq5D8Tna1U1pKCQ=="
+}
