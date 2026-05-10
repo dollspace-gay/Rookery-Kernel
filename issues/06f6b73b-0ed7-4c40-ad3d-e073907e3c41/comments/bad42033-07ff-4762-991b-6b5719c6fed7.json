@@ -1,0 +1,10 @@
+{
+  "uuid": "bad42033-07ff-4762-991b-6b5719c6fed7",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 136 result: net/vxlan/vxlan.md (VXLAN tunnel driver - vxlan_core.c ~5023 lines; RFC 7348 L2-in-UDP encapsulation 8-byte VXLAN-hdr (flags+24-bit-VNI) + per-vxlan_dev with vni/remote-IP/UDP-dst-port-4789/src-port-range + per-VxlanSock per-(port, AF) UDP socket + udp_tunnel_xmit_skb encap helper + vxlan_rcv UDP-encap callback + per-fdb VxlanFdb hashtable per-(MAC, VNI) → rdst remote-IP + VXLAN_F_LEARN/PROXY/RSC/L2MISS/L3MISS/COLLECT_METADATA/VNIFILTER/REMCSUM_TX/RX flags + multi-remote rdst-list with skb_clone + multicast group for unknown-MAC + IFLA_VXLAN_* rtnetlink + GSO UDP-tunnel offload + Calico/Flannel/Cilium/Neutron cloud-overlay) + mm/memory-hotplug.md (Memory hotplug - memory_hotplug.c ~2432 lines; per-block 128MB default + add_memory_resource per-section sparsemem populate + arch_add_memory direct-map + struct page vmemmap alloc + online_pages per-pageblock MIGRATE_MOVABLE + buddy free_unref_page + offline_pages start_isolate_page_range + migrate_pages_to_target + try_remove_memory after all-OFFLINE + arch_remove_memory + /sys/devices/system/memory/memoryN/{state, removable, phys_device} + /sys/devices/system/memory/probe + register_memory_block_under_node NUMA + MHP_MEMMAP_ON_MEMORY vmemmap-in-hotadd + MEM_GOING_ONLINE/ONLINE/GOING_OFFLINE/OFFLINE notifier-chain + balloon-driver use-cases). 222 Tier-3s total. Next iter: net/wireguard cross-check + mm/memory-failure.md.",
+  "created_at": "2026-05-10T18:31:43.323059194Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABANEgwopty9BxcgjbDw88gQMpGZCOj/EkK/omSB3/wPNNourBQcWb20NcW/L2IZk2H35+qtVG/IGt/bgwQFQKEDA=="
+}
