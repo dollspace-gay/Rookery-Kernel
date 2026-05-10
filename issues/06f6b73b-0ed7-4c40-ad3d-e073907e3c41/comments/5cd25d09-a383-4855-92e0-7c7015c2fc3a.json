@@ -1,0 +1,10 @@
+{
+  "uuid": "5cd25d09-a383-4855-92e0-7c7015c2fc3a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 137 result: net/wireguard/wireguard.md (WireGuard VPN driver - drivers/net/wireguard/{main, device, send, receive, noise, cookie, allowedips, ...} ~5000+ lines; per-wg_device with X25519 priv-key + UDP listen-port + per-WgPeer with NoiseHandshake (Noise IK protocol) + NoiseKeypairs current/prev/next + WgEndpoint last-known IP+port + persistent_keepalive_interval + per-Allowedips Patricia-trie longest-prefix-match per-AF + ChaCha20-Poly1305 AEAD encrypt/decrypt + WG_HANDSHAKE_INITIATION/RESPONSE/COOKIE/DATA pkt-types + per-keypair 2-min/2^60-msg lifetime auto-rekey + cookie-mac DDoS mitigation + replay-window protection + endpoint-update only post-auth + WG_CMD_GET_DEVICE/SET_DEVICE genetlink ABI + per-namespace + ZeroTrust overlay use-case) + mm/memory-failure.md (Hardware memory-failure / HWPoison - memory-failure.c ~2970 lines; per-PFN memory_failure(pfn, flags) entry from MCE/EDAC + page-state classify dispatch via PAGE_STATES table {reserved/slab/swapcache-clean/dirty/anon/file/hugetlb/unknown} + per-class handler me_swapcache_*/me_pagecache_*/me_anon_*/me_huge_page/me_kernel/me_unknown + PG_hwpoison flag set + try_to_unmap_one rmap-walk + add_to_kill per-task + kill_procs SIGBUS_AR action-required vs SIGBUS_AO async + MF_ACTION_REQUIRED synchronous-kill before-resume + dissolve_free_hugetlb_folio + truncate_inode_folio + /sys/kernel/mm/hwpoison/{corrupt-pfn, unpoison-pfn} testing + sysctl memory_failure_early_kill / memory_failure_recovery + per-zone hwpoisoned counter + ECC RAS workload). 224 Tier-3s total. Next iter: net/9p/p9.md (9P) + mm/percpu.md.",
+  "created_at": "2026-05-10T18:39:19.380585681Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWqZevDgjwdUTLJ476HTKiDhweVkzl13rqD2tD5Bn7XO7kCoy1n+k1WA3g2w+73mjtS3X804YCSKLXxlv+RYFCw=="
+}
