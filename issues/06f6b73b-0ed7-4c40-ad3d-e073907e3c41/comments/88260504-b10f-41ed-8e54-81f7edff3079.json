@@ -1,0 +1,10 @@
+{
+  "uuid": "88260504-b10f-41ed-8e54-81f7edff3079",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 145 result: kernel/locking/rwsem.md (read-write semaphore - kernel/locking/rwsem.c ~1780 lines; per-rw_semaphore count atomic_long_t encoding {WRITER_LOCKED bit-0, FLAG_WAITERS bit-1, FLAG_HANDOFF bit-2, reader count bits-8-63 RWSEM_READER_BIAS-unit} + owner atomic_long_t writer-task-ptr or READER_OWNED/NONSPINNABLE LSB + osq OptimisticSpinQueue MCS-like + wait_list FIFO + per-CPU reader-fast-path + down_read/write fast-path atomic-cmpxchg-add + slow-path queue+sleep + optimistic_spin while owner-on-CPU + RWSEM_WAIT_TIMEOUT HANDOFF anti-starvation + downgrade_write writer→reader + i_rwsem/mmap_lock/sem_lock backbone + Documentation/locking/rwsem.rst) + net/xdp/xsk.md (AF_XDP userspace zero-copy socket - net/xdp/xsk.c ~2085 lines; per-XdpSock binds (iface, queue_id, UMEM) + XdpUmem mmap'd shared frame pool with chunk_size power-of-2 + XskQueue producer/consumer cached_prod/cons atomic ring + XDP_RX_RING kernel-fills + XDP_TX_RING userspace-fills + XDP_UMEM_FILL_RING empty-for-RX + XDP_UMEM_COMPLETION_RING sent-frames + XDP_ZEROCOPY driver-NIC-descriptor-points-to-UMEM + XDP_COPY skb_copy fallback + XDP_SHARED_UMEM multi-socket + XDP_USE_NEED_WAKEUP signal + __xsk_map_redirect XSKMAP-target for bpf_redirect_map + DPDK-class line-rate Cilium/Katran/xdpdump). 240 Tier-3s total. Next iter: net/sctp/associola.md cross-check + kernel/locking/rcu.md or pivot.",
+  "created_at": "2026-05-10T19:38:52.244822169Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABALh2OUgN0Wt2F+8uC6i/TSDm3eOZv1oHEm1Ju5WuAzQGl+4VbNJbPBREBTQC8JwsFdgjSkBk2ht0xrdzRkizuAw=="
+}
