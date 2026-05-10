@@ -1,0 +1,10 @@
+{
+  "uuid": "5328bb11-29ba-4972-a8ad-2c73d2d274ee",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 117 result: net/sched/sch-pie.md (Proportional Integral controller Enhanced AQM RFC 8033 - sch_pie.c ~583 lines; per-period 16ms PI controller updates drop_prob via alpha*(qdelay-target) + beta*(qdelay-qdelay_old) + per-pkt drop_early probabilistic + force-drop on qdelay > 2*target + bypass on qdelay < target/2 + burst window protection + ECN-mark variant + Q40 fixed-point drop_prob clamped + DOCSIS/CPE low-latency target) + virt/kvm/guest-memfd.md (KVM private guest memory for confidential VMs - guest_memfd.c ~1030 lines; KVM_CREATE_GUEST_MEMFD ioctl returns anon-inode fd not mappable to userspace + per-VM kvm_gmem_bind to memslot via gmem_offset + kvm_gmem_get_pfn kernel-only access + per-folio lazy-alloc with KVM_GUEST_MEMFD_ALLOW_HUGEPAGE 2MB + per-(start,end) kvm_gmem_invalidate_begin/end propagates to KVM EPT/NPT flush + KVM_MEMORY_ATTRIBUTE_PRIVATE per-GFN xarray + KVM_SET_USER_MEMORY_REGION2 + EHWPOISON folio + TDX/SEV-SNP confidential-computing). 184 Tier-3s total. Next iter: net/sched/sch-cbs.md (Credit-Based Shaper) + virt/kvm/coalesced-mmio-ext.md or pivot.",
+  "created_at": "2026-05-10T16:01:58.810026668Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAosapYxIHuYJ4owibwqX6cZ8fvklccCLkQ0FITkFPMTohYVS1bZsuxLCbE0x15HHH/KbS8o+8BtAgPv4UyMW7Bg=="
+}
