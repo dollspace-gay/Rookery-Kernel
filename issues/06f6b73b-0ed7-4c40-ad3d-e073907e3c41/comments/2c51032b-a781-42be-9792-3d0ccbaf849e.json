@@ -1,0 +1,10 @@
+{
+  "uuid": "2c51032b-a781-42be-9792-3d0ccbaf849e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 142 result: net/openvswitch/conntrack.md (OVS conntrack action - conntrack.c ~2028 lines; OVS_ACTION_ATTR_CT integrates nf_conntrack with OVS pipeline + OVS_CT_ATTR_COMMIT/ZONE/MARK/LABELS/HELPER/NAT/FORCE_COMMIT/EVENTMASK/TIMEOUT attrs + ovs_ct_execute lookup-or-commit + ovs_ct_nat DNAT/SNAT setup_info + ovs_ct_helper attach FTP/SIP/TFTP/IRC + ovs_ct_update_key sets sw_flow_key.ct_state {NEW, ESTABLISHED, RELATED, REPLY_DIR, INVALID, TRACKED, SRC_NAT, DST_NAT} OVS_CS_F_* flags + per-zone segregation + per-fragment reassembly + OVS_ACTION_ATTR_CT_CLEAR + stateful-firewall security-groups + service-mesh L4 LB + NAT overlays) + mm/bootmem.md (Boot-time memblock allocator - mm/memblock.c ~2908 lines; per-system Memblock with memory + reserved + physmem MemblockType arrays + MemblockRegion {base, size, flags, nid} sorted-by-base auto-merged + memblock_add from e820/DT parse + memblock_reserve carves kernel/initrd/fdt + memblock_alloc/_node/_low/_phys/_try_nid → reserve + phys_to_virt + per-arch boot fill + __free_pages_memory at mem_init hands free-ranges to buddy + ZONE_MOVABLE for MEMBLOCK_HOTPLUG + MEMBLOCK_MIRROR for RAS + memtest pattern-test + CONFIG_ARCH_KEEP_MEMBLOCK post-boot survival + per-NUMA-node assignment from ACPI SRAT/DT + INIT_MEMBLOCK_REGIONS 128 default capacity). 234 Tier-3s total. Next iter: net/sched/sch-ets.md or net/9p next + mm/mm-debug.md.",
+  "created_at": "2026-05-10T19:16:42.674524883Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAhzzVSqfSsuX+gaX3yAx6v8ZauTX1Lb3E2Dw+NGROLlpnJgVkc7QWRUTVJGsg2YQp8jOGHt6TI46UsgPfIJaSDg=="
+}
