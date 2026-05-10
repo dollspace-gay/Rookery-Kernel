@@ -1,0 +1,10 @@
+{
+  "uuid": "0693fc08-1252-41c1-b8c4-7e422b73cd2d",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 127 result: net/bonding/bond.md (Linux bonding driver - drivers/net/bonding/bond_main.c ~6661 lines; per-bond bondN virtual netdev aggregating multi-NIC slaves + 7 modes BOND_MODE_ROUNDROBIN/ACTIVEBACKUP/XOR/BROADCAST/802_3AD/BALANCE_TLB/BALANCE_ALB + per-slave rx_handler hijack + bond_xmit dispatcher + bond_select_active_slave priority-based primary + bond_mii_monitor periodic miimon link-probe with updelay/downdelay debounce + bond_arp_rcv ARP-monitor link-probe + bond_3ad_state_machine_handler IEEE 802.3ad LACP rx/mux/tx-machine + bond_alb_init_slave ARP-rewrite for inbound balancing + IFF_SLAVE flag + dev_master_upper_dev_link + fail_over_mac policy) + virt/kvm/x86-vmx-eptp.md (VMX EPT-pointer construction - vmx.c EPTP subset ~80 lines; vmcs.EPT_POINTER 0x201A 64-bit construct_eptp(root_hpa, level) packs MT bits[2:0]=6 WB + PWL bits[5:3] level-1 (3=4-level / 4=5-level) + AD-bits bit[6] enable_ept_ad_bits + execute-only bit[7] + root_hpa bits[N-1:12] + per-VM shared_eptp TDP MMU + cpu_has_vmx_ept_5levels Sky-Lake+ + cpu_has_vmx_ept_ad_bits Broadwell+ + cpu_has_vmx_ept_x_only_bit + INVEPT_SINGLE_CONTEXT per-EPT-remap flush + invept_global per-host unload + nested L2 vmcs02.EPT_POINTER ≠ vmcs12.EPT_POINTER L0 owns shadow). 204 Tier-3s total. Next iter: net/bridge/br_forward.md (bridge forwarding) + virt/kvm/x86-vmx-vpid-mgmt.md or pivot.",
+  "created_at": "2026-05-10T17:18:58.897916770Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAC4B4/jjTbapzTTt0mlHeu8kOn4A9ZcwyTQIJboTy2iR/LzsGYHNIQhH092m2SfUxPgQT6z/8A2MwOkCT1tKCBw=="
+}
