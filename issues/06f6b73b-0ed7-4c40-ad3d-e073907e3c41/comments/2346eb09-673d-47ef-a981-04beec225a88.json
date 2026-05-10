@@ -1,0 +1,10 @@
+{
+  "uuid": "2346eb09-673d-47ef-a981-04beec225a88",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 59: 1 Tier-2 wrapper + 1 Tier-3 (pivot to fs/sysfs — kobject device-driver model). fs/sysfs/00-overview.md (sysfs Tier-2 umbrella: kobject+kobj_type+kset abstractions, top-level /sys/{block/bus/class/dev/devices/firmware/fs/hypervisor/kernel/module/power/} layout, attribute file convention w/ show/store callbacks, kernfs underlying VFS layer (shared w/ cgroupfs+configfs), kobject_uevent NETLINK_KOBJECT_UEVENT broadcast for udev integration; declares 4 Tier-3 children (sysfs-core+kernfs+kobject+kobject-uevent) + mandatory models/fs/kernfs_active_path.tla TLA+ — 9 REQ-O / 8 AC-O, 0 open) + fs/sysfs/sysfs-core.md (sysfs core layer: sysfs_create_dir_ns+_remove_dir, struct attribute+kobj_attribute+attribute_group+bin_attribute layouts, per-attribute show/store dispatch w/ PAGE_SIZE buffer, sysfs_create_group atomic multi-attribute add w/ rollback, is_visible/is_bin_visible dynamic visibility predicates, bin_attribute read/write/mmap callbacks, sysfs_create_link+_remove_link symlinks, sysfs_emit+_at bounded-output helpers, KERNFS_NS_TAG per-netns view — 12 REQ / 11 AC, 0 open). 17 upstream paths validated against baseline 27a26ccfd528. Total: 157 .design docs (23 Tier-2s now). Next: fs/sysfs/kernfs.md (underlying VFS layer; OWNS models/fs/kernfs_active_path.tla) + fs/sysfs/kobject.md (kobject + kobj_type + kset framework + uevent emitter).",
+  "created_at": "2026-05-10T00:07:29.555133233Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAgQhIE5HjZOXMaDnoxNShCRDXmIE/fnMQ459kgjUvqLRz8HXXFXjXDUH1SQZvniHs2oGK+29hl7BkNZA1mscsBg=="
+}
