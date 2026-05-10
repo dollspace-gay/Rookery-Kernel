@@ -1,0 +1,10 @@
+{
+  "uuid": "905a347d-1b0a-40e9-860d-b40e1b045639",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 71 result: drivers/md/dm-integrity.md (per-sector data-integrity - dm-integrity.c ~5475 lines; HMAC-SHA256 tag per-sector + journal-mode write-atomicity + bitmap-mode fast-path + AEAD integration with dm-crypt + range-lock + dm-bufio for tag-area + replay_journal crash-recovery + recalc_thread bg-tag-population) + virt/kvm/x86-vmx-pebs.md (Intel PEBS virtualization - in pmu_intel.c; per-vCPU MSR_IA32_PEBS_ENABLE/_DS_AREA/PEBS_DATA_CFG shadows + per-counter PEBS-record relocation from host DS-area to guest DS-area + threshold-triggered PMI delivery + adaptive-PEBS support). 92 Tier-3s total. Next iter: drivers/md/dm-cache.md (block cache layer) + virt/kvm/x86-vmx-lbr.md (Last-Branch-Record virtualization).",
+  "created_at": "2026-05-10T09:31:10.601610420Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAdTvYxSfeoYsQh7B1IoOCmZkNfWglK7yoXaw/kaDK2CRBm+NCsCqPPBMjDtry37y7UGJL6jfmI2LCvU1NJsQtDQ=="
+}
