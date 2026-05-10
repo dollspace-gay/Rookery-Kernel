@@ -1,0 +1,10 @@
+{
+  "uuid": "9cefc12c-9986-459a-9841-9bff149ba6e7",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 114 result: net/sched/sch-red.md (RED qdisc - sch_red.c ~580 lines; per-qdisc RedSchedData with EWMA qavg via Wlog log2 averaging + qth_min/qth_max/qth_delta thresholds + max_P probability + Floyd anti-burst count + Stab[256] idle-period decay table + tc_red_qopt UAPI + ECN-mark via INET_ECN_set_ce on PROB_MARK + RED_DONT_MARK below qth_min + RED_PROB_MARK linear probability between min/max + RED_HARD_MARK above qth_max + ARED adaptive max_P timer + Floyd-Jacobson 1993 AQM signal model) + virt/kvm/x86-pv-eoi.md (KVM paravirt EOI optimization - lapic.c PV-EOI subset ~80 lines + x86.c MSR handler; KVM_FEATURE_PV_EOI CPUID 0x40000001 EAX bit + MSR_KVM_PV_EOI_EN 0x4b564d04 with GPA + KVM_PV_EOI_ENABLED bit-0 + per-vCPU shared u8 flag-byte at GPA + KVM sets flag=1 on IRQ-inject + guest skips APIC-EOI MMIO + clears flag in iret-handler + KVM polls flag at next IRQ-inject + apic.pending_pv_eoi tracking + lapic_in_kernel required + reduces IRQ-EOI vmexits for high-IRQ workloads). 178 Tier-3s total. Next iter: net/sched/sch-sfq.md (SFQ stochastic-fair) + virt/kvm/x86-async-pf-int.md or pivot.",
+  "created_at": "2026-05-10T15:23:10.476194299Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAf02ZfmrvMgUKOIVt+R6p4pO8D3rOJiSIAkVUY+R+GAMpGCViBrD22YH8epbe7nHgxtkL1/T8MhcrXzNkUaAgDQ=="
+}
