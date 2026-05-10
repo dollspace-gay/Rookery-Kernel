@@ -1,0 +1,10 @@
+{
+  "uuid": "696dfc76-34ce-4c92-8afc-5affaa06fe3f",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 105 result: net/netlink/policy.md (NLA policy validation - lib/nlattr.c ~1169 lines; per-attr struct nlattr {u16 nla_len, u16 nla_type} TLV + per-NLA_* type encoding NLA_U8/U16/U32/U64/STRING/NUL_STRING/BINARY/FLAG/NESTED/NESTED_ARRAY/BITFIELD32/REJECT/S8..S64 + per-NLA_VALIDATE_* range/min-len/max-len/function/mask + nla_parse walker w/ tb[] index table + __nla_validate per-attr + NLA_F_NESTED/NET_BYTEORDER flags + NL_VALIDATE_STRICT/LIBERAL + NL_SET_ERR_MSG/BAD_ATTR extack helpers + NLA_HDRLEN=4 alignment + nla_nest_start/end nested framing) + virt/kvm/x86-tsc-scaling.md (KVM TSC frequency scaling - x86.c ~150 lines; per-vCPU l1_tsc_scaling_ratio + tsc_scaling_ratio + l1_tsc_offset + virtual_tsc_khz + scale_tsc(tsc, ratio)=mul_u64_u64_shr(tsc,ratio,frac_bits) + VMX vmcs.tsc-multiplier 48-frac-bits + SVM vmcb.tsc_ratio 32-frac-bits + KVM_SET_TSC_KHZ ioctl + WRMSR(IA32_TSC) recompute_l1_tsc_offset + nested L1xL2 composition kvm_calc_nested_tsc_multiplier + per-VM synced-vCPU detection via last_tsc_khz/nsec/write within tolerance + IA32_TSC_ADJUST + AMD MSR_AMD64_TSC_RATIO). 160 Tier-3s total. Next iter: net/core/rtnetlink.md (rtnetlink) + virt/kvm/x86-pmu-intel.md (Intel PMU virtualization).",
+  "created_at": "2026-05-10T14:07:26.288634246Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAFp+t4ONIV2thaaIrOs7Fxk5xG1UhaKpP784gWzqLRTbkdCQMVMC3PbF3PVtA2YkrRdNr/ZaKOftxzRGeO9DACQ=="
+}
