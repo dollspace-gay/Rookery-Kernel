@@ -1,0 +1,10 @@
+{
+  "uuid": "1456c852-8319-4e9e-9f61-97fc8be03878",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 132 result: net/bluetooth/hci_core.md (Bluetooth HCI core - hci_core.c ~4166 lines; per-controller hci_dev with type HCI_PRIMARY/AMP + bus HCI_USB/UART/PCCARD/RS232/etc + HCI_UP flag + cmd_q/raw_q/rx_q/tx_q skb queues + per-cmd_work/rx_work/tx_work workqueues + hci_register_dev list_add_rcu + hci_dev_open_sync init-sequence + hci_send_cmd opcode+plen+param + bt_skb pkt_type EVENT/ACL/SCO/ISO/COMMAND/VENDOR + hci_recv_frame dispatcher + hci_event_packet per-event-code handler + HCI_EV_CMD_COMPLETE/STATUS/CONN_COMPLETE/DISCONN_COMPLETE/LE_META + per-conn ACL/SCO/LE/ESCO/ISO + dev_addr BD_ADDR + req_wait_q for cmd-sync + BlueZ userspace + Core Spec v5.x) + mm/ksm.md (Kernel Same-page Merging - ksm.c ~4021 lines; per-VMA madvise MADV_MERGEABLE/UNMERGEABLE + per-mm KsmMmSlot in ksm_mm_head + ksmd background scan + cmp_and_merge_page jhash2 prefilter + stable tree (merged immutable kpages) + unstable tree (candidates) per-NUMA-node + try_to_merge_one_page write_protect + pages_identical compare + replace_page COW-pte to kpage + break_ksm on write-fault allocs fresh + ksm_might_need_to_copy on fork + /sys/kernel/mm/ksm/run 0=stop 1=run 2=unmerge + pages_shared/sharing/unshared/volatile + merge_across_nodes NUMA-policy + KVM-host dedup workload). 214 Tier-3s total. Next iter: net/tipc/tipc.md (TIPC) + mm/numa-mempolicy.md.",
+  "created_at": "2026-05-10T17:58:41.782125466Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAb3ZAmO7sn651KVO87KwPE4yZpVuc4ifBRuuJqORF5dxV8wvf8rkotqYZBj2nXHTPZw04LhGwF24rxbnd/Z6nBg=="
+}
