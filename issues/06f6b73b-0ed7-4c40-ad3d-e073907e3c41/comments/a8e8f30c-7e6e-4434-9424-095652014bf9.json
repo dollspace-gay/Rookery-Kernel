@@ -1,0 +1,10 @@
+{
+  "uuid": "a8e8f30c-7e6e-4434-9424-095652014bf9",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 70 result: drivers/md/dm-crypt.md (LUKS encryption target - dm-crypt.c ~3723 lines; per-target CryptConfig with per-CPU sk-cipher tfm pool + per-bio DmCryptIo + IV gen modes (plain/plain64/essiv/lmk/tcw/eboiv/random) + AEAD authenticated-encryption + workqueue async-cipher dispatch + crypt_wipe_key with memzero_explicit + cryptsetup LUKS use case) + virt/kvm/x86-vmx-sgx.md (SGX-in-VM virtualization - sgx.c ~510 lines; per-VM SGX-LC MSRs + ENCLS leaf intercept (ECREATE/EINIT/EADD/EREMOVE) + ENCLU native execution + per-VM EPC region partitioning + per-VM lepubkeyhash for launch-control + nested-SGX support). 90 Tier-3s total. Next iter: drivers/md/dm-integrity.md (per-sector data-integrity authenticated-encryption) + virt/kvm/x86-vmx-pebs.md (Intel PEBS Precise-Event-Based-Sampling virtualization).",
+  "created_at": "2026-05-10T09:23:20.203064378Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABABiDgO/6Zt3WkpfCUW/h6zEjy7GlMDcuM+MqiHcJDPzEpoWFIIq7T4j7vWRr/ctu6ptZmT3qS2LwxvQwdTzi+Ag=="
+}
