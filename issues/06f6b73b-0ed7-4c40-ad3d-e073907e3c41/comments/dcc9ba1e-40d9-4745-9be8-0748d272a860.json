@@ -1,0 +1,10 @@
+{
+  "uuid": "dcc9ba1e-40d9-4745-9be8-0748d272a860",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 119 result: net/sched/sch-etf.md (Earliest TxTime First TSN qdisc - sch_etf.c ~517 lines; per-skb skb.tstamp via SO_TXTIME socket-option + SCM_TXTIME cmsg + per-qdisc rb-tree ordered by tstamp + qdisc_watchdog_schedule_ns at earliest tstamp - delta + ETF_F_DEADLINE_MODE drops past-deadline with ECANCELED + report_sock_error + clockid CLOCK_TAI/REALTIME + skip_sock_check for redirect + offload via TC_SETUP_QDISC_ETF for HW LaunchTime-Engine I210 + TSN class-B AVB) + virt/kvm/async-pf.md (KVM async page-fault generic core - virt/kvm/async_pf.c ~241 lines; per-vCPU async_pf {queue,done} lists + ASYNC_PF_PER_VCPU 64 cap + kvm_setup_async_pf alloc KvmAsyncPf entry + queue_work to async_pf_execute wq handler + get_user_pages mm-walk for swap-in + kvm_arch_async_page_present arch-glue x86 hooks + kvm_check_async_pf_completion drains done at vmenter + kvm_async_pf_wakeup_all teardown sync + cancel_work_sync + mutex serializes list-mut + kvm.task mm refcount). 188 Tier-3s total. Next iter: net/sched/sch-multiq.md (multi-queue) + virt/kvm/coalesced-mmio-impl.md (coalesced-MMIO write-batching).",
+  "created_at": "2026-05-10T16:16:01.275688340Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA1lZ3e4Oag2JJNPiAE36ctcaXl1sRZ5an9DSqL/xee6euYsSMopnroPiFxCxJgD9YI5pAPCaxa5as3hUeHyOiAw=="
+}
