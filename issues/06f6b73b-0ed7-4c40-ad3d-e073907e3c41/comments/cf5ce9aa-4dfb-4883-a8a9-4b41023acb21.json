@@ -1,0 +1,10 @@
+{
+  "uuid": "cf5ce9aa-4dfb-4883-a8a9-4b41023acb21",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase C /loop iter 61: 1 Tier-2 wrapper + 1 Tier-3 (pivot to kernel/cgroup — cgroup-v2 backbone of containers + systemd). kernel/cgroup/00-overview.md (umbrella for cgroup-v1 + cgroup-v2 unified hierarchy: 13 in-tree controllers cpu/memory/cpuset/io/pids/devices/freezer/hugetlb/rdma/misc/dmem/net_cls/net_prio, full cgroup.* file API incl events/freeze/kill/max.depth/max.descendants/type/pressure/idle, struct cgroup+cgroup_subsys_state+cgroup_subsys layouts, per-controller cgroup_v2 file taxonomy, rstat recursive stats, per-cgroup PSI integration, CLONE_NEWCGROUP namespace; declares 10 Tier-3 children + 2 mandatory TLA+ models attach_safety + rstat_consistency — 10 REQ-O / 9 AC-O, 0 open) + kernel/cgroup/cgroup-core.md (cgroup framework: struct cgroup+cgroup_root+css_set layouts, cgroup_create/destroy lifecycle, cgroup_attach_task w/ atomic can_attach+attach+cancel_attach rollback, cgroup_can_fork+post_fork+cancel_fork+exit hooks, cgroup.subtree_control + cgroup_apply_control tree walk, threaded subtrees w/ cgroup.type+threads, per-cgroup BPF attach, cgroup.kill recursive SIGKILL, cgroup.freeze + cgroup.events populated/frozen w/ EPOLLPRI; OWNS mandatory models/cgroup/attach_safety.tla — 12 REQ / 13 AC, 0 open). 18 upstream paths validated against baseline 27a26ccfd528. Path note: cpuset-v2.c doesn't exist as separate file — cpuset.c handles both v1 and v2 via cpuset-v1.c split. Total: 161 .design docs (24 Tier-2s now). Next: kernel/cgroup/rstat.md (recursive stats; OWNS rstat_consistency.tla) + kernel/cgroup/cpuset.md (cpuset controller for CPU+memory-node affinity).",
+  "created_at": "2026-05-10T00:24:22.102330154Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAADk6Kr1wEeR7aEajqxqISDIS/Pv6ZIwL2JqwMIGNhclk80M3ukaKWjKdFhwcfNtI23p0VZWfc5ZAgjSR3dL3BQ=="
+}
