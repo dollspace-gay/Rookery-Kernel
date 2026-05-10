@@ -1,0 +1,10 @@
+{
+  "uuid": "37fc06b3-7802-40be-98bd-0415136b81e8",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Resumed Phase C Tier-3 work. Iter delta: 2 high-impact foundation Tier-3s.\n\n- drivers/base/device-core.md: covers drivers/base/core.c (struct device lifecycle: register/add/initialize/release; sysfs+kobject reflection; uevent emission with SEQNUM monotonicity; devres anchor; devtmpfs; per-device link supplier-consumer dependency; per-device runtime PM init; DMA API setup). 7 REQ / 7 AC / Layer-1 Kani SAFETY (UAF + overflow + bitmap-OOB) / Layer-2 ref to parent uevent_seqnum.tla / Layer-3 Kani+Verus invariants / Layer-4 Verus uevent envp byte-equivalence model.\n- kernel/irq/irqdesc.md: covers kernel/irq/irqdesc.c (per-IRQ desc allocation/free; sparse-IRQ radix tree default-on; flat array fallback; per-CPU per-IRQ stat counters; /proc/interrupts rendering; kobject embedding for /proc/irq/N/; per-IRQ chip_data + handler_data; bitmap-allocator). 7 REQ / 7 AC / Layer-1 Kani (UAF + bitmap-OOB + saturating-counters) / Layer-3 invariants / Layer-4 Verus alloc_range post-conditions.\n\nTotal state: 236 .design docs, 100 Tier-2 wrappers + new Tier-3s. Phase B = 100% complete; Phase C now resuming with Tier-3 depth.\n\nKnowledge pages: design-drivers-base-device-core, design-kernel-irq-irqdesc.\n\nNext iter plan: kernel/bpf/bpf-core.md (BPF subsystem foundation underpinning all bpf prog types) + drivers/iommu/iommu-core.md (generic IOMMU API foundation underpinning every per-vendor IOMMU).",
+  "created_at": "2026-05-10T03:10:24.777046025Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAu5UJQGLWmd8UWGfRd9QqR//1IAi8vyG4ux2y5QYRwGxtmc13TxuNO8+L2wXqMhNkPLVbNSiZCqNaDtrPBOryCA=="
+}
