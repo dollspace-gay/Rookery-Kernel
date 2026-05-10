@@ -1,0 +1,10 @@
+{
+  "uuid": "b0380055-85d1-4455-9858-837521e5aef5",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 84 result: drivers/md/dm-verity.md (authenticated read - dm-verity-target.c ~1838 + dm-verity-fec.c ~734 + dm-verity-verify-sig.c ~199; per-target Merkle-tree per-block hash + walk leaf→root → root_digest comparison + per-CPU shash tfm pool + optional FEC Reed-Solomon recovery + signature-based root-hash gating + ERROR/RESTART/IGNORE/PANIC modes + Loadpin LSM integration; AVB + ChromeOS + immutable-distro use case) + virt/kvm/x86-msr.md (VMX MSR autoload + pass-through bitmap - in vmx.c ~300-400 lines; per-vCPU msr_autoload host+guest 8-slot lists for VM_ENTRY_MSR_LOAD/_EXIT_MSR_STORE_LOAD + 4KiB MSR_BITMAP with 4 sub-bitmaps R/W × low/high MSR + dynamic toggle for LBR/PEBS/x2APIC pass-through + IA32_SPEC_CTRL pass-through). 118 Tier-3s total. Next iter: drivers/md/dm-clone.md (efficient block-level data cloning) + virt/kvm/x86-host-irq.md (host-IRQ delivery to guest via posted-IRQ + irqfd integration).",
+  "created_at": "2026-05-10T11:15:35.256085717Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYdLVsQ9w1pLeggWojynvqYgmg2K+uxs+99Z567pj45AKdKTe/blPqezq3dBxS/gf44B1XQg+4PCoqjy/PkoHDQ=="
+}
