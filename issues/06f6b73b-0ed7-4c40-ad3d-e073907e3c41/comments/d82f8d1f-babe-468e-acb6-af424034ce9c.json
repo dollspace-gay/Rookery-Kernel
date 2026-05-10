@@ -1,0 +1,10 @@
+{
+  "uuid": "d82f8d1f-babe-468e-acb6-af424034ce9c",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 96 result: net/ipv4/tcp-input.md (TCP RX core - tcp_input.c ~7767 lines largest TCP file; per-segment fast-path header-prediction + slow-path SACK + tcp_data_queue + ofo-queue + tcp_ack with clean_rtx_queue + congestion-control plug-in (Reno/CUBIC/BBR/DCTCP) + RTT estimator + F-RTO + PAWS + TFO + TCP-AO + tcp_rcv_state_process for per-state transitions) + virt/kvm/x86-debug-regs.md (DR0-7 virtualization - in x86.c ~150-200 lines; per-vCPU vcpu.arch.db[0..3] + dr6 + dr7 + eff_db[] HW + guest_debug_dr7 + DR4/DR5 alias gating on CR4.DE + DR6/DR7 reserved-bit validation + KVM_GUESTDBG_USE_HW_BP isolation + vmcs.GUEST_DR7 + vmx_sync_dirty_debug_regs). Pivoted KVM topic from svm-pmu-counters (small) to debug-regs (substantial). 142 Tier-3s total. Next iter: net/ipv4/tcp-output.md (TCP TX core) + virt/kvm/x86-tsc-deadline.md (TSC-deadline timer in LAPIC).",
+  "created_at": "2026-05-10T12:51:26.287403661Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAcHe0d0TUJVj9Z16iY7CeqXHX7USu9W52zE4+l4HLC6cjBwYqWIgXYge543f6iz/p/n1pA/l54lkbiWxvjiCZBQ=="
+}
