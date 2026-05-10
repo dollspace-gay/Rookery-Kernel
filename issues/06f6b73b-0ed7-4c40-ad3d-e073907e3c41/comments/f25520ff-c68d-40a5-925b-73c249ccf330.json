@@ -1,0 +1,10 @@
+{
+  "uuid": "f25520ff-c68d-40a5-925b-73c249ccf330",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 157 (288 docs, +10 via 5 parallel Opus subagents wave-3): fs/erofs/super.md, fs/f2fs/super.md, fs/exfat/super.md, fs/zonefs/super.md, kernel/trace/trace.md, kernel/trace/ftrace.md, kernel/trace/ring-buffer.md, mm/mmu-gather.md, mm/mincore.md, fs/eventpoll-internals.md. Three batches of 10 docs delivered in ~25 minutes wall-time via 5x parallelism.",
+  "created_at": "2026-05-10T21:25:57.711792894Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+hafwPJLCVy+yvXM8MWn6HTr4I5OEC4rj2IPc8mbnqs8t0O/NScl2O5GA+168+H1csmAuoEnS1+iXGFCdgAlAg=="
+}
