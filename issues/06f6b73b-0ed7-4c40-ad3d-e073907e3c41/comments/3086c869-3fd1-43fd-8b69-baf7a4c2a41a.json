@@ -1,0 +1,10 @@
+{
+  "uuid": "3086c869-3fd1-43fd-8b69-baf7a4c2a41a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 67 result: kernel/cgroup/pids.md (pids controller - pids.c ~460 lines; per-cgroup PidsCgroup with atomic64 counter + limit + events; can_fork/cancel_fork/release/can_attach/attach hooks + ancestor-walk charge propagation + pids.events MAX-hit counter + anti-fork-bomb defense; cgroup-v1 + v2 unified semantics) + virt/kvm/x86-nested-svm.md (Nested-SVM - nested.c ~2083 lines; per-L1-vCPU SvmNested with vmcb02 + hsave + cur_vmcb12 cache + enter_svm_guest_mode/vmexit pair + nested NPT mapping L2-GPA→L1-GPA→host-PA + recalc_intercepts OR-merge L0/L1 + per-L2 ASID + KVM_GET/SET_NESTED_STATE migration). Pivoted from cgroup-v2 (covered by cgroup-core.md) to pids.md. 84 Tier-3s total. Next iter: drivers/block/blk-mq.md (multi-queue block layer) + virt/kvm/x86-sev.md (SEV/SEV-ES/SEV-SNP confidential VMs).",
+  "created_at": "2026-05-10T08:59:24.020953699Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAwSkEq0shXoNS0ywHKAyhQIklT8i9IFTHio/RI13cmAeKgL59TSzk0Q6Cf+M67x4Ykjyyin6P2r5ZSd+2GeWXCg=="
+}
