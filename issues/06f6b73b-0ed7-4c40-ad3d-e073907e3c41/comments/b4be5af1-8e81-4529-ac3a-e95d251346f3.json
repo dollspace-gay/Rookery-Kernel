@@ -1,0 +1,10 @@
+{
+  "uuid": "b4be5af1-8e81-4529-ac3a-e95d251346f3",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 82 result: drivers/md/dm-bufio.md (block buffer cache - dm-bufio.c ~2938 lines; per-target DmBufioClient + per-block DmBuffer with state machine (CLEAN/DIRTY/ASYNC_READ/ASYNC_WRITE) + LRU eviction + dirty-tracking + transactional write_dirty_buffers + barrier flush + per-buffer aux_data for client-defined per-block validation + shrinker integration + cleaner_thread; backing dm-thin/dm-cache/dm-integrity metadata) + virt/kvm/x86-vmx-apicv.md (Intel APICv - in vmx.c ~500-700 lines; per-vCPU virtual_apic_page IO-coherent + per-VM apic_access_page MMIO-trap + per-vCPU 64-byte aligned PostedIntrDesc with PIR/control(ON/SN/NV/NDST) + virtualize-x2APIC + APIC-register-virtualization + virtual-interrupt-delivery + posted-IRQ via IOMMU IRTE + per-VM IPI-virtualization PID-table). 114 Tier-3s total. Next iter: drivers/md/dm-stats.md (per-target IO-stats accounting) + virt/kvm/x86-mca.md (MCE + Machine-Check virtualization).",
+  "created_at": "2026-05-10T10:58:25.478711276Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAeiYGbs9NQdk2rgJyGw6YELpoIHXABT3mKPCYNGkNat+eTyOE2BzdN+oZ64l5uChnapDxOEkf7Kk1v+W6W7C6BQ=="
+}
