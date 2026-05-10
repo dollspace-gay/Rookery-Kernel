@@ -1,0 +1,10 @@
+{
+  "uuid": "a68c1b31-fd84-415e-ba94-8793c3c5e330",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 51 result: virt/kvm/x86-mmu-shadow.md (legacy shadow MMU - mmu.c ~8104 lines + paging_tmpl.h per-mode walker + spte.c bit layout + page_track.c external-client write notify; per-vCPU shadow context + per-SP rmap + mmu_valid_gen invalidation + KVMGT integration) + drivers/iommu/intel-irq-remap.md (Intel IR - irq_remapping.c ~1605 lines; per-IOMMU IRT 64K entries + per-IRTE 128-bit atomic-update + source-id validation + posted-IRQ PDA mode for KVM SR-IOV bypass + x2APIC gate). 52 Tier-3s drafted total. Next iter plan: drivers/iommu/intel-prq.md (PRI Request Queue for SVA/SVM page-faults) + virt/kvm/x86-svm.md or x86-vmx.md (per-vendor VM op-table + vmenter/vmexit handlers).",
+  "created_at": "2026-05-10T06:49:57.882360990Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASAJDe8gcV0FwKB4GbOOfUjRMuUKu2JlCBF/NRmB75gidkbUsovbJiFy9cur81L3Fy+Gbx5fy3v0pRQhALMg0Dw=="
+}
