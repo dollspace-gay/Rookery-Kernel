@@ -1,0 +1,10 @@
+{
+  "uuid": "1b097a14-2eb9-429b-86ce-df1e9b55cde6",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 101 result: net/ipv4/raw.md (IPv4 RAW socket - raw.c ~1126 lines; per-RAW RawSock + per-protocol raw_v4_hashinfo (256-bucket) + raw_local_deliver multi-sock fan-out via skb_clone + IP_HDRINCL userspace IP-header passthrough + CAP_NET_RAW gating + per-sock BPF filter + ICMP error → sk_err + raw_v4_err + ping/traceroute/dhcp use case) + virt/kvm/x86-pku.md (Protection Keys for User-pages + PKS - in x86.c ~150-200 lines; PKRU 32-bit XSAVE-component-9 register (16 keys × 2-bit AD/WD) for user-mode + MSR_IA32_PKRS supervisor-mode + per-PTE bits[62:59] protection-key + CR4.PKE/_PKS enable + per-page-fault permission_fault check vs PKRU/PKRS + WRPKRU/RDPKRU non-intercepted user-mode + WRMSR PKRS privileged + CPUID OSPKE/PKS gating). 152 Tier-3s total. Next iter: net/ipv4/inet_hashtables.md (per-protocol bind/established hashes) + virt/kvm/x86-cet.md (CET shadow-stack virtualization).",
+  "created_at": "2026-05-10T13:31:22.577636224Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3CKdFbHqwhYOuRlkte8P6zQrDiKn9Qy+fqK8dH1BA/OnRketdYEGOl9qv7RHQM+rJJ6A7yCY5k/3LzMQM6aHCA=="
+}
