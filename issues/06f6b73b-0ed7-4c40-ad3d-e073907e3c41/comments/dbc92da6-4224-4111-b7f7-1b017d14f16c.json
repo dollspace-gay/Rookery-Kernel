@@ -1,0 +1,10 @@
+{
+  "uuid": "dbc92da6-4224-4111-b7f7-1b017d14f16c",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 64 result: io_uring/io_uring-core.md (io_uring core - io_uring.c ~3259 + register.c ~1038 + sqpoll.c ~569; per-fd IoRingCtx with mmap'd SQ+CQ rings + per-CPU io_kiocb pool + opcode-table dispatch + io-wq worker pool fallback for blocking ops + IORING_REGISTER_FILES/_BUFFERS pre-reg + SQPOLL kthread + linked ops + cancel) + virt/kvm/x86-hyperv.md (KVM Hyper-V emulation - hyperv.c ~2926 lines; per-VM kvm_hv with TSC page + crash params + per-vCPU SynIC 16 SINTs + 4 stimers + VP-assist-page + Hyper-V CPUID 0x40000000-6 + hypercall dispatch HVCALL_FLUSH_TLB/SEND_IPI/POST_MESSAGE/SIGNAL_EVENT + KVM_HYPERV_EVENTFD VMBus integration + BSOD param logging). 78 Tier-3s total. Next iter: kernel/printk/printk.md (kernel logging) + virt/kvm/x86-xen.md (Xen guest emulation surface).",
+  "created_at": "2026-05-10T08:35:54.388574273Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAg4ByyQJIAOiKNdA1CF9ju5GwrAf+IDvwA1muc6KGciqUZqaA1j9yVdJibYDWOKmAmp6eQHkEVqXy9n0ZxOQjAQ=="
+}
