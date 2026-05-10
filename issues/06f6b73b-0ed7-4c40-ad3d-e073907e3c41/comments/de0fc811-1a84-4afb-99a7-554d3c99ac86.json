@@ -1,0 +1,10 @@
+{
+  "uuid": "de0fc811-1a84-4afb-99a7-554d3c99ac86",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 55 result: virt/kvm/x86-mmu-page-track.md (KVM page-tracker - page_track.c ~374; per-VM gfn-track-mode counter + SRCU notifier list + KVMGT/nested-virt write-monitor; integrates with shadow MMU pte-write + supports WRITE/ACCESS modes) + kernel/rcu/tree.md (Tree-RCU - tree.c ~4931 + tree_plugin.h + tree_exp.h + tree_nocb.h + tree_stall.h; multi-level rcu_node tree + per-CPU rcu_data + GP state machine + segmented cb_list + NOCB offload + expedited-GP + CPU-stall watchdog). Pivoted second slot from intel-debugfs to kernel/rcu/tree.md (much higher-value foundational kernel infrastructure used everywhere). 60 Tier-3s total. Next iter: kernel/rcu/srcu.md + virt/kvm/x86-pmu.md (architectural perfmon).",
+  "created_at": "2026-05-10T07:21:43.990884929Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPhCYXblCNlOpSEt91qPM+1wWqjUr86xxIkg6V47w3QRM6YgY8+FT7SFjHpD46BflxNsTq17HVnnKWO8900xvCg=="
+}
