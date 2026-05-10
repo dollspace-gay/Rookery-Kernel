@@ -1,0 +1,10 @@
+{
+  "uuid": "ba5dea6d-0d8b-4f96-8ff0-d63627235cf1",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 62 result: kernel/sched/wait.md (waitqueue + bit-wait + completion - wait.c ~465 + wait_bit.c ~278 + wait.h + completion.c; per-(condition) wqh + wqe with default_wake/autoremove_wake func + WQ_FLAG_EXCLUSIVE thundering-herd defense + wake_q batched defer + wait_bit hash table + Completion done counter + wait_event macro pattern with prepare→check→schedule) + virt/kvm/x86-steal-time.md (KVM_FEATURE_STEAL_TIME paravirt - in x86.c ~400-500 lines; 64-byte control-page with steal/version/flags/preempted + version sequence-counter atomic + per-vmexit set_preempted + per-vmenter record_steal_time + KVM_VCPU_PREEMPTED bit for PV qspinlock optimization + KVM_VCPU_FLUSH_TLB hint). 74 Tier-3s total. Next iter: kernel/cgroup/cgroup.md (cgroup core hierarchy) + virt/kvm/x86-pv-ipi.md (PV-IPI + PV-tlb-flush).",
+  "created_at": "2026-05-10T08:18:18.679102105Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABADlHGfkwyWX4s/U5Xpn3uBFFvNkxSRRCwrYbhePCId1sEgjKHi0LUifwtVmVqgcVzHcjQ4wRUNZp/2WmsasRiBw=="
+}
