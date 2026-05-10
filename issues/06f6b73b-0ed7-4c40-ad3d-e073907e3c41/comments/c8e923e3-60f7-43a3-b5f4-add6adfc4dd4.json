@@ -1,0 +1,10 @@
+{
+  "uuid": "c8e923e3-60f7-43a3-b5f4-add6adfc4dd4",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 138 result: net/9p/p9.md (9P/Plan9 protocol client - net/9p/client.c ~2209 + protocol.c ~800 lines; per-mount p9_client + per-fid (file/path identifier) tracked in idr + p9_req_t per-T-msg with tag matching + 9P2000 / 9P2000.U Unix-extensions / 9P2000.L Linux-extensions {LCREATE/MKDIR/MKNOD/RENAME/SYMLINK/LINK/READLINK/STATFS/LSTAT/LOPEN/XATTRWALK/XATTRCREATE/LOCK/GETLOCK} + msg types T-VERSION/ATTACH/WALK/OPEN/LOPEN/CREATE/LCREATE/READ/WRITE/CLUNK/REMOVE/STAT/GETATTR/WSTAT/SETATTR/FLUSH + per-tag u16 + msize negotiation + per-QID {type, version, path} + p9_client_rpc T-msg+wait+R-msg + transports trans_fd TCP/Unix + trans_virtio for QEMU virtio-9p + trans_xen + trans_rdma + 9pfs VM/container file-passthrough) + mm/percpu.md (Per-CPU memory allocator - mm/percpu.c ~3388 lines; per-chunk PcpuChunk with N pages × NR_CPUS replicas + alloc_map per-byte bitmap PCPU_MIN_ALLOC_SIZE 4-byte granularity + bound_map per-region-start marker + md_blocks per-block scan/contig hints + pcpu_first_chunk static-percpu BSS + pcpu_reserved_chunk for module-load + alloc_percpu/free_percpu wrappers + alloc_percpu_gfp __GFP-flagged + this_cpu_ptr/per_cpu_ptr/this_cpu_inc macros + per-NUMA-group local-alloc + pcpu_balance_workfn periodic chunk-reclaim + pcpu_create_chunk slow-path + populate_chunk on-demand pages + percpu_counter / RCU rcu_data / tracepoints / kernel-stats backbone). 226 Tier-3s total. Next iter: net/can/bcm.md (CAN broadcast manager) + mm/sanitizers.md or pivot.",
+  "created_at": "2026-05-10T18:47:08.425749995Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+9gpjOLU5kMGkd/BaYDPwwBZj0BFJDGCZjKN6Xm9tA3/hvi6Ua9PGq7l0YHJCEaZ70nDtALivFAmfRkXm+ZyAg=="
+}
