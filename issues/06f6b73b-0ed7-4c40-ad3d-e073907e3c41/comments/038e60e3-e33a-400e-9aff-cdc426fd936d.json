@@ -1,0 +1,10 @@
+{
+  "uuid": "038e60e3-e33a-400e-9aff-cdc426fd936d",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 100 result: net/ipv4/icmp.md (ICMPv4 protocol - icmp.c ~1766 lines; per-skb icmp_rcv with header validate + per-type dispatch (echo/redirect/unreach/time_exceed/etc.) + icmp_send for IP-layer error reports + per-CPU control socket pool for fast emit + per-error rate-limit + PMTU update via FRAG_NEEDED + ICMP-redirect security + per-namespace isolation) + virt/kvm/x86-vmload-vmsave.md (SVM VMLOAD/VMSAVE - in svm.c ~150-200 lines; per-CPU host_save_area + per-vCPU vmcb.save_area for FS/GS/TR/LDTR/syscall-MSRs/sysenter-MSRs not handled by VMRUN auto-save + INTERCEPT_VMSAVE/_VMLOAD for nested-SVM L1 emulation + 4KiB-aligned save-area). 150 Tier-3s total — milestone passed (also committed batch of 28 from iters 86-99).",
+  "created_at": "2026-05-10T13:23:23.480812466Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOrnanDZL5wTPAB/kgZbbPaVCWdKdR9ww1mKqnknFbOCHkVWg0nlEiY7x3xje2s/4wb6cxhs1xnm3GCQ8DrV2DQ=="
+}
