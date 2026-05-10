@@ -1,0 +1,10 @@
+{
+  "uuid": "3aac2c55-e6be-47a5-8dbe-dd7b9a945636",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 89 result: net/core/dev.md (netdev core - dev.c ~13314 lines second-largest networking file; per-NIC NetDevice + per-CPU SoftnetData + dev_queue_xmit TX path with multi-queue + qdisc + ndo_start_xmit + __netif_receive_skb_core RX with protocol-demux + NAPI poll + RPS/RFS for SMP scaling + XDP integration + per-NIC features TSO/GSO + carrier_on/off) + virt/kvm/x86-cr0-cr4.md (control-register virtualization - in x86.c ~400-500 lines; per-vCPU CR0/CR3/CR4 shadows + kvm_set_cr0/3/4 with reserved-bit validation + post_set_cr* side-effects (MMU re-init, TLB flush, memory-type refresh) + VMX CR0_GUEST_HOST_MASK / CR0_READ_SHADOW + SVM intercept_cr + LMSW emulation + per-paging-mode transition + PCIDE no-flush bit). 128 Tier-3s total. Next iter: net/core/skbuff-core.md (sk_buff alloc/free/clone) + virt/kvm/x86-segments.md (segment register virtualization).",
+  "created_at": "2026-05-10T11:56:48.372485537Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABARCCuz3yIvmg7YPUPXbx51+wEiy3tAdXID+Fvzlw4CuKzTjG7gzi7okrz4l+z1JZ4y1shTgBlvetrvvor//PhDQ=="
+}
