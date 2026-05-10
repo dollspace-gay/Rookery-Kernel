@@ -1,0 +1,10 @@
+{
+  "uuid": "2c531f3a-1c73-4780-abdb-f59dcf4e85bb",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 128 result: net/bridge/br_forward.md (Linux bridge forwarding plane - br_forward.c ~363 lines; should_deliver per-(port, skb) gates state==FORWARDING + br_allowed_egress(vid) + skb.dev != p.dev + br_forward to single port + br_flood walks port_list with per-pkt-type BR_FLOOD/MCAST_FLOOD/BCAST_FLOOD flag + deliver_clone for non-last + __br_forward consumes last + br_forward_finish skb_push ETH_HLEN + dev_queue_xmit + NF_HOOK NF_BR_FORWARD chain + nbp_switchdev_frame_mark_tx_fwd_offload prevents HW+SW double-forward + per-VLAN egress tag mgmt) + mm/userfaultfd.md (userfaultfd page-fault userspace-handling - mm/userfaultfd.c ~2241 + fs/userfaultfd.c ~2231 lines; userfaultfd(2) returns anon-inode fd + UFFDIO_API features negotiation + UFFDIO_REGISTER per-VMA mode {MISSING, WP, MINOR} + handle_userfault blocks faulting task on ctx.fault_wqh + uffd_msg pushed to ctx.fault_pending_wqh + UFFDIO_COPY mfill_atomic_copy install PTE + UFFDIO_ZEROPAGE zero-page + UFFDIO_CONTINUE existing-page + UFFDIO_WRITEPROTECT toggle _PAGE_UFFD_WP + UFFD_FEATURE_SIGBUS instead-of-block + EVENT_FORK/REMAP/REMOVE/UNMAP per-mm event notify + post-copy live-migration / CRIU / runtime guard pages). 206 Tier-3s total. Next iter: net/bridge/br_fdb.md (FDB forwarding-database) + mm/memcg.md (memory cgroup).",
+  "created_at": "2026-05-10T17:26:43.028974618Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAgm5oT5grtWGi+chzU6K1KR+djpUaGu4QHpXnFN1lNsAflgyMcBwd6Bcq9sBv+CVOMXaYg4gIjSN1vu1ev7AZBA=="
+}
