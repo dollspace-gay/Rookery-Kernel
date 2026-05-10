@@ -1,0 +1,10 @@
+{
+  "uuid": "6f134287-eb7f-498f-aed6-11c5babab2bd",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 131 result: net/can/raw.md (CAN_RAW SocketCAN raw protocol - net/can/raw.c ~1142 + af_can.c ~932 lines; per-RawSock + per-(can_id, can_mask) filter set + can_rx_register/unregister with AF_CAN family + per-iface ETH_P_CAN/CANFD packet_type + raw_sendmsg constructs can_frame + raw_rcv per-skb clone+queue + CAN_RAW_FILTER/ERR_FILTER/LOOPBACK/RECV_OWN_MSGS/FD_FRAMES/XL_FRAMES/JOIN_FILTERS sockopts + CAN-2.0A 11-bit / 2.0B 29-bit ID + DLC + 8/64/2048 byte payload + sockaddr_can bind to ifindex 0=any + struct can_filter UAPI + per-namespace + candump userspace) + mm/migration-compaction.md (Page migration + compaction - mm/migrate.c ~2768 + compaction.c ~3351 lines; migrate_pages list-batch + per-folio __migrate_folio with folio_lock + migration-PTE swap-marker + per-mapping callback migrate_folio/buffer_migrate_folio/filemap_migrate_folio + move_to_new_folio remaps via rmap_walk + MIGRATE_ASYNC/SYNC_LIGHT/SYNC modes + isolate_migratepages_range bottom-up cursor + isolate_freepages top-down cursor + compact_zone cursors-meet termination + try_to_compact_pages direct on high-order alloc-fail + kcompactd background daemon + MIGRATE_UNMOVABLE/MOVABLE/RECLAIMABLE/CMA/HIGHATOMIC/ISOLATE pageblock-types + numa_migrate_prep balancing). 212 Tier-3s total. Next iter: net/bluetooth/hci_core.md (Bluetooth HCI) + mm/ksm.md (KSM merge same pages).",
+  "created_at": "2026-05-10T17:50:45.202872419Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4SLqzofuXEbbZDOcxLO6Pz24lJyKsZBv1fs9VlBog+ZntJTPw6IGOKjLvr+syVjsl+Gp28ejq1B4C91OvkE/BA=="
+}
