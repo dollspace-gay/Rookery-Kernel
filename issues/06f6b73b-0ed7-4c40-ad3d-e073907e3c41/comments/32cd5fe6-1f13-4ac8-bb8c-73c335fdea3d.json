@@ -1,0 +1,10 @@
+{
+  "uuid": "32cd5fe6-1f13-4ac8-bb8c-73c335fdea3d",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 155 (268 docs, +12 in one batch via 5 parallel Opus subagents): mm/mempool.md (LIFO reserve fallback), mm/madvise.md (full MADV_* table + process_madvise), mm/gup.md (FOLL_* + fast/slow path + FOLL_LONGTERM), mm/mremap.md (move_page_tables + DONTUNMAP), kernel/livepatch/core.md (klp_patch lifecycle + kallsyms reloc), kernel/livepatch/transition.md (per-task TIF_PATCH_PENDING state-machine), fs/aio.md (kioctx ring + IOCB_CMD_*), fs/coredump.md (ELF notes + MMF_DUMP_* filter), net/ipv4/tcp-bbr.md (STARTUP/DRAIN/PROBE_BW/PROBE_RTT), net/tls/tls-sw.md (sw kTLS encrypt+decrypt+strparser). Plus iter 154 sequential: mm/oom-kill.md + kernel/futex/pi.md. Commit 907e65a.",
+  "created_at": "2026-05-10T21:05:09.292374748Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyeaW87a30FB88L5ZQ61Yu+9sAuFj8fU3qltxVsuL9w42mnT+Svt2BIrLWaaNu2QccnaDQfOmQ4ayYgYmiCmnCw=="
+}
