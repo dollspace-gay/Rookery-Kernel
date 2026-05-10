@@ -1,0 +1,10 @@
+{
+  "uuid": "5ec4445c-d754-4080-a962-cc25e90f1525",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 78 result: drivers/md/dm-mirror.md (legacy mirror target - dm-raid1.c ~1531 + dm-log.c ~916 + dm-region-hash.c; per-target MirrorSet + per-region dirty-state via dm-log + per-region in-flight tracking via dm-region-hash + read_balance + persistent vs core vs cluster log types + recovery via dm_kcopyd; LVM2-pre-2010 backend) + virt/kvm/x86-vmx-vmenter.md (VMX vmenter asm stub - vmenter.S ~387 lines; __vmx_vcpu_run ABI RDI=vcpu/RSI=regs/RDX=run_flags + host GPR push/pop + guest GPR load from regs[] + CR2 round-trip + VMRESUME vs VMLAUNCH selection + Spectre-v2 retpoline + IBRS save/restore boundary + L1TF L1D flush + noinstr annotation). 106 Tier-3s total. Next iter: drivers/md/dm-flakey.md (fault-injection target) + virt/kvm/x86-svm-vmenter.md (AMD SVM vmenter asm stub).",
+  "created_at": "2026-05-10T10:26:18.483904324Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAp/jN4KJ4vwzyKDFYyRXYa823ouukkNb0I+H0zdB6nRdItNJ7O1jc2cNsaA1RXo2julTQ/lJmTETP26Z601CyCw=="
+}
