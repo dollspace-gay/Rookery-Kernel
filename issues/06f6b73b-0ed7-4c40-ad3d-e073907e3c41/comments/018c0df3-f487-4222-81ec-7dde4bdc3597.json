@@ -1,0 +1,10 @@
+{
+  "uuid": "018c0df3-f487-4222-81ec-7dde4bdc3597",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 54 result: drivers/iommu/intel-cache.md (VT-d invalidation cache mgmt - cache.c ~534 lines; per-(domain, iommu, dev, pasid) CacheTag list + per-attach cache_tag_assign_domain + range/all flush dispatch to QI + IH-bit + non-present cache flush + iotlb_sync iommu-API hook) + virt/kvm/x86-mmu-spte.md (per-SPTE bit-layout + make_spte construction - spte.c ~576 + spte.h ~572; 64-bit SPTE bit map + EPT vs legacy variants + MMIO-SPTE special encoding for EPT-misconfig + access-track + NX-huge-page-split + sw-bit MMU/Host-Writable AND-coupling). 58 Tier-3s total. Next iter: drivers/iommu/intel-debugfs.md (per-IOMMU debugfs surface for diagnostic) + virt/kvm/x86-mmu-page-track.md (page-tracker external-client write-notify for KVMGT/nested-virt).",
+  "created_at": "2026-05-10T07:13:18.185600098Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA9tmJWihINCE3gsN9CxEfG/jpfpWm296rGMN90uxMa3ibC96ERx4ioUe4qoa4raup6QzwthtXPPJrbBf/vsVICQ=="
+}
