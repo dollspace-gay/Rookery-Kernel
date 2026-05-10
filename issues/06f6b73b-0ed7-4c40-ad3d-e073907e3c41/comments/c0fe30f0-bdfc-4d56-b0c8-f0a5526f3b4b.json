@@ -1,0 +1,10 @@
+{
+  "uuid": "c0fe30f0-bdfc-4d56-b0c8-f0a5526f3b4b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 98 result: net/ipv4/tcp-cong.md (TCP CC plug-in framework - tcp_cong.c ~538 + tcp_cubic.c ~552 + tcp_bbr.c ~1200; tcp_congestion_ops vtable + per-CC init/release/ssthresh/cong_avoid/set_state/cwnd_event/in_ack_event/pkts_acked/min_tso_segs/cong_control/undo_cwnd hooks + Reno AIMD + CUBIC W(t)=c(t-K)^3+Wmax curve + BBR pacing-based + DCTCP ECN-aware + per-namespace default + BPF struct_ops CC) + virt/kvm/x86-init-sipi.md (INIT/SIPI AP boot - in lapic.c+x86.c ~200-300 lines; per-vCPU mp_state KVM_MP_STATE_RUNNABLE/_UNINITIALIZED/_INIT_RECEIVED/_HALTED/_SIPI_RECEIVED/_STOPPED + Lapic::handle_init/_sipi + kvm_vcpu_reset on INIT + SIPI vector<<12 CS:RIP setup + KVM_GET/_SET_MP_STATE for migration + SMI>INIT priority). 146 Tier-3s total. Next iter: net/core/dst.md (dst_entry routing-cache) + virt/kvm/x86-cpuid-caps.md (per-VM CPUID-caps + supported-cpuid).",
+  "created_at": "2026-05-10T13:07:11.170891758Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAyY84IZuGZbUy8YCiW18xRGbKZhFjGA8C6Dbm3S6cF/ijsMfpJHPssmKbBbc4Y91fabjd2CAmpx7BeSbmO8uiBA=="
+}
