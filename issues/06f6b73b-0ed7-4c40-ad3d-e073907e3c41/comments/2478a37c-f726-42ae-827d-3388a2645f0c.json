@@ -1,0 +1,10 @@
+{
+  "uuid": "2478a37c-f726-42ae-827d-3388a2645f0c",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 65 result: kernel/printk/printk.md (kernel logging - printk.c ~5184 + printk_ringbuffer.c ~2418 + printk_safe.c; per-CPU printk_recurse_count + lockless ringbuffer with desc/data ring atomic state-CAS UNUSED→RESERVED→COMMITTED→FINALIZED→REUSE + console_lock mutex + per-driver register_console + KERN_* severity gating + printk_ratelimited + NMI-safe path) + virt/kvm/x86-xen.md (KVM Xen guest emulation - xen.c ~2348 lines; per-VM kvm_xen with shared_info + per-vCPU vcpu_info + 4096-port evtchn 2-bit pending+masked state + runstate accumulator + Xen pvclock + hypercall dispatch SCHED_OP/EVENT_CHANNEL_OP/VCPU_OP + KVM_XEN_HVM_CONFIG_INTERCEPT_HCALL + KVM_XEN_HVM_EVTCHN_SEND eventfd binding). 80 Tier-3s total. Next iter: kernel/audit/audit.md (auditd subsystem) + virt/kvm/x86-nested-vmx.md (nested-VMX L1→L2 vmcs12 emulation).",
+  "created_at": "2026-05-10T08:43:32.150193405Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2exL8DZEl+Ay7uoU5DwwGMnCgdslpIBRcX6nWq60NNAwjd6uvSm0n68ZGMbUprix98gGZOF0I2kNUHtOE6hXCA=="
+}
