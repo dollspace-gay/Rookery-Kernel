@@ -1,0 +1,10 @@
+{
+  "uuid": "79522dcf-2120-45a8-9f98-685b32ff0817",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 158 (298 docs, +10 via wave-4 parallel Opus subagents): block/blk-throttle, crypto/algapi, kernel/rcu/tasks, kernel/time/posix-cpu-timers, io_uring/net, io_uring/rsrc, io_uring/poll, drivers/nvme/host-fabrics, drivers/nvme/host-tcp, fs/dax. 4 waves = 40 new docs in this session.",
+  "created_at": "2026-05-10T21:35:51.011775218Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAA7heQ1E42DAO/va+OH+3g1eYPugrvAao1x+t+ktmFgQUZOsuHU6vFmxPWXV3zFN21VEYsDMJA5EsH+GNODr6Dw=="
+}
