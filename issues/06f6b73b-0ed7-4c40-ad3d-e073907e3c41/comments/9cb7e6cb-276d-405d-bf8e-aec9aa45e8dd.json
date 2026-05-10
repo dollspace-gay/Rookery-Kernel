@@ -1,0 +1,10 @@
+{
+  "uuid": "9cb7e6cb-276d-405d-bf8e-aec9aa45e8dd",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 64 — breadth-first Tier-2 wrappers (continuing user redirect):\n\n- virt/kvm/00-overview.md: KVM full surface — generic core (vm/vcpu fd, memslots, dirty-ring, irqfd/ioeventfd, guest_memfd, async_pf, pfncache, vfio bridge), x86 arch (CPUID, emulator, in-kernel APIC/IOAPIC/PIC/PIT, MMU TDP+shadow, SMM, MTRR, Hyper-V, Xen, PMU), VMX shard (root+nested+posted-intr+SGX+TDX), SVM shard (root+nested+AVIC+SEV/SEV-ES/SEV-SNP). 13 REQ-O / 12 AC-O / 7 mandatory TLA+ models / 3 Verus contracts / 31 Tier-3 children declared.\n- drivers/base/00-overview.md: Linux Driver Model — device/bus/driver/class core, dd state machine + deferred probe, devres LIFO release, platform/auxiliary/faux/isa buses, devtmpfs, firmware loader (incl FW_UPLOAD), PM core (runtime + system + qos + wakeup), fwnode/property + swnode, regmap (mmio/i2c/spi/i3c/mdio/sdw/ac97/fsi/sccb + irq aggregation), component framework, transport_class, cpu/node/memory/cacheinfo sysdev surface, hypervisor topdir, syscore_ops, devcoredump. 14 REQ-O / 12 AC-O / 5 mandatory TLA+ models / 3 Verus contracts / 27 Tier-3 children declared.\n\nTotal state: 166 .design docs, 31 Tier-2 wrappers (15 top-level + 16 sub-tier-2).\n\nKnowledge pages: design-virt-kvm-overview, design-drivers-base-overview.\n\nIter 65 plan: kernel/perf/00-overview.md (perf events + hw breakpoints + tracepoints) + drivers/pci/00-overview.md (PCI/PCIe core + AER + SR-IOV + ATS/PASID + hotplug + ASPM).",
+  "created_at": "2026-05-10T00:51:40.909956778Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAfqVNPFtxoNSptGIUE3RctQ9p7JQ0BWUy+c7CAmsLAuoA26MOs8ltzXDcP18o5JbIHe0FwMfAA9CsD9V/vYF2Bw=="
+}
