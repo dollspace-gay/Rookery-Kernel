@@ -1,0 +1,10 @@
+{
+  "uuid": "81d5d7d9-a734-487b-a0c0-7443b8107922",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 144 result: net/mptcp/mptcp.md (Multipath TCP RFC 8684 - net/mptcp/protocol.c ~4710 lines; per-master mptcp_sock + per-subflow MptcpSubflowContext on TCP + MP_CAPABLE handshake key+token+idsn negotiate + MP_JOIN HMAC-authenticated additional subflows + DSS Data Sequence Signal TCP-option for per-msk reassembly + ADD_ADDR/REMOVE_ADDR HMAC-protected endpoints + path-manager kernel-PM / userspace-PM via netlink / BPF-PM + mptcp_sendmsg distributes across subflows + mptcp_recvmsg DSN-ordered merge + per-subflow TCP loss-detection + mobile Wi-Fi+cellular / datacenter ECMP / multi-NIC backbone) + kernel/dma/dma-direct.md (Direct DMA API - kernel/dma/direct.c ~678 lines; passthrough no-IOMMU per-device with phys==dma + dev.dma_mask 32-or-64-bit + dma_direct_map_page with swiotlb-bounce fallback + dma_direct_alloc CMA-or-dma-pool-or-alloc_pages + arch_sync_dma_for_device/cpu for non-coherent + phys_to_dma/dma_to_phys per-arch conversion + DMA_ATTR_SKIP_CPU_SYNC/NO_WARN/WEAK_ORDERING/FORCE_CONTIGUOUS + dma_direct_supported per-mask + dma_direct_map_sg per-entry + per-coherent-alloc with arch_dma_map_coherent uncached). 238 Tier-3s total. Next iter: net/sched cls-cgroup or another + kernel/locking/rwsem.md or pivot.",
+  "created_at": "2026-05-10T19:31:52.259159576Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAR6KBqqu3CMeVJMjMLRQa79c6JRo4DfF6WzRjDymeRCx//51nspKZGyOVY6CP16ep9tEP+umFORrZtUKPgSuTDQ=="
+}
