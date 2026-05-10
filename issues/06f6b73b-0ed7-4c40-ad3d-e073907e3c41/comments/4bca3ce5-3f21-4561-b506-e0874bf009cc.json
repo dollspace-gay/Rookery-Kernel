@@ -1,0 +1,10 @@
+{
+  "uuid": "4bca3ce5-3f21-4561-b506-e0874bf009cc",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 66 result: kernel/audit/audit.md (auditd subsystem - audit.c ~2841 + auditsc.c ~2983 + audit_tree.c ~1093 + audit_watch.c ~547; per-task audit_context state machine + per-rule krule with mask+fields+lsm + filter-list dispatch + netlink reply via auditd + audit_tree fsnotify subtree-rules + audit_watch per-path + backlog-limit failure modes) + virt/kvm/x86-nested-vmx.md (Nested-VMX - nested.c ~7456 + vmcs12.c + vmcs_shadow_fields.h; per-L1-vCPU vmcs02 + vmcs12 ABI struct + VMRESUME → prepare_vmcs02 → run L2 → vmcs12 populated on exit + VMCS-shadowing acceleration via vmread/vmwrite-bitmap + nested EPTP via TDP-MMU + per-L2 VPID + Hyper-V evmcs accel + KVM_GET/SET_NESTED_STATE migration). 82 Tier-3s total. Next iter: kernel/cgroup/cgroup-v2.md + virt/kvm/x86-nested-svm.md (AMD nested-SVM).",
+  "created_at": "2026-05-10T08:51:54.006835158Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA1/g4JJwVLvfObKT+p3YNpCKqNoLl/piPlnrBWmehDMHAFFxg48wmH3i9CxyiIUlc36gEHW3RdkcLKUttudWRDg=="
+}
