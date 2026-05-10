@@ -1,0 +1,10 @@
+{
+  "uuid": "09371bd5-4b6f-4f58-bc3a-e5b41a8febef",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 72 result: drivers/md/dm-cache.md (block cache target - dm-cache-target.c ~3612 + dm-cache-metadata.c ~1827 + dm-cache-policy-smq.c ~1960; per-target Cache + DmCacheMetadata + SMQ stochastic-multi-queue policy + bio_prison per-block + writeback/writethrough/passthrough modes + per-cblock dirty-bit + bg writeback worker + dm-bufio for metadata persistence) + virt/kvm/x86-vmx-lbr.md (Intel Last-Branch-Record virtualization - in pmu_intel.c; per-vCPU lbr_desc + x86_pmu_lbr records cap + MSR_LBR_FROM/_TO/_INFO/_TOS pass-through via MSR-bitmap + DEBUGCTLMSR.LBR-tied enable/disable + perf_event_create_kernel_counter for LBR-watchdog + VM-entry/exit MSR auto-load/save). 94 Tier-3s total. Next iter: drivers/md/raid10.md (RAID-10 multi-disk parity) + virt/kvm/x86-svm-ibs.md (AMD Instruction-Based-Sampling).",
+  "created_at": "2026-05-10T09:39:18.583020873Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA5SLZDOvAEtCd8P8Lw6NBOAmPLvtU4tTSD2ktcN0grBJE+RUWSSezwG/PawhEwTXsTOjon8zJ9RKAT6sLS8EzAA=="
+}
