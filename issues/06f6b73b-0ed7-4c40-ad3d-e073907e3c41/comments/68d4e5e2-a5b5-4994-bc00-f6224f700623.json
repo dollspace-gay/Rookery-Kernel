@@ -1,0 +1,10 @@
+{
+  "uuid": "68d4e5e2-a5b5-4994-bc00-f6224f700623",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iter 140 result: net/dsa/dsa.md (Distributed Switch Architecture - dsa.c ~1900 lines; per-switch DsaSwitch with N ports + DsaPort types {UNUSED, CPU=conduit, DSA=cascade, USER=front-panel} + DsaSwitchTree for cascaded switches + DsaSwitchOps per-driver per-port-setup/bridge/vlan/mdb/stp + DsaDeviceOps per-tag-protocol {EDSA Marvell + BRCM + KSZ8795/9477 + OCELOT/OCELOT_8021Q + MTK + QCA + RTL4_A/RTL8_4 + SJA1105/1110} + dsa_register_switch parses DT + dsa_user_xmit prepends tag + dsa_switch_rcv strips tag + per-user-port lanX netdev + bridge/VLAN/STP propagates to switch HW + devlink-port + DSA_TAG_PROTO_* enum + Marvell MV88E6xxx + Microchip KSZ + Broadcom BCM-58xxx + embedded routers / OpenWrt / industrial-switches) + mm/damon.md (DAMON Data Access MONitor + DAMOS - mm/damon/core.c ~3269 lines; per-damon_ctx with sample_interval ~5ms + aggr_interval ~100ms + ops_update_interval ~1s + min/max_nr_regions adaptive + DAMON_OPS_VADDR per-task PTE-A-bit + DAMON_OPS_FVADDR fixed + DAMON_OPS_PADDR PG_idle pageflag + sample→aggregate→split/merge→apply-DAMOS loop in kdamond kthread + DAMOS scheme with pattern{size, nr_accesses, age} + actions {STAT, WILLNEED, COLD, PAGEOUT, HUGEPAGE, NOHUGEPAGE, LRU_PRIO, LRU_DEPRIO, MIGRATE_HOT, MIGRATE_COLD} + per-scheme quota budget + watermarks + filters per-anon/memcg + tiered-memory CXL.mem support + /sys/kernel/mm/damon/admin/ + proactive-reclaim + working-set profiling). 230 Tier-3s total. Next iter: net/sched/cls-tcindex.md (tcindex classifier) + mm/hmm.md (Heterogeneous Memory Management).",
+  "created_at": "2026-05-10T19:02:45.333129269Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASaOVZad7rY9BFgkekLC9A0TfFeHQGCq+8+iI/Qvhsl+IS4uf/KeiAMYzwH4gnXyPs0O+2x7vcTvN/yPMs0syAQ=="
+}
