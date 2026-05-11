@@ -1,0 +1,10 @@
+{
+  "uuid": "f8fa381f-70f5-48f1-b026-e82dd5bb8d61",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 172 (437 docs, +10 via wave-18): drivers/clk/clk-divider+clk-mux, net/netfilter/x_tables+nft-set-pipapo, drivers/regulator/fixed+helpers, fs/proc/array+proc-sysctl-tree, kernel/audit/audit-watch+auditfilter. 18 waves = 181 new docs. ~88%.",
+  "created_at": "2026-05-11T12:05:05.747423075Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA/7fq+HLUe5eEfTJchzVIi5G4YJinXJtsZmMYkwZw/XeFHTtSLUnGrUpVY1DFB8KgazSMDVgN+yYb++1PoQ5UBA=="
+}
