@@ -1,0 +1,10 @@
+{
+  "uuid": "2400c88a-23b0-4651-b16a-b9ff71dcd985",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 170 (417 docs, +10 via wave-16): drivers/usb/core-driver+devio, kernel/bpf/cpumap+devmap, fs/nfs/file, fs/fuse/inode, drivers/pci/aer, drivers/iommu/iopf, drivers/mfd/mfd-core, kernel/bpf/local-storage. 16 waves = 161 new docs this session. PAUSED at user request.",
+  "created_at": "2026-05-11T06:33:16.827305095Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAI950x10RMRkqxhr8qr2edK7AaKA/xJ5qgE/Cm1oK1TdSkgahtW1D+ajTJs6uR3oMHjcEOXf44VNk9kj256CGCg=="
+}
