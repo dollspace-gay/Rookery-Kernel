@@ -1,0 +1,10 @@
+{
+  "uuid": "fe96db82-9058-480c-a73e-dfd4b5329962",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "wave-G9: 124-doc grsec annotation pass committed (1c234d2). Grsec annotation campaign complete across 594 Tier-3 docs (waves G1-G9). Only references/grsec-pax-notes.md remains unannotated — it IS the grsec reference doc. Ready to move to long-tail driver enumeration phase.",
+  "created_at": "2026-05-19T23:02:19.070087866Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAWiPuq8+ahYQPuODVoagCT12jcw0A5+a89lAWkNToupFr45LmZAIbwdlg+9nmy0pCXebadBUAkaqRNapG2XVwAQ=="
+}
