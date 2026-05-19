@@ -213,6 +213,27 @@ ASID-specific reinforcement:
 - **Live-migrate clears pre-migrate ASID** — defense against post-migrate stale-TLB.
 - **min_sev_asid/max_sev_asid range from CPUID** — defense against incorrect SEV-ASID-allocation.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — ASID state never directly user-facing; KVM_GET_VCPU_EVENTS only exposes high-level state, not raw VMCB.control.asid.
+- **PAX_KERNEXEC** — `new_asid`, `svm_flush_tlb`, `svm_vcpu_load` (ASID-assign branch) resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — VMRUN entry / TLB-flush request inherit RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-CPU `sd->next_asid` and per-VM SEV-ASID counter saturating.
+- **PAX_MEMORY_SANITIZE** — per-vCPU `vmcb01.control.asid`, `last_cpu`, `asid_generation` zeroed on vCPU free so prior ASID never leaks to successor on same CPU.
+- **PAX_UDEREF** — no user-pointer ingress in ASID-management path.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.flush_tlb_current`, `flush_tlb_guest`, `flush_tlb_all` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-CPU ASID-allocation state and per-VM SEV-ASID kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — ASID-wrap, max_asid-mismatch warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_VM with SVM gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **VMCB asid=0 rejected** — `vmcb01.control.asid` populated before VMRUN; asid=0 triggers #GP per spec, so KVM enforces non-zero invariant.
+- **Per-CPU ASID atomic** — `sd->next_asid` increment atomic; concurrent vCPU schedules on same CPU cannot collide.
+- **Nested-SVM L2 ASID distinct** — L0 maintains separate ASID for L2 distinct from L1 to defeat L1/L2 TLB-aliasing.
+- **SEV ASID range from CPUID** — `min_sev_asid`/`max_sev_asid` enforced from CPUID 0x8000001F; ASID outside range rejected at SEV-VM-create.
+
+Per-doc rationale: ASIDs are the SVM TLB-isolation primitive; the grsec reinforcement keeps the per-CPU ASID allocation atomic to prevent collision, enforces asid≠0 to avoid the spec-defined #GP, SANITIZEs ASID assignment on vCPU free to prevent successor reuse on the same CPU, and isolates SEV ASIDs from non-SEV ASIDs so a SEV-tenant ASID is never reused for a non-encrypted VM.
+
 ## Open Questions
 
 (none at this Tier-3 level)

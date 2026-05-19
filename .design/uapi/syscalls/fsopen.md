@@ -239,6 +239,29 @@ fsopen-syscall reinforcement:
 - **Per-fc.fs_private isolated per-context** — defense against per-cross-context-state leak.
 - **Per-init_fs_context-error path: fc fully torn down** — defense against per-half-initialized context exposure.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by the `fsopen(2)` path:
+
+- **PAX_USERCOPY** — bounds-checks copy_from_user of fsname into kernel slab; rejects oversize or crossing-slab fetches before `init_fs_context` runs.
+- **PAX_KERNEXEC** — keeps the syscall entry RX-only; `fs_context_operations` vtables stay in `.rodata`, blocking method-pointer rewrite by a malicious LSM hook chain.
+- **PAX_RANDKSTACK** — per-entry kernel-stack offset randomization on every `fsopen` invocation defeats stack-grooming for ROP gadgets reachable through fsopen state.
+- **PAX_REFCOUNT** — saturating wrap-trap on `fc->count` and `fs_type` module refs; prevents UAF if a fsconfig-vs-close race underflows the context refcount.
+- **PAX_MEMORY_SANITIZE** — `kfree(fc->fs_private)` and `kfree(fc->source)` paths are auto-zeroed on free, so a follow-on slab reuse cannot leak in-flight FS parameters to another tenant.
+- **PAX_UDEREF** — strict user/kernel pointer separation while copying fsname, prevents kernel-pointer fixup tricks during the early syscall-entry copy.
+- **PAX_RAP / kCFI** — forward-edge CFI on `fs_context_operations->parse_param/get_tree/dup`, blocks JOP through a corrupted `fc->ops` pointer.
+- **GRKERNSEC_HIDESYM** — `init_fs_context`, `vfs_parse_fs_string`, and `legacy_get_tree` are not exposed via `/proc/kallsyms` to unprivileged callers, raising the bar for crafted fsopen exploits.
+- **GRKERNSEC_DMESG** — dmesg restricted; fsopen failure reasons that would leak slab layout or fs-module versions are unreadable by non-root.
+
+Mount-family-specific reinforcement:
+
+- **CAP_SYS_ADMIN-in-mnt_ns->user_ns strict** — userns fsopen still requires owning-user-ns capable creds; PAX_REFCOUNT on `user_ns->count` keeps the check honest under concurrent setns.
+- **GRKERNSEC_CHROOT_MOUNT** — a chroot'd caller is denied fsopen outright, closing the historical chroot-via-new-fs-context escape vector.
+- **GRKERNSEC_CHROOT_FCHDIR / CHROOT_DOUBLE** — block subsequent fchdir-into-context-fd tricks if the fsopen fd is leaked into a chroot.
+- **GRKERNSEC_SYSFS_RESTRICT** — restricts visibility of `/sys/fs/<type>` while a fsopen context for that type is being parameterised, so probe-by-error-string attacks on private fs_type state are mitigated.
+
+Rationale: `fsopen(2)` is the entry to the new mount API; an attacker who can drive an unprivileged fsopen context to an invalid state has historically been able to pivot to module-reference UAF or chroot escape. The combined PaX memory-safety primitives plus the grsec chroot/mount gates harden every observable side-effect of a partially-initialised `fs_context`.
+
 ## Open Questions
 
 (none at this Tier-5 level)

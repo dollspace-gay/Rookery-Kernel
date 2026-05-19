@@ -208,6 +208,28 @@ cpuid-specific reinforcement:
 - **Xen CPUID leaves gated by KVM_CAP_XEN_HVM** — same, per-VM opt-in for Xen guest support.
 - **Per-vCPU APIC ID validated** — must be ≤ KVM_MAX_VCPU_IDS (4096); defense against APIC ID overflow.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_SET_CPUID2 array bounded by KVM_MAX_CPUID_ENTRIES * sizeof(entry).
+- **PAX_KERNEXEC** — cpuid emulation dispatch table RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_SET_CPUID2.
+- **PAX_REFCOUNT** — cpuid_entries refcount on per-vCPU array saturating.
+- **PAX_MEMORY_SANITIZE** — cpuid_entries freed via kvfree → zeroed.
+- **PAX_UDEREF** — user CPUID array pointer validated before copy_from_user.
+- **PAX_RAP / kCFI** — kvm_cpuid / kvm_emulate_cpuid call sites type-checked.
+- **GRKERNSEC_HIDESYM** — cpuid_entries pointer redacted in error logs.
+- **GRKERNSEC_DMESG** — repeated CPUID set failures rate-limited.
+
+CPUID-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_SET_CPUID2** — defense against unprivileged CPUID flip.
+- **Cross-leaf consistency check inside locked critical section** — TOCTOU-safe.
+- **Hyper-V / Xen leaves gated by per-VM cap + capable()** — defense against accidental paravirt-vendor switch.
+
+Rationale: CPUID is the policy oracle for every MSR/feature gate; sanitize/refcount on the entry array + RAP-checked dispatch ensure a malicious userspace cannot smuggle a stale-pointer post-set to bypass MSR-filter or feature-MSR locks.
+
 ## Open Questions
 
 (none at this Tier-3 level)

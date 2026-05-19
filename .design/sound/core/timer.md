@@ -595,6 +595,27 @@ ALSA-timer reinforcement:
 - **Per-overrun counter (not silent drop)** — defense against per-undetected loss.
 - **Per-timer_tstamp_monotonic default** — defense against per-realtime-clock-jump tstamp confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `snd_timer_select`, `snd_timer_info`, `snd_timer_params`, `snd_timer_status`, `snd_timer_tread` payloads bounded against fixed struct size; tick-event queues drain into userspace via bounded `read` paths.
+- **PAX_KERNEXEC** — `snd_timer_f_ops`, ioctl dispatcher, `snd_timer_hardware` (`start/stop/set_period/precise_resolution`) callbacks resident in RX `.text`.
+- **PAX_RANDKSTACK** — kstack-offset randomization on every `/dev/snd/timer` ioctl entry.
+- **PAX_REFCOUNT** — saturating refcount on `snd_timer_instance` and `snd_timer`; defense against open-vs-disconnect / start-vs-shutdown wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `snd_timer_instance` (contains user-callback function pointer and per-instance ringbuffer queue).
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every timer ioctl; user-supplied `tread` size validated.
+- **PAX_RAP / kCFI** — `snd_timer_hardware` and `ccallback`/`ack_list` callbacks dispatched via kCFI-signed indirect calls.
+- **GRKERNSEC_HIDESYM** — `snd_timer_list`, `register_mutex`, `system_highpri_wq` references for timer paths masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — timer-register / interrupt-rate / xrun diagnostics restricted to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict on /dev/snd/timer** — devnode access governed by `audio` group; CAP_SYS_ADMIN required for udev rule override.
+- **`system_highpri_wq` for slow callbacks** — defense against IRQ-context cap on user callbacks (CVE-2017-15265-class).
+- **`card->shutdown` bailout in `snd_timer_interrupt`** — defense against per-tick callback firing after driver gone.
+- **Overrun counter (not silent drop)** — defense against undetected event loss; defense against per-tick userspace synchronization assumption.
+- **`timer_tstamp_monotonic` default** — defense against realtime-clock-jump tstamp confusion in userspace consumers.
+
+Per-doc rationale: `/dev/snd/timer` is the ALSA fine-grained tick stream — historical CVEs (CVE-2016-2545, CVE-2017-1000380) exploited UAF on `snd_timer_instance` releasing while interrupt context still walking the callback list. The IRQ-vs-release race is exactly what saturating REFCOUNT + `card->shutdown` bailout + `system_highpri_wq` deferral together shut.
+
 ## Open Questions
 
 (none at this Tier-3 level)

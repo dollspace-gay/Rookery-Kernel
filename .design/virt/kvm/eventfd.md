@@ -228,6 +228,30 @@ eventfd-specific reinforcement:
 - **KVM_IOEVENTFD datamatch validation strict** — len=0 with DATAMATCH rejected (semantic mismatch).
 - **vfio-pci virqfd integration LSM-mediated** — cross-ref `drivers/vfio/00-overview.md` § Hardening.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by KVM_IRQFD/KVM_IOEVENTFD:
+
+- **PAX_USERCOPY** — bounds-checks the `struct kvm_irqfd` / `struct kvm_ioeventfd` arg copy from userspace; rejects oversized or slab-crossing fetches.
+- **PAX_KERNEXEC** — `kvm_io_device_ops` for ioeventfd and the irqfd workqueue callback live in RX/RO text; the injection path cannot be redirected.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on KVM_IRQFD/KVM_IOEVENTFD ioctls and on irqfd-wakeup callback entry.
+- **PAX_REFCOUNT** — saturating refs on `kvm`, `eventfd_ctx`, `irq_bypass_consumer`, and the per-irqfd shutdown work; eventfd-close-during-signal cannot underflow.
+- **PAX_MEMORY_SANITIZE** — zeroes freed `_irqfd` and `_ioeventfd` structs so a follow-on allocation cannot reuse stale GSI/data state.
+- **PAX_UDEREF** — strict user/kernel pointer separation on the arg copy.
+- **PAX_RAP / kCFI** — forward-edge CFI on the irqfd wakeup callback and the resampler ack notifier chain.
+- **GRKERNSEC_HIDESYM** — `kvm_irqfd_assign`, `kvm_ioeventfd_assign`, `irqfd_inject`, `irqfd_resampler_ack` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so irqfd/ioeventfd registration failures do not leak GSI/IRQ routing layout.
+
+KVM eventfd-specific reinforcement:
+
+- **CAP_SYS_ADMIN on the KVM fd** — gates KVM_IRQFD and KVM_IOEVENTFD ioctls; unprivileged tenants cannot synthesize interrupt injection.
+- **eventfd PAX_REFCOUNT** — saturating ref on `eventfd_ctx->kref` paired with irqfd shutdown serialization closes the close-vs-signal UAF window.
+- **GSI routing seqlock + PAX_REFCOUNT on routing table** — concurrent KVM_SET_GSI_ROUTING is race-free even under saturating refs.
+- **irqfd/ioeventfd count caps** — paired with PAX_REFCOUNT so flood-DoS traps the counter rather than exhausting memory.
+- **vfio-pci virqfd integration** — LSM-mediated assignment plus PAX_RAP on the bypass consumer chain.
+
+Rationale: KVM_IRQFD/IOEVENTFD couples three refcounted objects (kvm, eventfd, irq_bypass) across multiple cancellation points; PAX_REFCOUNT is the single most important control, paired with HIDESYM to opaque the routing internals.
+
 ## Open Questions
 
 (none at this Tier-3 level)

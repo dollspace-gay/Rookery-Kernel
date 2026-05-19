@@ -257,6 +257,30 @@ guest_memfd-specific reinforcement:
 - **Per-shared/private boundary enforced** — defense against per-mismatch confidential leak.
 - **Per-TDX SEPT update aligned with gmem invalidate** — defense against per-stale SEPT entry.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by guest_memfd:
+
+- **PAX_USERCOPY** — bounds-checks the `struct kvm_create_guest_memfd` arg copy and attribute setattr paths; rejects oversized/slab-crossing fetches.
+- **PAX_KERNEXEC** — `kvm_gmem_fops` and SEPT/EPT invalidate callbacks live in RX/RO text; invalidation cannot be hijacked.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on KVM_CREATE_GUEST_MEMFD and KVM_SET_MEMORY_ATTRIBUTES.
+- **PAX_REFCOUNT** — saturating refs on `kvm`, gmem `struct file`, per-binding refs, and per-folio refs; gmem-vs-VM-destroy races trap cleanly.
+- **PAX_MEMORY_SANITIZE** — primary control: zeroes freed gmem folios on invalidate/punch-hole so a follow-on alloc by the same VM or a different tenant cannot observe prior confidential plaintext.
+- **PAX_UDEREF** — strict user/kernel pointer separation across the create-fd and attribute-set arg copies.
+- **PAX_RAP / kCFI** — forward-edge CFI on `kvm_gmem_invalidate_begin/end` and per-arch SEPT callbacks.
+- **GRKERNSEC_HIDESYM** — `kvm_gmem_get_pfn`, `kvm_gmem_bind`, `kvm_gmem_punch_hole` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so per-folio EHWPOISON / invalidate traces do not leak gmem layout.
+
+guest_memfd-specific reinforcement:
+
+- **CAP_SYS_RESOURCE on KVM_CREATE_GUEST_MEMFD** — gates large gmem allocations; paired with PAX_REFCOUNT so a OOM-bomb cannot underflow accounting.
+- **memfd-backed guest mem PAX_MEMORY_SANITIZE** — primary defense against cross-tenant disclosure of confidential plaintext on folio recycle.
+- **No userspace mmap** — paired with PAX_KERNEXEC so an attacker cannot redirect the fops table to add a vm_ops.
+- **Per-folio EHWPOISON return on corruption** — paired with PAX_REFCOUNT so the poisoned folio is held until all bindings drop it.
+- **GRKERNSEC_PROC_USERGROUP** — restricts visibility of gmem-owning tasks via /proc.
+
+Rationale: guest_memfd backs TDX/SEV confidential VMs; PAX_MEMORY_SANITIZE on folio invalidate is the load-bearing primitive that ensures plaintext does not survive folio recycle into a host or non-confidential tenant.
+
 ## Open Questions
 
 (none at this Tier-3 level)

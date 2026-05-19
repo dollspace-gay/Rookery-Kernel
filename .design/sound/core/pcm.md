@@ -686,6 +686,26 @@ ALSA PCM reinforcement:
 - **Per-internal PCM no userspace surface** — defense against per-ASoC-BE-PCM accidentally exposed via `/dev/snd/*`.
 - **Per-`pcm_call_notify` only for `!internal`** — defense against per-OSS-emul-confused-by-BE-PCM.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `snd_pcm_hw_params`, `snd_pcm_sw_params`, `snd_pcm_channel_info`, `snd_pcm_sync_ptr`, and `snd_xferi/xfern` payloads bounded against fixed struct sizes; per-channel `area` arrays length-checked against `runtime->channels`.
+- **PAX_KERNEXEC** — `snd_pcm_f_ops`, ioctl dispatcher, and `snd_pcm_ops` `open/close/hw_params/prepare/trigger/pointer/copy_user/mmap` callbacks reside in RX `.text`; per-driver ops registered through kCFI-signed indirection.
+- **PAX_RANDKSTACK** — kstack-offset randomization on every `/dev/snd/pcmC*D*[cp]` ioctl / read / write / mmap entry.
+- **PAX_REFCOUNT** — saturating refcount on `snd_pcm_substream`, `snd_pcm_oss_file`, and the parent `snd_pcm`; defense against draining-vs-disconnect races wrapping the count.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `snd_pcm_runtime` (contains DMA mappings, status/control mmap pages) and per-substream DMA buffers on `snd_pcm_release` (defense against next-open inheriting prior audio data).
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every PCM ioctl and `copy_user` from user-space; `snd_pcm_lib_write/read` validates `frames` against `runtime->buffer_size`.
+- **PAX_RAP / kCFI** — driver-supplied `snd_pcm_ops` and `snd_pcm_dma_buffer.ops` dispatched via kCFI-signed indirect calls.
+- **GRKERNSEC_HIDESYM** — `snd_pcm_devices`, `snd_pcm_link_rwsem`, and per-substream `runtime` symbols masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — PCM xrun / hw_params-mismatch / disconnect diagnostics restricted to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict on /dev/snd/pcm*** — devnode access governed by audio group; CAP_SYS_ADMIN required for udev rule override.
+- **`snd_pcm_link_rwsem` strict-write** — defense against per-disconnect linker writing while reader walks linked-substream list.
+- **`pcm_call_notify` only for `!internal`** — defense against OSS-emul confused by ASoC backend PCM accidentally exposed via /dev/snd/*.
+- **Disconnect wake on `runtime->sleep` ∧ `runtime->tsleep`** — defense against read/write blocked-forever after unplug.
+
+Per-doc rationale: `/dev/snd/pcm*` is the streaming-data path between userspace and audio DSP — `runtime` carries DMA-coherent buffers mmaped read-write into userspace, and `status`/`control` pages are publicly mmap'd. UAF here is directly weaponizable as ringbuffer-pointer corruption + DMA-into-arbitrary-RAM. Triple-overlap (USERCOPY + REFCOUNT + MEMORY_SANITIZE) plus disconnect-wake on every blocking primitive is non-negotiable.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -249,6 +249,30 @@ unshare-syscall reinforcement:
 - **Per-namespace-stacking bounded** — defense against per-recursive-unshare runaway.
 - **Per-new-cred install via commit_creds atomic** — defense against per-half-commit credential race.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by `unshare(2)`:
+
+- **PAX_USERCOPY** — bounds-checks the flags read and any subsequent per-ns prepare paths that copy from user (mnt_ns flags inheritance).
+- **PAX_KERNEXEC** — per-subsystem `*_clone` and `commit_nsset` paths live in RX/RO text; unshare cannot rewrite ns_operations during prepare.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on `__do_sys_unshare` defeats stack-grooming chains that ride the unshare/setns combo.
+- **PAX_REFCOUNT** — saturating refs on every namespace being created (`user_ns->count`, `mnt_ns->count`, `pid_ns_for_children`, `net->count`, `ipc_ns->count`, `uts_ns->count`, `cgroup_ns->count`, `time_ns->count`); refcount underflow on prepare-fail rollback traps.
+- **PAX_MEMORY_SANITIZE** — zeroes failed prepare allocations (new `struct nsproxy`, new `struct cred`, copied fs_struct/files_struct) before kfree.
+- **PAX_UDEREF** — strict user/kernel pointer separation for the flags argument and any indirect ns lookup.
+- **PAX_RAP / kCFI** — forward-edge CFI on `create_new_namespaces`, `commit_creds`, and per-ns `copy_*_ns` callbacks.
+- **GRKERNSEC_HIDESYM** — `ksys_unshare`, `create_new_namespaces`, `unshare_userns` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so per-ns creation failure traces are root-only.
+
+Namespace-family-specific reinforcement:
+
+- **CAP_SYS_ADMIN required for non-USER namespaces** — paired with userns-first ordering so the cap check is honored after a fresh USER_NS install.
+- **GRKERNSEC_CHROOT_FINDTASK** — chrooted task cannot use unshare(CLONE_NEWPID|CLONE_NEWUSER) to escape via shared procfs.
+- **GRKERNSEC_CHROOT_NICE / CHROOT_CAPS** — bounds the capability set a chroot'd task can synthesize in a freshly-unshared userns.
+- **kernel.unprivileged_userns_clone sysctl gate** — global policy switch; paired with PAX_REFCOUNT on user_ns->count for accurate level enforcement.
+- **MAX_NS_LEVEL=32 + max-namespaces-per-user sysctls** — caps recursive unshare bombs; PAX_REFCOUNT keeps the level counter UAF-safe.
+
+Rationale: `unshare(2)` is the primary attack surface for userns-elevation chains; the combination of grsec chroot/userns gates and PaX refcount/memory-sanitize on every per-ns allocation collapses both the privilege-bracket-escape and the namespace-bomb DoS classes.
+
 ## Open Questions
 
 (none at this Tier-5 level)

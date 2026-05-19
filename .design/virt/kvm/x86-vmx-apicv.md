@@ -235,6 +235,28 @@ APICv-specific reinforcement:
 - **Per-vCPU complete_atomic_exit** — defense against KVM lapic out-of-sync with HW.
 - **Per-VM IPI virtualization PID-table** (newer feature) — defense against IPI-source-vmexit leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — virtual-APIC page kernel-allocated; KVM_GET/SET_LAPIC bounded by `struct kvm_lapic_state` slab size.
+- **PAX_KERNEXEC** — `vmx_apicv_post_state_restore`, `vmx_hwapic_isr_update`, `vmx_hwapic_irr_update`, `vmx_set_apic_access_page_addr` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — APICv inhibit refresh and IPI virtualization paths inherit RANDKSTACK.
+- **PAX_REFCOUNT** — per-VM apicv_inhibit_reasons bitmap, per-vCPU virtual-APIC page refcount saturating.
+- **PAX_MEMORY_SANITIZE** — virtual-APIC page, posted-interrupt descriptor, EOI exitmap zeroed on alloc and free; APIC-access page zeroed before successor VM mmap.
+- **PAX_UDEREF** — KVM_SET_LAPIC copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.refresh_apicv_exec_ctrl`, `hwapic_isr_update`, `hwapic_irr_update` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — virtual-APIC page HPA, posted-int descriptor kaddr redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — APICv inhibit-reason transitions, EOI-exitmap-update warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_IRQCHIP + APICv enable gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **VMCS virtual-APIC page validated** — `VIRTUAL_APIC_PAGE_ADDR` field set from kernel-allocated HPA; never user-controlled.
+- **EOI exitmap per-vector** — level-IRQ exitmap programmed under `apic->lock`; remote-IRR clear cannot be lost.
+- **virtualize-x2APIC + register-virtualization combined** — guest direct-write to read-only x2APIC registers trapped per Intel-spec.
+- **APIC-access page protection** — APIC-access HPA mapped read-only in EPT for non-APICv vCPUs; APICv vCPUs see virtualized version.
+- **Nested-virt strict** — L2 APICv inhibited when L0 has no nested-APICv support; L1 cannot accidentally expose L0 APIC state to L2.
+
+Per-doc rationale: APICv (Intel APICv = virtualize-APIC + virtual-int-delivery + posted-int) accelerates LAPIC by mapping a per-vCPU APIC register page that the guest writes directly; the grsec reinforcement here keeps the virtual-APIC page kernel-validated, SANITIZEs APIC tables on free, atomic-locks EOI exitmap to defeat remote-IRR loss, and inhibits APICv on feature-mismatch rather than running inconsistent.
+
 ## Open Questions
 
 (none at this Tier-3 level)

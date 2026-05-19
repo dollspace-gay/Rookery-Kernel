@@ -214,6 +214,28 @@ memslot-specific reinforcement:
 - **MAX slots per VM = 32K** in v0 (configurable); defense against per-VM slot-flood DoS.
 - **guest_memfd-backed slot validation** — guest_memfd_offset + memory_size ≤ guest_memfd file size.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — `kvm_userspace_memory_region2` copy_from_user bounded by sizeof; rejects oversized fields.
+- **PAX_KERNEXEC** — memslot install path RO after ksrcu publish; no late patching of slot array.
+- **PAX_RANDKSTACK** — randomized kstack across each KVM_SET_USER_MEMORY_REGION ioctl.
+- **PAX_REFCOUNT** — `struct kvm_memory_slot` refcount (when referenced by EPT/NPT) saturating, panic on overflow.
+- **PAX_MEMORY_SANITIZE** — dirty-bitmap and arch-private memslot bytes zeroed on free.
+- **PAX_UDEREF** — guest userspace hva validated as user range before copy_from_user / get_user_pages.
+- **PAX_RAP / kCFI** — memslot commit / invalidate callbacks indirect-call type-checked.
+- **GRKERNSEC_HIDESYM** — gpa/hva pointers redacted in error logs and tracepoints.
+- **GRKERNSEC_DMESG** — memslot setup failures rate-limited; capability-gated.
+
+Memslot-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_SET_USER_MEMORY_REGION2** — defense against unprivileged VM-memory remap.
+- **as_id + gpa range double-checked under srcu lock** — guards against TOCTOU between validate and install.
+- **guest_memfd file-cred re-checked at install** — defense against fd-swap escalation.
+
+Rationale: memslot install is the foundational guest↔host memory contract; sanitize/refcount discipline prevents stale-SPTE / dangling-bitmap UAF that escalates to host kernel write.
+
 ## Open Questions
 
 (none at this Tier-3 level)

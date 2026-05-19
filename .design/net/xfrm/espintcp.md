@@ -194,6 +194,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds TCP-recv buffer copies via `copy_to_iter` / `copy_from_iter` carrying length-prefixed ESP-in-TCP frames.
+- **PAX_KERNEXEC** — keeps the `static const tcp_ulp_ops espintcp` registration and strparser callback tables text W^X.
+- **PAX_RANDKSTACK** — randomises stack per `espintcp_rcv_message`/`espintcp_sendmsg` entry; defeats ROP under TCP-segmented ESP floods.
+- **PAX_REFCOUNT** — wraps the inner `xfrm_state` refs and per-socket ULP refs taken across strparser callbacks against UAF on TCP close.
+- **PAX_MEMORY_SANITIZE** — zeroes freed strparser frame buffers (decrypted ESP payload) and per-message scratch on free.
+- **PAX_UDEREF** — protects setsockopt(`TCP_ULP=espintcp`) and any ULP-driven ioctl from userland deref on malformed args.
+- **PAX_RAP / kCFI** — protects indirect dispatch through `tcp_ulp_ops` and strparser `cb.parse_msg`/`cb.rcv_msg` edges.
+- **GRKERNSEC_HIDESYM** — hides `espintcp_*`, `strparser_*`, `tcp_ulp_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so length-prefix parse errors don't leak SA SPIs or peer addresses.
+- **IPsec SAD/SPD CAP_NET_ADMIN** — the SAs that espintcp wraps are installed via the CAP_NET_ADMIN-gated XFRM netlink path at `state.md`/`user.md`.
+- **XFRM key MEMORY_SANITIZE** — espintcp itself never touches SA keys, but the per-frame decrypted payload buffer is wiped on free so cleartext doesn't bleed across strparser frames.
+- **Replay-window protected** — replay state of the underlying SA is owned by `state.md` and accessed under `x->lock`; espintcp never copies replay counters into the TCP stream.
+- **TCP_ULP attach RBAC gate** — `TCP_ULP=espintcp` is restricted to gradm `ipsec_admin` role; an unprivileged sock cannot inject framing into a peer TCP flow.
+- **Length-prefix SIZE_OVERFLOW** — RFC 8229 `len` prefix is range-checked against `INT_MAX` and against strparser's `max_msg_len`; truncated/oversized frames are dropped pre-decrypt.
+
+Rationale: ESP-in-TCP exists specifically to traverse middleboxes where UDP+ESP is blocked, which means the kernel must accept attacker-influenced TCP segmentation around length-prefixed ciphertext. USERCOPY on the ULP recv path, REFCOUNT on the ULP socket+SA refs, MEMORY_SANITIZE on freed decrypted frames, RBAC gating of the ULP attach, and SIZE_OVERFLOW-checked length-prefix arithmetic collapse this to the underlying ESP transform.
+
 ## Open Questions
 
 (none — RFC 8229 framing + Linux ULP integration exhaustively specified by RFC + upstream)

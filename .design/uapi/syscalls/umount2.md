@@ -251,6 +251,30 @@ umount2-syscall reinforcement:
 - **Per-RCU-deferred-free of mounts** — defense against per-UAF on dentry/mnt.
 - **Per-namespace_lock + mount_lock around state mutation** — defense against per-concurrent-umount races.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by `umount2(2)`:
+
+- **PAX_USERCOPY** — bounds-checked `getname` of the target path; rejects slab-crossing or oversized fetches before mountpoint lookup.
+- **PAX_KERNEXEC** — `super_operations->put_super` and mount-tree teardown helpers live in RX/RO text; umount cannot rewrite the FS vtable.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on `__do_sys_umount` defeats ROP through the umount path.
+- **PAX_REFCOUNT** — saturating refs on `mnt->mnt_count`, `sb->s_active`, `mnt_ns->count`; umount-vs-busy races trap instead of underflowing.
+- **PAX_MEMORY_SANITIZE** — zeroes freed `struct mount` and detached `vfsmount` slots; reuse cannot leak pre-detach state.
+- **PAX_UDEREF** — strict user/kernel pointer separation for the target argument.
+- **PAX_RAP / kCFI** — forward-edge CFI on `umount_tree`, `put_super`, and propagation walks, blocking JOP through tampered ops.
+- **GRKERNSEC_HIDESYM** — `do_umount`, `umount_tree`, `__cleanup_mnt` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so umount-busy / propagation traces are root-only.
+
+Mount-family-specific reinforcement:
+
+- **CAP_SYS_ADMIN-in-mnt_ns->user_ns strict** — every umount path re-validates owning-userns capability; init_user_ns is not a fallback.
+- **GRKERNSEC_CHROOT_MOUNT** — chrooted task is denied `umount2(2)` outright, closing the umount-then-rebind chroot escape.
+- **GRKERNSEC_CHROOT_FCHDIR / CHROOT_DOUBLE** — block any fchdir into the detach point post-MNT_DETACH.
+- **GRKERNSEC_NOMOUNT** — sysctl gate forbidding non-root umount even when userns capabilities exist.
+- **MNT_LOCKED honored on unprivileged callers** — paired with PAX_REFCOUNT to prevent unshare-pivot-relax escape.
+
+Rationale: `umount2(2)` paired with bind-mount and pivot is a classic container-escape primitive; the MNT_DETACH + RCU-deferred-free path is also a frequent source of UAF when fuzzed. PAX_REFCOUNT + PAX_MEMORY_SANITIZE neutralize the RCU-free reuse class, while GRKERNSEC_CHROOT_MOUNT removes the chroot-escape primitive entirely.
+
 ## Open Questions
 
 (none at this Tier-5 level)

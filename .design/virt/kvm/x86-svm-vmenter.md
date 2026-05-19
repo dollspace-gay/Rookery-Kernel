@@ -260,6 +260,28 @@ SVM-vmenter-specific reinforcement:
 - **Stack-protector active** — defense against vmenter stack overrun.
 - **Per-vCPU vmcb_pa validated** — defense against attacker-controlled vmcb pointer.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — vmenter trampoline operates on kernel-side `vcpu->arch.regs[]` and VMCB; no user-pointer ingress in the VMRUN entry/exit assembly.
+- **PAX_KERNEXEC** — `__svm_vcpu_run`, `vmload`/`vmsave` host save area, GPR-save/restore assembly all in RX-only `.text`.
+- **PAX_RANDKSTACK** — VMRUN/VMEXIT return path inherits RANDKSTACK from KVM_RUN; no shared trampoline stack.
+- **PAX_REFCOUNT** — per-vCPU VMCB pin and per-CPU host-save-area refcount saturating; concurrent VMRUN + vCPU destroy guarded.
+- **PAX_MEMORY_SANITIZE** — per-CPU host-save-area zeroed on alloc and pre-VMSAVE; vcpu->arch.regs[] sanitized on VMRUN failure path so register residue cannot leak.
+- **PAX_UDEREF** — vmenter trampoline runs with CLAC; STAC inside is forbidden so a stack-overrun cannot turn into a user-pointer write.
+- **PAX_RAP / kCFI** — `__svm_vcpu_run` indirect-call entry RAP-signed; exit-handler vector dispatched through const `svm_exit_handlers[]`.
+- **GRKERNSEC_HIDESYM** — per-CPU host-save kaddr, per-vCPU vmcb_pa redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — VMRUN #UD / vmcb_pa-misaligned / GIF-state warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_RUN entry from a CAP_SYS_ADMIN + gr-rbac-allowed process; non-admin tenants cannot reach the vmenter trampoline.
+- **vmcb_pa alignment / non-zero** — VMRUN raises #UD on unaligned vmcb_pa; KVM validates alignment pre-VMRUN.
+- **CR2 explicit save/restore** — host CR2 saved before VMRUN, restored after VMEXIT so guest #PF address never leaks through stale CR2.
+- **SEV-ES skip GPR-access** — for SEV-ES vCPUs the trampoline skips GPR-load/save (state lives in encrypted VMSA); host code path cannot accidentally read guest GPRs.
+- **GIF cleared on vmexit** — VMEXIT clears GIF so host IRQs cannot interrupt the cleanup window; STGI restored after vmcb_pa write.
+- **Stack-protector active** — `__svm_vcpu_run` compiled with `-fstack-protector-strong`; canary checked on trampoline return.
+
+Per-doc rationale: the vmenter trampoline is the privileged hot-path between host and guest contexts; the grsec reinforcement here ensures the host save/restore sequence is sanitized (no GPR leak, no CR2 leak), RAP-signed, stack-protected, and SEV-ES-aware so an encrypted guest's VMSA is never accidentally read by the trampoline.
+
 ## Open Questions
 
 (none at this Tier-3 level)

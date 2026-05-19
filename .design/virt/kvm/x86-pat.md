@@ -198,6 +198,28 @@ PAT-specific reinforcement:
 - **PAT consistency check across vCPUs in same VM** — defense against per-vCPU disagreement on memtype causing TLB-broadcast issues.
 - **Audit per-WRMSR(IA32_CR_PAT) on policy-restricted VMs** — defense against policy bypass via memtype change.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_SET_MSRS IA32_CR_PAT payload bounded.
+- **PAX_KERNEXEC** — PAT MSR write-handler + memtype resolver RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per WRMSR(PAT) emulation.
+- **PAX_REFCOUNT** — noncoherent_dma_count saturating.
+- **PAX_MEMORY_SANITIZE** — per-vCPU PAT cache zeroed on destroy.
+- **PAX_UDEREF** — KVM_SET_MSRS user pointer validated.
+- **PAX_RAP / kCFI** — pat-update / memtype-resolve callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — PAT raw value redacted in trace.
+- **GRKERNSEC_DMESG** — PAT-quirk warnings rate-limited.
+
+PAT-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_SET_MSRS(IA32_CR_PAT)** — defense against unprivileged memtype flip.
+- **Reserved per-byte memtype rejected at WRMSR** — closes CPU-exception surface.
+- **KVM_X86_QUIRK_IGNORE_GUEST_PAT explicit opt-out** — defense against silent EPT-WB override.
+
+Rationale: PAT controls per-page memtype seen by both guest CPU and assigned DMA devices; sanitize + CAP-gate close the cross-VM memtype-aliasing surface that would enable cache-side-channels.
+
 ## Open Questions
 
 (none at this Tier-3 level)

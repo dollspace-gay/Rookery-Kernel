@@ -217,6 +217,28 @@ EPTP-specific reinforcement:
 - **Per-construct_eptp called via locked path** — defense against per-eptp racing with vmenter.
 - **Per-EPT-execute-only gated by host cap** — defense against per-config X-only on non-Sky-Lake.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — EPT root pages kernel-allocated; no user-pointer copy into VMCS EPTP field.
+- **PAX_KERNEXEC** — `construct_eptp`, `vmx_load_mmu_pgd`, `kvm_init_shadow_ept_mmu` resolve through RX-only kernel text; vendor ops in RO vtable.
+- **PAX_RANDKSTACK** — EPT-violation vmexit, INVEPT path inherit RANDKSTACK.
+- **PAX_REFCOUNT** — per-VM EPT root and per-vCPU EPTP refcount saturating; concurrent remap + vmenter races cannot wrap.
+- **PAX_MEMORY_SANITIZE** — EPT root page zeroed on alloc; freed EPT page table pages zeroed via TDP-MMU rcu free callback so stale GPA-mapping entries cannot leak across VM destroy.
+- **PAX_UDEREF** — no user pointer in EPT setup path.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.load_mmu_pgd`, `flush_tlb_current`, `flush_tlb_all` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — EPT root HPA, per-VM eptp value redacted from debugfs unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — EPT-violation rate, INVEPT failure, X-only-unsupported warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_VM (with EPT) gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **VMCS EPTP field validated** — EPTP page-walk-length, AD-bits, memory-type fields validated against host VMX-cap before VMCS write.
+- **INVEPT after remap** — global / context INVEPT issued after EPTP swap so stale TLB cannot return wrong GPA→HPA mapping.
+- **EPT root invalidate on VM-shutdown** — `invept_global` issued on VM destroy so successor VM does not inherit stale TLB entries on the same physical CPU.
+- **L2 separate EPTP from L1** — nested EPTP distinct from L1 EPTP; L1 cannot spoof L0 EPT.
+- **EPT-execute-only gated by host cap** — X-only entries (R=0/X=1) only used when host supports VMX_EPT_EXECUTE_ONLY_BIT.
+
+Per-doc rationale: EPT is the foundational TLB-isolation primitive for VMX; the grsec reinforcement validates EPTP field consistency at the VMCS level, issues INVEPT after every remap and on VM destroy to prevent successor TLB inheritance, SANITIZEs EPT tables via the TDP-MMU rcu free path, and keeps L1/L2 EPTPs distinct so a nested guest cannot escape via L1 EPT spoof.
+
 ## Open Questions
 
 (none at this Tier-3 level)

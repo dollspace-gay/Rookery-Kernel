@@ -232,6 +232,26 @@ PI-specific reinforcement:
 - **Per-vCPU PID page locked in host phys-addr** — defense against guest swap migrating PID page.
 - **Per-vCPU PID lifetime ≥ vCPU lifetime** — defense against use-after-free from late HW posting.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — Posted-Interrupt-Descriptor (PID) page DMA-mapped to VT-d; no user-pointer ingress; KVM_IRQFD setup uses fixed-size struct copy.
+- **PAX_KERNEXEC** — `vmx_deliver_posted_interrupt`, `pi_pre_block`, `pi_post_block` resolve through RO `kvm_x86_ops` vtable; module text RX-only.
+- **PAX_RANDKSTACK** — wakeup-vector IPI handling on host inherits RANDKSTACK from the IRQ entry.
+- **PAX_REFCOUNT** — per-vCPU PID lifetime tied to vCPU refcount saturating; HW posting after vCPU destroy guarded by SRCU + IRQ-bypass refcount.
+- **PAX_MEMORY_SANITIZE** — PID page (PIR / control / NDST) zeroed on alloc and zeroed on free so stale posted-vector bits cannot leak to a successor vCPU's PID page.
+- **PAX_UDEREF** — no user pointers in the posted-IRQ path; IRQ-bypass producer/consumer registration validated via in-kernel structs.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.deliver_posted_interrupt` and `irq_bypass_consumer` ops RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU PID phys-addr and NDST kaddr redacted from debugfs unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — VT-d posting-cap negotiation and wakeup-vector misroute warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_IRQFD + IRQ-bypass producer registration (KVM_DEV_VFIO_GROUP_ADD) gated to CAP_SYS_ADMIN + gr-rbac VM-create + device-passthrough roles.
+- **PID page pinned** — page-pin defends against guest swap migrating a PID page that HW IOMMU still writes; reclaim ignored while VT-d producer active.
+- **Wakeup-vector / POSTED_INTR_VECTOR reserved** — host kernel reserves these vectors so guest cannot collide with a host IRQ.
+- **Nested-virt strict** — nested-PI (L2 PID delivery from L1 hypervisor) software-emulated through L0; raw HW posting never crosses the L0/L1 trust boundary.
+
+Per-doc rationale: posted-interrupts let VT-d directly write a guest's PID page, bypassing VMM dispatch; the grsec reinforcement here keeps the PID page pinned + sanitized so it cannot leak vectors across vCPU lifetimes, and reserves the host wakeup vector so a malicious guest cannot redirect host IRQ delivery to its PI handler.
+
 ## Open Questions
 
 (none at this Tier-3 level)

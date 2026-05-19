@@ -285,6 +285,28 @@ KVM-IRQ-specific reinforcement:
 - **rtc_status special tracking** — RTC GSI level-tracked specially for HPET-coexistence; defense against missed RTC-IRQ during host clocksource switch.
 - **irq_ack_notifier list under SRCU** — defense against ack-notifier UAF during dispatch.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_IRQ_LINE / KVM_IRQ_LINE_STATUS payloads bounded by sizeof.
+- **PAX_KERNEXEC** — irqchip MMIO + irqfd dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per IRQ-deliver / EOI.
+- **PAX_REFCOUNT** — irq_ack_notifier list + irqfd refcounts saturating.
+- **PAX_MEMORY_SANITIZE** — PIC/IOAPIC/PIT state + irqfd nodes zeroed on irqchip destroy.
+- **PAX_UDEREF** — KVM_IRQ_LINE user pointer validated.
+- **PAX_RAP / kCFI** — kvm_irq_delivery_to_apic / irq_ack_notifier callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — GSI / vector / dest redacted in trace.
+- **GRKERNSEC_DMESG** — IRQ-flood failures rate-limited.
+
+KVM-IRQ-specific:
+
+- **CAP_SYS_ADMIN on KVM_CREATE_IRQCHIP / KVM_SET_GSI_ROUTING** — defense against unprivileged IRQ-table install.
+- **GSI ref-count saturating** — defense against per-source de-assert overflow.
+- **irq_ack_notifier SRCU-protected dispatch** — UAF-safe across notifier-removal race.
+
+Rationale: in-kernel IRQ chip aggregates PIC/IOAPIC/PIT state machines; sanitize + SRCU-checked notifier dispatch prevents stale-ack-callback UAF on irqchip teardown.
+
 ## Open Questions
 
 (none at this Tier-3 level)

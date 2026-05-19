@@ -269,6 +269,29 @@ SEV-specific reinforcement:
 - **Per-VM enc_context_owner ref-count** — defense against migration source releasing while target still importing.
 - **PSP cmd return-status validated** — defense against silent PSP failure leaving inconsistent state.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — SEV ioctls (KVM_MEMORY_ENCRYPT_OP launch-{start,update,measure,finish}, snp_launch_*) bounded by per-cmd `struct sev_data_*` slab sizes; PSP cmd buffers fixed-length.
+- **PAX_KERNEXEC** — `sev_guest_init`, `sev_launch_update_data`, `sev_es_init_vmcb`, `snp_launch_finish` resolve through RX-only kernel text; SVM ops vtable RO.
+- **PAX_RANDKSTACK** — KVM_MEMORY_ENCRYPT_OP and GHCB-exit handlers inherit RANDKSTACK from syscall / VM-exit entry.
+- **PAX_REFCOUNT** — per-VM `sev_info` (asid, handle, fd) refcount saturating; PSP cmd serialization counters cannot wrap.
+- **PAX_MEMORY_SANITIZE** — VMSA encryption page, GHCB scratch shadow, and per-vCPU SEV-ES register cache zeroed on free; pinned-page list entries zeroed before kfree on DECOMMISSION.
+- **PAX_UDEREF** — SEV ioctl copy_from_user STAC/CLAC bracketed; launch-update data validated against memslot mapping before PSP command issue.
+- **PAX_RAP / kCFI** — SVM `kvm_x86_ops` and per-SEV `sev_ops` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — VMSA phys-addr, GHCB GPA, per-VM ASID, sev_handle kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — PSP cmd failure, RMP-fault, GHCB-MSR-misuse warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_SEV_INIT, KVM_SEV_LAUNCH_*, KVM_MEMORY_ENCRYPT_REG_REGION gated to CAP_SYS_ADMIN + gr-rbac SEV-create role.
+- **SEV-ES VMSA encryption** — VMSA page enrolled via SEV_CMD_LAUNCH_UPDATE_VMSA; KVM never reads cleartext VMSA after enrollment (host cannot inspect guest register state).
+- **VMCB PAX_USERCOPY** — VMCB control area copy paths bounded; encrypted area inaccessible to host post-launch.
+- **GHCB exit-code allowlist** — guest-supplied GHCB exit_code validated against `sev_es_validate_vmgexit` allowlist; unsupported codes rejected.
+- **SNP RMP page-assignment** — Reverse-Map Table enforced; host swap-attack defeated because host page-table modification on a guest-assigned page triggers RMP #VC.
+- **PSP cmd timeout** — bounded by `SEV_DEFAULT_TIMEOUT`; PSP-hang cannot wedge kernel.
+- **Nested-virt strict** — nested SEV (L1 SEV running L2 SEV) not supported; nested attempt rejected at KVM_SEV_INIT.
+
+Per-doc rationale: SEV/SEV-ES/SEV-SNP move the trust boundary to the PSP; the grsec reinforcement here protects the host side of that boundary — VMSA encryption keeps host code from accidentally reading guest registers, GHCB allowlist prevents unsupported-vmgexit DoS, SNP RMP defeats host swap-attack, and DECOMMISSION on VM destroy prevents ASID leak across tenants on the same socket.
+
 ## Open Questions
 
 (none at this Tier-3 level)

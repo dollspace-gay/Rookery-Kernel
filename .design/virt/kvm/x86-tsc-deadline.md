@@ -206,6 +206,28 @@ TSC-deadline-specific reinforcement:
 - **Per-vCPU rdtsc_ordered() barriers** — defense against speculative RDTSC reorder.
 - **adjust_lapic_timer_advance per-vCPU** — defense against cross-vCPU advance interference.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_MSRS for MSR_IA32_TSC_DEADLINE and KVM_GET/SET_LAPIC for LVT_TIMER copy through slab-fixed buffers.
+- **PAX_KERNEXEC** — `apic_timer_expired`, `kvm_lapic_set_tscdeadline_msr`, `wait_lapic_expire`, `kvm_wait_lapic_expire` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — timer-expiry hrtimer callback and VMRUN re-entry inherit RANDKSTACK.
+- **PAX_REFCOUNT** — per-vCPU LAPIC hrtimer refcount saturating; concurrent cancel + fire races cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `vcpu.arch.apic.lapic_timer` (hrtimer + deadline + expired-flag) zeroed on alloc/free so stale deadline never fires post-destroy.
+- **PAX_UDEREF** — KVM_SET_MSRS copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.set_apic_access_page_addr`, lapic timer callback indirect-call CFI-guarded.
+- **GRKERNSEC_HIDESYM** — per-vCPU lapic_timer kaddr and deadline value redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — TSC-unstable, lapic_timer_advance-misconfig warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_IRQCHIP and per-vCPU lapic state gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR_IA32_TSC_DEADLINE passthrough validation** — WRMSR validated against current TSC; deadline in the past flagged as immediate-fire to defeat backwards-deadline DoS.
+- **__wait_lapic_expire bounded** — busy-wait capped at configured advance (`lapic_timer_advance_ns`); guest cannot induce unbounded host CPU stall.
+- **hrtimer cancelled at vCPU-destroy** — `lapic_timer.timer` cancelled with `hrtimer_cancel` before vCPU free so a late-fire cannot UAF.
+- **TSC-scaling applied** — deadline conversion uses per-VM TSC scaling ratio; per-vCPU drift defended.
+- **Nested-virt strict** — L2 TSC deadline mediated by L1; L0 hrtimer never directly armed by L2.
+
+Per-doc rationale: TSC-deadline mode arms an hrtimer based on a guest-controlled MSR write; the grsec reinforcement here bounds the busy-wait to prevent host CPU stall, cancels the hrtimer atomically on vCPU destroy to prevent UAF, and SANITIZEs the timer state so stale deadlines never fire across vCPU lifetimes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

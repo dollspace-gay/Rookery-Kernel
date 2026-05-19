@@ -188,6 +188,29 @@ SGX-specific reinforcement:
 - **SGX-LC MSRs reset on KVM_CAP_DISABLE_QUIRK** — defense against carryover sigstruct-hash from prior VM lifecycle.
 - **SECS XFRM intersect with host XCR0-supported** — defense against guest enabling unsupported XSAVE feature in enclave.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — ENCLS argument structs (SECS, SIGSTRUCT, EINITTOKEN) read from guest memory via `kvm_read_guest`; size-bounded; KVM_SET_CPUID2 SGX leaves validated.
+- **PAX_KERNEXEC** — `vmx_handle_encls`, ENCLS leaf dispatchers, `vmx_get_msr` (SGX-LC MSR branch) resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — ENCLS vmexit handler dispatch inherits RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-VM EPC accounting (memcg), per-enclave refcount saturating.
+- **PAX_MEMORY_SANITIZE** — EPC pages reclaimed via ENCLS[EREMOVE] zero-by-HW; KVM-side SGX shadow zeroed on free.
+- **PAX_UDEREF** — ENCLS arg pointers validated as GPAs against memslots; no raw user pointer dereferenced by ENCLS path.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.handle_encls`, vendor SGX ops slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — EPC HPA, per-enclave SGX shadow kaddr, SGX-LC MSR values redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — ENCLS-leaf-error, EPC-exhaustion, SGX-LC-update warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_SGX_ATTRIBUTE / SGX-launch-control configuration gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **ENCLS-EXITING-BITMAP restrictive** — VMCS ENCLS-exiting bitmap configured so KVM intercepts dangerous leaves (EINIT especially); guest cannot reach uncontrolled ENCLS leaves.
+- **EINITTOKEN validation** — attacker-supplied EINITTOKEN validated against IA32_SGXLEPUBKEYHASH MSRs; unsigned tokens rejected per Intel-spec.
+- **Per-VM EPC memcg accounting** — single VM cannot exhaust host EPC; memcg-bound.
+- **SECS XFRM intersect with host XCR0** — SECS.XFRM restricted to host-supported XSAVE features; guest enabling unsupported XSAVE in enclave rejected.
+- **SGX-LC MSR reset** — IA32_SGXLEPUBKEYHASH MSRs reset on KVM_CAP_DISABLE_QUIRK so prior-VM signing hash does not carry over.
+- **Nested-virt strict** — nested SGX not supported; nested VM cannot launch enclaves through L0.
+
+Per-doc rationale: SGX inside a guest is a sub-tenant trust boundary that KVM cannot inspect; the grsec reinforcement keeps ENCLS interception restrictive, validates EINITTOKEN to defeat launch-bypass, accounts EPC per-memcg to defeat single-VM EPC-exhaustion DoS, and intersects SECS.XFRM with host XCR0 so a guest cannot enable XSAVE state outside host-supported set.
+
 ## Open Questions
 
 (none at this Tier-3 level)

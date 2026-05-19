@@ -166,6 +166,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds `XFRMA_NAT_KEEPALIVE_INTERVAL` and related XFRM netlink attrs on copyin from userland.
+- **PAX_KERNEXEC** — keeps the `static const` per-SA emit fn-ptr table and timer-callback code text W^X.
+- **PAX_RANDKSTACK** — randomises stack per keepalive-timer entry; defeats ROP from timer-driven attacker stimuli.
+- **PAX_REFCOUNT** — wraps `xfrm_state` refs held by the keepalive timer so SA delete during timer fire cannot UAF.
+- **PAX_MEMORY_SANITIZE** — zeroes freed-after-emit keepalive skbs; though payload is 0xFF / fixed, the slab page may otherwise carry neighbour data.
+- **PAX_UDEREF** — protects the netlink path that configures the keepalive interval from userland deref on malformed attrs.
+- **PAX_RAP / kCFI** — protects indirect dispatch through the per-SA emit fn-ptr table and the underlying ESP-in-UDP wrap callback.
+- **GRKERNSEC_HIDESYM** — hides `xfrm_nat_keepalive_*`, related timer symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so keepalive-emit errors don't leak peer addresses / SPIs.
+- **IPsec SAD/SPD CAP_NET_ADMIN** — `XFRMA_NAT_KEEPALIVE_INTERVAL` is set only via CAP_NET_ADMIN-gated XFRM netlink; an unprivileged user cannot adjust the cadence on a foreign SA.
+- **XFRM key MEMORY_SANITIZE** — no SA keys touched by this path; underlying ESP-in-UDP wrap keys are wiped at `state.md` on SA destroy.
+- **Replay-window protected** — keepalive does not advance the replay counter; the underlying ESP path serialises replay under `x->lock`.
+- **Interval SIZE_OVERFLOW** — the `nat_keepalive_interval * HZ` jiffies arithmetic is checked, preventing wrap into a near-zero rearm time that would DoS the box with timer floods.
+
+Rationale: NAT-keepalive is a timer-driven internal emitter, so the attacker surface is the netlink configuration plus the timer/skb lifetime; CAP_NET_ADMIN gating, REFCOUNT on the timer-held SA ref, MEMORY_SANITIZE on emitted skbs, and SIZE_OVERFLOW-checked interval arithmetic collapse the practical attack to the underlying ESP path covered separately.
+
 ## Open Questions
 
 (none — RFC 3948 § 4 keepalive format + Linux per-SA timer model exhaustively specified)

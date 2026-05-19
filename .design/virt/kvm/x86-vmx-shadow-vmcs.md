@@ -245,6 +245,29 @@ Shadow-VMCS-specific reinforcement:
 - **Per-EPT_POINTER intercepted always** — defense against per-L2 EPT-root spoofing.
 - **Per-shadow_read_only/rw_fields curated** — defense against per-field accidentally-shadowed mutation.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — shadow VMCS region kernel-allocated; no user-pointer copy into VMREAD/VMWRITE bitmap pages.
+- **PAX_KERNEXEC** — `init_shadow_fields`, `copy_shadow_to_vmcs12`, `copy_vmcs12_to_shadow`, `nested_vmx_handle_vmread`/`vmwrite` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — VMREAD / VMWRITE vmexit (when not shadowed) and nested-VMRUN paths inherit RANDKSTACK.
+- **PAX_REFCOUNT** — per-vCPU shadow_vmcs and cached_shadow_vmcs12 refcount saturating.
+- **PAX_MEMORY_SANITIZE** — shadow VMCS region, VMREAD-bitmap, VMWRITE-bitmap pages zeroed on alloc and zeroed on free; cached_shadow_vmcs12 cleared on VMPTRLD swap.
+- **PAX_UDEREF** — no user-pointer ingress into shadow-VMCS path.
+- **PAX_RAP / kCFI** — nested handler dispatch and `kvm_x86_ops.nested_ops` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — shadow_vmcs HPA, VMREAD/VMWRITE-bitmap kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — shadow-vmcs-init-failure, shadow_read_only-field violation warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_SET_NESTED_STATE with shadow-VMCS state gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **VMCS PAX_USERCOPY** — shadow VMCS region populated only by KVM; L2 cannot read non-shadowed fields without VMREAD vmexit.
+- **shadow_read_only / shadow_read_write fields curated** — explicit `shadow_read_only_fields[]` and `shadow_read_write_fields[]` arrays bound the L2-direct-access set; accidentally-shadowed mutation defended.
+- **EPT_POINTER always intercepted** — L2 EPT-root spoofing defended by never shadowing EPT_POINTER.
+- **shadow_vmcs page locked** — kernel-allocated and pinned; host swap cannot move mid-vmenter.
+- **init_shadow_fields runs once** — bitmap initialization under `vmx_setup_l1d_flush` / boot-time hooks; per-init race defended.
+- **Nested-virt strict** — shadow VMCS only active for L1-supplied vmcs12; L0 internal vmcs01 never shadowed; L3+ rejected.
+
+Per-doc rationale: shadow VMCS lets L2 issue VMREAD/VMWRITE without vmexit by mapping a shadow region accessible to L1's nested VMX hardware; the grsec reinforcement curates which fields are shadowed (no EPT_POINTER, no host-state fields), SANITIZEs the shadow region on alloc/free, and locks the page so a host swap mid-vmenter cannot corrupt shadow state mid-VMREAD.
+
 ## Open Questions
 
 (none at this Tier-3 level)

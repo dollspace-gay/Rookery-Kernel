@@ -227,6 +227,29 @@ SPTE-specific reinforcement:
 - **MMIO-SPTE never installed for memslot pages** — defense against cross-mode-confusion mapping real RAM as MMIO.
 - **Per-SPTE atomic install** (cmpxchg) — defense against torn-SPTE-update causing transient inconsistency.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — SPTE bytes never copied to/from user.
+- **PAX_KERNEXEC** — spte build/mask helpers + handle_changed_spte RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per fault path; spte mutate sees fresh stack.
+- **PAX_REFCOUNT** — pfn page-ref obtained for SPTE install saturating.
+- **PAX_MEMORY_SANITIZE** — freed page-tables (SP->spt) zeroed; saved-access-track bits cleared.
+- **PAX_UDEREF** — pfn validated against memslot before SPTE install.
+- **PAX_RAP / kCFI** — spte build/dispatch indirect-callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — pfn / spte raw value redacted in trace.
+- **GRKERNSEC_DMESG** — handle_changed_spte BUG paths rate-limited.
+
+SPTE-specific:
+
+- **W^X strictly enforced** — never set both W and X bits on a single SPTE.
+- **MMIO-SPTE reserved-bits pattern derived from host MAXPHYADDR** — defense against collision with real PA.
+- **CAP_SYS_ADMIN on KVM_RUN** — only privileged VMM drives spte install.
+- **NX-huge-page split policy honored** — speculation mitigation.
+
+Rationale: SPTE is the atomic mapping unit between guest gfn and host pfn; W^X + RAP + sanitize close the dominant misinstall paths (writable executable mappings, stale-pfn cross-memslot).
+
 ## Open Questions
 
 (none at this Tier-3 level)

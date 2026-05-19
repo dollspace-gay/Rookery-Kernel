@@ -187,6 +187,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds copyin of `xfrm_algo`/`xfrm_algo_auth`/`xfrm_algo_aead` (alg_name + alg_key) on the XFRM netlink path before catalog lookup.
+- **PAX_KERNEXEC** — keeps the `static const` algorithm-catalog arrays (aead_list/aalg_list/ealg_list/calg_list) text W^X.
+- **PAX_RANDKSTACK** — randomises stack per algorithm-lookup entry, defeating ROP from a chosen-name flood.
+- **PAX_REFCOUNT** — wraps `crypto_alg` module refs taken via `crypto_alloc_aead`/`crypto_alloc_ahash` against module-unload-during-lookup UAF.
+- **PAX_MEMORY_SANITIZE** — zeroes scratch buffers used for algorithm-name canonicalisation and any test-vector scratch.
+- **PAX_UDEREF** — protects the netlink walker that retrieves alg_name from userland before catalog lookup.
+- **PAX_RAP / kCFI** — protects indirect dispatch through `crypto_alg->cra_*` ops used by AH/ESP transforms; AEAD/AH/ESP cipher dispatch sits exactly on this boundary.
+- **GRKERNSEC_HIDESYM** — hides `xfrm_*_algo_get_byname`, catalog tables, and `crypto_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so unknown-algorithm or FIPS-rejected traces don't leak algorithm-name enumeration.
+- **AEAD/AH/ESP cipher PAX_RAP** — all indirect calls into AEAD `encrypt`/`decrypt` and AH `update`/`final` are kCFI-typed; type-mismatched callbacks abort.
+- **IPsec catalog CAP_NET_ADMIN** — even though catalog itself is read-only, any *use* of an algorithm via SA install requires CAP_NET_ADMIN at `state.md`.
+- **Name-length clamp** — `CRYPTO_MAX_ALG_NAME` is enforced on every netlink-supplied alg_name; oversized names are rejected before catalog walk.
+- **FIPS / `fips_enabled` filter** — non-FIPS algorithms are masked out of the available catalog when `fips_enabled` is set; gradm can pin this on.
+
+Rationale: The algorithm catalog is the dispatch table that selects which crypto callbacks AH/ESP/IPCOMP invoke; CONSTIFY + PAX_RAP + name-length clamp turn this from a controllable indirect-call sink into a static, type-checked lookup, and MEMORY_SANITIZE plus REFCOUNT close the module-unload-during-use race.
+
 ## Open Questions
 
 (none — algorithm registry semantics are exhaustively specified by upstream + RFC 4305 / 8221 / 7321 + IANA SADB registry)

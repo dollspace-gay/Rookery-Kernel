@@ -216,6 +216,30 @@ x2APIC-specific reinforcement:
 - **Per-VM KVM_CAP_X2APIC_API gating** — defense against legacy QEMU expecting xAPIC.
 - **Live-migrate APIC state version** — defense against post-migrate mode-mismatch.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_LAPIC bounded by `struct kvm_lapic_state` slab; x2APIC MSR bitmap kernel-allocated.
+- **PAX_KERNEXEC** — `kvm_lapic_msr_read`, `kvm_lapic_msr_write`, `kvm_x2apic_id`, `kvm_apic_set_x2apic_mode` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — x2APIC MSR write vmexit (when not virtualized) and APIC-mode-change paths inherit RANDKSTACK.
+- **PAX_REFCOUNT** — per-vCPU LAPIC refcount and x2APIC-ID-table refcount saturating.
+- **PAX_MEMORY_SANITIZE** — per-vCPU LAPIC register file (regs page), apic_map cluster table zeroed on alloc/free; cluster bitmap zeroed on mode-transition so stale cluster-ID entries do not leak.
+- **PAX_UDEREF** — KVM_SET_LAPIC copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.set_apic_access_page_addr` and LAPIC MSR handler indirect-call CFI-guarded.
+- **GRKERNSEC_HIDESYM** — per-vCPU LAPIC regs kaddr and apic_map kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — APIC mode-transition / cluster-ID-collision warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_X2APIC_API gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR R/W intercept policy** — read-only x2APIC registers (e.g., x2APIC ID, version) trapped on write; guest direct-write defended.
+- **MSR-bitmap update under apic.lock** — pass-through MSR-bitmap modified under per-vCPU `apic->lock` so mode-transition torn state cannot occur.
+- **APIC ID > 255 only in x2APIC** — xAPIC mode rejects APIC_ID > 255 at WRMSR to defeat xAPIC overflow into x2APIC table.
+- **Cluster ID validated** — IPI cluster-destination validated against existing vCPUs; non-existent cluster destination drops cleanly.
+- **ICR-write atomic** — ICR low/high write under apic.lock so torn-IPI cannot deliver partial vector.
+- **virtualize-x2apic-mode VMX-validated** — guest enabling x2APIC mode on host without VMX virtualize-x2APIC support rejected.
+- **Nested-virt strict** — L2 x2APIC mediated by L1; L0 x2APIC state never directly written by L2.
+
+Per-doc rationale: x2APIC replaces MMIO APIC with MSR access (and enables APIC IDs >255 for systems with many cores); the grsec reinforcement enforces MSR R/W intercept policy on read-only registers, atom-locks ICR writes, validates cluster IDs to prevent IPI mis-delivery, and SANITIZEs the apic_map on mode transitions so stale xAPIC cluster IDs do not poison x2APIC operation.
+
 ## Open Questions
 
 (none at this Tier-3 level)

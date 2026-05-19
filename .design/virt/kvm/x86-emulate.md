@@ -229,6 +229,29 @@ emulator-specific reinforcement:
 - **Emulator-side state never leaks to userspace** — emulator's local registers + scratch state freed before return; defense against UAF if emulation aborts mid-instruction.
 - **Per-instruction emulation budget** — bounded by `EMULATE_INSN_LIMIT` (default 32 instructions per single emulation call) to prevent emulator-loop DoS by guest.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — emulator MMIO/PIO copy_from_user/copy_to_user bounded by op size; insn_fetch ≤ 15 bytes.
+- **PAX_KERNEXEC** — emulate.c opcode tables + EmuOps vtable RO after init.
+- **PAX_RANDKSTACK** — randomized kstack each x86_emulate_instruction entry; struct x86_emulate_ctxt freshly stacked.
+- **PAX_REFCOUNT** — mmu/seg refcounts touched during emulation saturating.
+- **PAX_MEMORY_SANITIZE** — x86_emulate_ctxt scratch + decode-cache zeroed on emulator exit (abort or success).
+- **PAX_UDEREF** — emulator linear→physical translation rejects host-kernel-VAs.
+- **PAX_RAP / kCFI** — emulator EmuOps.* indirect dispatch type-checked.
+- **GRKERNSEC_HIDESYM** — RIP / linear-addr / GDT-pointer redacted in trace.
+- **GRKERNSEC_DMESG** — emulator-abort floods rate-limited.
+
+Emulator-specific:
+
+- **CAP_SYS_ADMIN on KVM_RUN** — emulator only reachable from privileged VMM.
+- **Per-instruction insn_len ≤ 15 hard panic** if exceeded — defense against decoder run-away.
+- **CPL check before privileged-op dispatch** — defense against ring-3 emulator escalation.
+- **EmuOps.intercept type-checked under kCFI** — blocks function-pointer-overwrite drive.
+
+Rationale: the x86 emulator is a vast attack surface for guests that wedge themselves into emulation paths; ctxt-sanitize + RAP-checked EmuOps prevent the dominant class of emulator-state-confusion bugs from escalating to host RCE.
+
 ## Open Questions
 
 (none at this Tier-3 level)

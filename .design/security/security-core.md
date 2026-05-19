@@ -462,6 +462,25 @@ LSM-core reinforcement:
 - **Per-lockdown_reasons[] indexed by enum** — defense against per-out-of-range reason audit-string leak.
 - **Per-lsm_id->name maintained const** — defense against per-spoofed-LSM-name in audit records.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `security_setprocattr` / `security_getprocattr` / `fill_user_ctx` length-checked against bounded blob sizes; `E2BIG` with size-out returned rather than truncation on undersized buffers.
+- **PAX_KERNEXEC** — `security_hook_heads` (the per-hook hlist of LSM dispatchers) lives in RO `__lsm_ro_after_init`; no runtime mutation after `security_add_hooks` past `late_init`.
+- **PAX_RANDKSTACK** — kstack-offset randomization applied at every LSM hook entry from syscall paths.
+- **PAX_REFCOUNT** — saturating refcount on `struct cred`, `task_security`, `inode_security`, and `sb_security` composite blobs preventing wrap on attacker-driven cred churn.
+- **PAX_MEMORY_SANITIZE** — `cred_free` / `task_free` / `sb_free` zero-on-free of composite LSM blobs; defense against UAF on stale `cred->security` after revoke.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every `setprocattr` write; lsm_id `name` strings kept `const` to prevent spoofed LSM-name in audit records.
+- **PAX_RAP / kCFI strict** — `security_hook_heads.<hook>` per-hook hlist callbacks all dispatched via kCFI-signed indirect calls; cross-LSM type mismatch traps.
+- **GRKERNSEC_HIDESYM** — `security_hook_heads`, `lsm_blob_sizes`, and `__lsm_active_*` masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — LSM init / stacking diagnostics restricted to CAP_SYSLOG.
+- **LSM stacking strict-order** — `security_add_hooks` ordering pinned by `lsm_order` boot-param + builtin order list; out-of-order register refused, not silently re-sorted.
+- **CAP_MAC_ADMIN / CAP_MAC_OVERRIDE strict** — `security_setprocattr` writes to MAC-controlled attrs require CAP_MAC_ADMIN in the owning user-ns; CAP_MAC_OVERRIDE never inferred from CAP_SYS_ADMIN.
+- **`lockdown_reasons[]` indexed lookup** — `security_locked_down` consults an indexed const table (no format-string interpolation of user data) and rejects out-of-range enum values; defense against audit-string format injection.
+
+Per-doc rationale: security-core is the dispatch fabric for every LSM hook in the kernel — every file-open, exec, mmap, ptrace, socket-op, ipc-op, key-add, mount, netlink-recv, and bpf-op traverses `security_hook_heads`. A single kCFI miss here would let an attacker pivot any indirect-call vulnerability into "wrong LSM hook runs"; saturating REFCOUNT + RO hook_heads + MEMORY_SANITIZE of composite blobs is the spine of MAC integrity.
+
 ## Open Questions
 
 (none at this Tier-3 level)

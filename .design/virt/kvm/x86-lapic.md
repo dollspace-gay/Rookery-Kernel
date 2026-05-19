@@ -233,6 +233,28 @@ lapic-specific reinforcement:
 - **Per-vCPU LAPIC state validated at KVM_SET_LAPIC** — register fields range-checked; reserved bits zeroed; defense against malformed userspace state corrupting in-kernel APIC.
 - **TSC-deadline + TSC-offset coordination** — guest TSC-deadline translated to host hrtimer expiration via per-vCPU TSC offset; defense against TSC-skew confusing timer expiry.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_LAPIC state bounded by KVM_APIC_REG_SIZE.
+- **PAX_KERNEXEC** — LAPIC MMIO dispatch + APICv hooks RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per IRQ-deliver / KVM_RUN.
+- **PAX_REFCOUNT** — kvm_lapic refcount saturating (Tier-3 already calls out).
+- **PAX_MEMORY_SANITIZE** — apic_page zeroed on LAPIC destroy; TSC-deadline hrtimer cancelled-and-zeroed.
+- **PAX_UDEREF** — KVM_*_LAPIC user pointer validated.
+- **PAX_RAP / kCFI** — apicv vendor hooks (vmx/svm) indirect-call type-checked.
+- **GRKERNSEC_HIDESYM** — apic_page hva / pid PA redacted.
+- **GRKERNSEC_DMESG** — LAPIC MMIO-flood warnings rate-limited.
+
+LAPIC-specific:
+
+- **CAP_SYS_ADMIN on KVM_SET_LAPIC** — defense against unprivileged LAPIC restore.
+- **xAPIC MMIO 0xfee00000 IOMMU-reserved** — IRTE cannot remap.
+- **lowest-priority tie-break deterministic** — defense against live-migrate divergence.
+
+Rationale: LAPIC is the central IRQ-dispatch chokepoint; sanitize on destroy + RAP-checked APICv hooks prevent stale apic_page mapping from being re-used post-destroy (the dominant cross-VM LAPIC-leak surface).
+
 ## Open Questions
 
 (none at this Tier-3 level)

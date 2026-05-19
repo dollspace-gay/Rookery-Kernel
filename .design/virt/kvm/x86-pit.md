@@ -258,6 +258,29 @@ PIT-specific reinforcement:
 - **Per-channel speaker port 0x61 bit-2 ignored** — defense against guest-spec divergence.
 - **Per-VM kthread worker bound to KVM module lifetime** — defense against UAF post-VM-destroy.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_PIT2 payload bounded by sizeof(struct kvm_pit_state2).
+- **PAX_KERNEXEC** — PIT I/O-port dispatch + hrtimer callbacks RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per PIT IRQ inject.
+- **PAX_REFCOUNT** — pit_worker kthread + reinject-pending counter saturating.
+- **PAX_MEMORY_SANITIZE** — kvm_pit state zeroed on PIT destroy.
+- **PAX_UDEREF** — KVM_*_PIT2 user pointer validated.
+- **PAX_RAP / kCFI** — PIT IO_device + hrtimer-fn type-checked.
+- **GRKERNSEC_HIDESYM** — count/period raw values redacted.
+- **GRKERNSEC_DMESG** — PIT-flood warnings rate-limited.
+
+PIT-specific:
+
+- **CAP_SYS_ADMIN on KVM_CREATE_PIT2** — defense against unprivileged PIT enable.
+- **mode > 5 rejected** — defense against undefined-mode hrtimer-arm.
+- **period bounded against integer-overflow** — closes hrtimer arm-with-zero.
+- **reinject-pending capped** — defense against IRQ-storm DoS.
+
+Rationale: PIT emulation arms host hrtimers from guest-controlled state; sanitize + reinject cap close the dominant IRQ-storm DoS and stale-hrtimer UAF surfaces.
+
 ## Open Questions
 
 (none at this Tier-3 level)

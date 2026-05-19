@@ -210,6 +210,28 @@ INIT/SIPI-specific reinforcement:
 - **Per-vCPU pending-events under apic.lock** — defense against torn pending state.
 - **Hot-add vCPU initial UNINITIALIZED** — defense against pre-INIT execution.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_MP_STATE bounded by sizeof(struct kvm_mp_state).
+- **PAX_KERNEXEC** — INIT/SIPI handler table RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN; AP-bringup uses fresh stack.
+- **PAX_REFCOUNT** — vCPU pending-events refcount saturating.
+- **PAX_MEMORY_SANITIZE** — vCPU arch state zeroed on INIT-reset (only architectural-preserved fields survive).
+- **PAX_UDEREF** — KVM_SET_MP_STATE user pointer validated.
+- **PAX_RAP / kCFI** — kvm_vcpu_reset / sipi callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — SIPI-vector / mp_state values redacted in trace.
+- **GRKERNSEC_DMESG** — INIT/SIPI floods rate-limited.
+
+INIT/SIPI-specific:
+
+- **CAP_SYS_ADMIN on KVM_SET_MP_STATE** — defense against unprivileged AP-state flip.
+- **mp_state enum validated against ARRAY_SIZE table** — defense against OOB switch.
+- **SIPI vector ≤ 0xFF, CS.base = vec<<12 bounds-checked** — blocks malformed AP-entry.
+
+Rationale: INIT/SIPI is the AP-bringup chokepoint; sanitize-on-reset + RAP-checked reset callbacks ensure architectural-preserved state is the only carryover, blocking AP-state-confusion that would let a hot-removed vCPU's stale state resurface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

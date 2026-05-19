@@ -233,6 +233,29 @@ AVIC-specific reinforcement:
 - **Per-vCPU APIC ID validated** — defense against guest setting APIC_ID > 255 in xAPIC mode.
 - **Doorbell IPI vector validated** — defense against attacker-controlled vector causing #UD.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — AVIC backing page / logical-ID / physical-ID tables allocated kernel-side; no user-pointer copy into VMCB.control.avic_* fields.
+- **PAX_KERNEXEC** — `avic_init_vcpu`, `avic_vcpu_load`, `avic_ga_log_notifier`, `avic_handle_ldr_update` resolve through RX-only kernel text; SVM ops vtable RO.
+- **PAX_RANDKSTACK** — AVIC unaccelerated-IPI / NPF and KVM_RUN paths inherit RANDKSTACK.
+- **PAX_REFCOUNT** — per-VM AVIC physical-id-table and per-vCPU AVIC backing page refcount saturating.
+- **PAX_MEMORY_SANITIZE** — AVIC backing page (per-vCPU APIC register file), physical-ID table, logical-ID table zeroed on alloc and zeroed on free so stale APIC-ID mapping cannot leak across VM destroy.
+- **PAX_UDEREF** — no user pointer in AVIC table-write path; all writes through kernel `kvm_write_guest`.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.refresh_apicv_exec_ctrl`, `apicv_post_state_restore`, `set_apic_access_page_addr`, AVIC NPF / unaccel-write handlers RAP-signed.
+- **GRKERNSEC_HIDESYM** — AVIC backing page kaddr, physical/logical-ID-table HPAs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — AVIC enable/inhibit transitions, unaccelerated-IPI rate warnings, GA-log overflow rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — AVIC enable / KVM_DEV_VFIO posted-IRQ setup gated to CAP_SYS_ADMIN + gr-rbac VM-create + device-passthrough roles.
+- **VMCB AVIC backing page validated** — `vmcb01.control.avic_backing_page` validated against kernel-allocated GPA before VMRUN.
+- **Per-vCPU APIC ID validated** — xAPIC APIC_ID ≤ 255 enforced; out-of-range writes rejected so AVIC physical-ID-table index cannot OOB.
+- **AVIC inhibit on x2APIC + nested** — feature-mismatch detected; AVIC disabled rather than running with inconsistent state.
+- **Posted-IRQ IRTE PDA validated** — IRTE Posting-Descriptor-Address validated against kernel-allocated PD so guest cannot redirect IOMMU writes to host kernel memory.
+- **Doorbell IPI vector validated** — doorbell vector ∈ allowed range; attacker-controlled value cannot cause #UD on host.
+- **Nested-virt strict** — AVIC inhibited when L2 active; nested AVIC not supported (L0 cannot directly post to L2).
+
+Per-doc rationale: AVIC bypasses VMVMCB-mediated APIC writes by mapping a per-vCPU APIC register page directly; the grsec reinforcement here validates the backing-page HPA + physical-ID-table indices to prevent OOB into host memory, inhibits AVIC when feature-mismatched (x2APIC, nested) rather than allowing inconsistent operation, and SANITIZEs AVIC tables on free to prevent successor-VM cross-tenant APIC-ID exposure.
+
 ## Open Questions
 
 (none at this Tier-3 level)

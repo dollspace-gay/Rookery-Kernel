@@ -224,6 +224,28 @@ page-tracker-specific reinforcement:
 - **Per-VM notifier list bounded by KVM_PAGE_TRACK_NOTIFIER_MAX** — defense against unbounded subscribe.
 - **Notifier callbacks must not subscribe additional notifiers** (single-write nesting) — defense against re-entrant subscribe causing list mutation during walk.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — page-track ioctl payloads (subscribe via KVMGT) bounded by sizeof.
+- **PAX_KERNEXEC** — page-track notifier list-op + dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per write-track callback / KVM_RUN.
+- **PAX_REFCOUNT** — per-gfn track counter u16 saturating (Tier-3 already enforces cap).
+- **PAX_MEMORY_SANITIZE** — gfn_track array zeroed on memslot delete.
+- **PAX_UDEREF** — KVMGT subscriber pointer (mediated-dev) validated.
+- **PAX_RAP / kCFI** — track_write / track_remove_region indirect callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — gfn / notifier-fn pointers redacted.
+- **GRKERNSEC_DMESG** — notifier-overflow warnings rate-limited.
+
+Page-track-specific:
+
+- **CAP_SYS_ADMIN on KVMGT mediated-device attach** — defense against unprivileged page-track subscribe.
+- **SRCU-protected list ensures dispatch-during-unregister safety**.
+- **Notifier callbacks audited non-sleeping** — defense against block-in-atomic deadlock.
+
+Rationale: page-track is the GPU-mediation hook surface; SRCU + RAP-checked dispatch close the dominant notifier-UAF surface seen by drivers that unregister during heavy guest write-storms.
+
 ## Open Questions
 
 (none at this Tier-3 level)

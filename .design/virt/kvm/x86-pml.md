@@ -198,6 +198,26 @@ PML-specific reinforcement:
 - **Per-VM destroy frees pml_pg** — defense against per-VM-leak.
 - **Per-PML capability check at module load** — defense against per-non-PML-CPU mis-enable.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — PML buffer (per-vCPU 4KB page) drained into KVM dirty-bitmap / dirty-ring kernel-side; userspace observes only via KVM_GET_DIRTY_LOG / dirty-ring mmap whose sizes are slab-fixed.
+- **PAX_KERNEXEC** — `vmx_flush_pml_buffer`, `vmx_get_pml_log_dirty_pages` resolve through `kvm_x86_ops` RO vtable; module text RX-only.
+- **PAX_RANDKSTACK** — VM-entry/exit including PML-FULL exit randomized per-entry.
+- **PAX_REFCOUNT** — per-vCPU PML buffer pinned via vCPU refcount (saturating); buffer free races with KVM_RUN cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `vmx->pml_pg` zeroed on alloc (so stale GPA entries never leaked) and zeroed on free before page-allocator handback.
+- **PAX_UDEREF** — PML buffer never touches user pointer; GFNs walked entirely in kernel before dirty-bitmap user-mmap exposure.
+- **PAX_RAP / kCFI** — `vmx_flush_pml_buffer` slot RAP-signed in `kvm_x86_ops`.
+- **GRKERNSEC_HIDESYM** — per-vCPU `pml_pg` kaddr + PML_ADDRESS VMCS field redacted from debugfs unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — PML-FULL warnings and `enable_pml=0` fallback rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_VM / KVM_SET_USER_MEMORY_REGION + KVM_MEM_LOG_DIRTY_PAGES gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **VMCS PAX_USERCOPY** — VMCS field PML_ADDRESS / PML_INDEX writes pass through `vmcs_write64` which is host-only; guest cannot observe raw VMCS via VMREAD (Intel-spec rejects without `enable_shadow_vmcs`).
+- **GFN-bound iteration** — `vmx_flush_pml_buffer` walks ≤ `PML_LOG_NR_ENTRIES` (512) bounded; OOB index defends against PML_INDEX guest-controlled wrap.
+- **Nested-virt strict** — L0 PML not exposed to L2; L1 hypervisor advertising PML must run its own software dirty-walk for L2.
+
+Per-doc rationale: PML is hardware dirty-tracking with a per-vCPU GPA log; the grsec reinforcement here keeps the buffer pinned and zeroed under PAX_REFCOUNT + MEMORY_SANITIZE so stale GPAs never leak through PML page reuse, and ensures the PML-FULL vmexit path is the only way a guest can influence the dirty-tracking pipeline (no PML buffer mmap to userspace, no shared writable mapping).
+
 ## Open Questions
 
 (none at this Tier-3 level)

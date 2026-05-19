@@ -177,6 +177,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds any user-supplied BPF map keys/values that touch the XFRM lookup edge (e.g. tunnel-id maps).
+- **PAX_KERNEXEC** — keeps the `static const struct btf_kfunc_id_set` registrations and `xfrm_state`-helper kfunc tables text W^X.
+- **PAX_RANDKSTACK** — randomises stack per kfunc dispatch entry; protects against ROP through BPF-controlled call sites.
+- **PAX_REFCOUNT** — wraps the `xfrm_state.refcnt` acquire/release that the kfunc pair `bpf_xdp_get_xfrm_state`/`bpf_xdp_xfrm_state_release` performs; verifier-enforced pairing plus saturating refcount.
+- **PAX_MEMORY_SANITIZE** — zeroes any scratch BPF map values that BPF programs use to stage XFRM lookup context.
+- **PAX_UDEREF** — irrelevant inside BPF (no userland deref), but applies on the bpf(2) syscall path that installs these programs.
+- **PAX_RAP / kCFI** — protects indirect dispatch of kfunc resolution from BPF text into the kernel `xfrm_state_lookup_byspi`/`xfrm_state_put` shim; BPF lookup hook is exactly this surface.
+- **GRKERNSEC_HIDESYM** — hides BPF-XFRM kfunc symbol names from `kallsyms` so non-root cannot enumerate the available hook set.
+- **GRKERNSEC_DMESG** — restricts dmesg so verifier-reject traces don't leak BPF program structure / SA SPIs.
+- **BPF lookup hook PAX_KERNEXEC** — the `xfrm_state_lookup_byspi` callable from BPF is reached via a `static const` kfunc table whose .text is non-writable; no runtime patching.
+- **AEAD/AH/ESP cipher PAX_RAP** — BPF cannot reach cipher dispatch directly; the kfunc set exposes only read-only `xfrm_state` fields, verifier-restricted.
+- **CAP_BPF + CAP_NET_ADMIN gating** — programs that link XFRM kfuncs require both CAPs; gradm `bpf_xfrm_user` role recommended as the only subject allowed.
+- **kfunc allowlist** — only enumerated kfunc IDs are exported; an attacker who controls a BPF program cannot synthesise a call into arbitrary XFRM internals.
+
+Rationale: BPF + XFRM is the most direct way for a privileged userland program to drive arbitrary indirect calls against IPsec SA state. CONSTIFY on the kfunc registration, PAX_RAP/kCFI on the dispatch edge, verifier-enforced REFCOUNT pairing, and the two-CAP gate (CAP_BPF + CAP_NET_ADMIN) confine this surface to a static, statically-checked allowlist.
+
 ## Open Questions
 
 (none — XFRM BPF kfunc sets are exhaustively specified by upstream)

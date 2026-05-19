@@ -249,6 +249,30 @@ setns-syscall reinforcement:
 - **Per-stacking-bounded** — defense against per-recursive-namespace-join runaway.
 - **Per-cred install via commit_creds atomic** — defense against per-half-credential race.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by `setns(2)`:
+
+- **PAX_USERCOPY** — covers the pidfd/nsfs fd resolution path; no large-payload copy, but slab fetches in `proc_ns_get_link` are bounds-checked.
+- **PAX_KERNEXEC** — `proc_ns_operations->install` vtables stay RX/RO; setns cannot pivot through a freshly rewritten ns_operations table.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on `__do_sys_setns` defeats stack-grooming via setns followed by exec.
+- **PAX_REFCOUNT** — saturating refs on every joined namespace (`user_ns->count`, `mnt_ns->count`, `pid_ns_for_children`, `net->count`); namespace lifetime is UAF-safe even under racy double-setns.
+- **PAX_MEMORY_SANITIZE** — zeroes freed `struct nsproxy` and per-ns credential snapshots on commit_creds rollback.
+- **PAX_UDEREF** — strict user/kernel pointer separation for the fd argument and credentials install path.
+- **PAX_RAP / kCFI** — forward-edge CFI on `ns_common->ops->install` and `commit_creds`, blocking JOP through a tampered nsproxy.
+- **GRKERNSEC_HIDESYM** — `prepare_nsset`, `commit_nsset`, and per-subsystem `*_install` helpers hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so namespace-install failures (which often leak ancestor-ns layout) are root-only.
+
+Namespace-family-specific reinforcement:
+
+- **CAP_SYS_ADMIN in target userns strict** — re-evaluated after `prepare_creds`; even a USER_NS hop cannot synthesize the capability in init_user_ns.
+- **GRKERNSEC_CHROOT_FINDTASK** — a chroot'd caller cannot resolve a pidfd to a task outside the chroot, neutralizing the setns-via-pidfd escape vector.
+- **GRKERNSEC_CHROOT_NICE / CHROOT_CAPS** — capability set on entry into a foreign ns is bounded; raised capabilities from a parent userns do not survive into a child chroot.
+- **GRKERNSEC_CHROOT_DOUBLE** — chrooted task cannot setns into a foreign mnt_ns whose root is a different chroot.
+- **CLONE_NEWUSER|CLONE_NEWNS single-threaded enforcement** — paired with PAX_REFCOUNT so a sibling thread cannot race the userns swap.
+
+Rationale: `setns(2)` is the inverse of `unshare(2)` and the typical second step of a privilege-bracket escape (gain caps in a private userns, setns into the host's mnt_ns/net_ns). The CHROOT_FINDTASK gate plus CAP_SYS_ADMIN-in-target-userns and PAX_REFCOUNT on every ns slot collapse this class.
+
 ## Open Questions
 
 (none at this Tier-5 level)

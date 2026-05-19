@@ -228,6 +228,28 @@ zap-specific reinforcement:
 - **Per-INVLPGB instruction validated** (newer) — defense against guest using before CPUID feature.
 - **Per-mmu_notifier registration ref-counted** — defense against use-after-deregister.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — no zap path crosses user boundary.
+- **PAX_KERNEXEC** — zap walker + remote-TLB-flush dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per zap entry (notifier / collapse / generation rollover).
+- **PAX_REFCOUNT** — mmu_notifier registration ref + per-SP zap ref saturating.
+- **PAX_MEMORY_SANITIZE** — zapped pgtable pages zeroed before RCU-free.
+- **PAX_UDEREF** — gfn-range zap reject user pointers (assertion).
+- **PAX_RAP / kCFI** — zap_rmap / zap_collapsible callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — gfn / sp pointers redacted in zap-trace.
+- **GRKERNSEC_DMESG** — gen-rollover / TLB-flush failures rate-limited.
+
+Zap-specific:
+
+- **CAP_SYS_ADMIN on KVM_RUN / memslot ops** — privileged VMM only.
+- **Synchronous remote-TLB-flush before pgtable reuse** — closes stale-TLB cross-VM.
+- **zap_obsolete worker yield bounded** — defense against starvation DoS.
+
+Rationale: zap is the only authoritative SPTE-clearance path; sanitize + saturating refs + synchronous TLB flush eliminate stale-TLB and zap-during-fault UAF surfaces.
+
 ## Open Questions
 
 (none at this Tier-3 level)

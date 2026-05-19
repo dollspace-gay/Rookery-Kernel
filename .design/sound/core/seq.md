@@ -697,6 +697,27 @@ ALSA-sequencer reinforcement:
 - **Per-VARUSR copy_from_user staging** — defense against per-userspace-pointer-trust during dispatch.
 - **Per-system-announce port read-only (NO_EXPORT)** — defense against per-spoofed announce.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `snd_seq_event`, `snd_seq_port_info`, `snd_seq_queue_info`, `snd_seq_client_info`, `snd_seq_subscribe`, and `snd_seq_remove_events` payloads bounded against fixed struct size; var-event `event.data.ext.ptr` user-buffer copy staged via bounded scratch.
+- **PAX_KERNEXEC** — `snd_seq_f_ops`, ioctl dispatcher, `snd_seq_port_callback` and `snd_seq_kernel_client_*` operations resident in RX `.text`.
+- **PAX_RANDKSTACK** — kstack-offset randomization on every `/dev/snd/seq` ioctl entry and on `snd_seq_kernel_client_ioctl` dispatch from kernel clients.
+- **PAX_REFCOUNT** — saturating refcount on `snd_seq_client`, `snd_seq_client_port`, `snd_seq_queue`, and `snd_seq_subscribers`; defense against subscribe-tree mutation wrapping the count.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `snd_seq_client`, port subscriptions, and event-pool cells before reuse so prior tenant's queued events cannot reappear.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every seq ioctl; SNDRV_SEQ_EVENT_VAR* (var-user) copy_from_user staging strictly bounded.
+- **PAX_RAP / kCFI** — `snd_seq_port_callback` (`subscribe/unsubscribe/use/unuse/event_input`) dispatched via kCFI-signed indirect calls.
+- **GRKERNSEC_HIDESYM** — `client_table`, `register_mutex`, and `snd_seq_pool` symbols masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — seq client create / port subscribe failure diagnostics restricted to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict on /dev/snd/seq** — devnode access governed by `audio` group; CAP_SYS_ADMIN required for udev rule override.
+- **`snd_seq_kernel_client_ioctl` bounded to OSS path** — defense against arbitrary kernel-client ioctl on /dev/snd/seq.
+- **Per-port `event_filter` bitmap gating types** — defense against event-flood / per-type DoS.
+- **System-announce port read-only (`NO_EXPORT`)** — defense against spoofed announce events from userspace clients.
+- **VARUSR copy_from_user staging** — defense against userspace-pointer-trust during event dispatch; staging buffer is per-dispatch and zeroed on return.
+
+Per-doc rationale: the ALSA sequencer is a many-to-many event-routing fabric where userspace and kernel clients (seq_midi, virmidi, OSS) subscribe to each other's ports. Historically the highest-CVE-density ALSA surface (CVE-2017-15265, CVE-2018-7566, CVE-2023-0266). Triple-overlap (REFCOUNT + event-filter + system-announce NO_EXPORT) is what blocks the cross-client UAF class.
+
 ## Open Questions
 
 (none at this Tier-3 level)

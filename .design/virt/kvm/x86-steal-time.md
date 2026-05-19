@@ -235,6 +235,27 @@ steal-time-specific reinforcement:
 - **KVM_VCPU_FLUSH_TLB bit honored only if pv-tlb-flush feature enabled** — defense against guest setting unsupported flag bits.
 - **steal-time control-page in IOMMU-protected mem** — defense against device-DMA writing steal-time field corrupting guest accounting.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — steal-time control-page write goes through `kvm_write_guest_cached` with bounded `struct kvm_steal_time` size; no direct user-pointer copy.
+- **PAX_KERNEXEC** — `kvm_steal_time_set_preempted`, `record_steal_time`, `kvm_set_msr_common` (MSR_KVM_STEAL_TIME branch) resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — preempt-notifier and KVM_RUN paths inherit RANDKSTACK from scheduler / syscall entry.
+- **PAX_REFCOUNT** — per-vCPU steal-time gfn-cache pinned through SRCU + vCPU refcount saturating.
+- **PAX_MEMORY_SANITIZE** — `vcpu.arch.st` (last_steal, gfn-cache, flags) zeroed on alloc/free; on WRMSR-disable the cached HVA is cleared so a successor enable cannot inherit it.
+- **PAX_UDEREF** — steal-time GPA validated against memslots; no raw user pointer dereference.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.set_msr` slot RAP-signed.
+- **GRKERNSEC_HIDESYM** — steal-time gfn-cache kaddr and per-vCPU last_steal redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — invalid-GPA / unaligned-enable WRMSR warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_PV_STEAL_TIME advertisement gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR_KVM_STEAL_TIME passthrough validation** — enable-bit (bit 0), 4KiB-alignment, and GPA-in-memslot validated; reserved-bit writes intercepted and #GP-injected.
+- **KVM_VCPU_FLUSH_TLB gating** — preempt_flush bit honored only if pv-tlb-flush CPUID feature enabled; guest setting unsupported flags rejected.
+- **IOMMU-protected mem** — steal-time control-page subject to IOMMU domain protection so DMA from a passthrough device cannot corrupt steal-time fields.
+- **Nested-virt strict** — L1 steal-time advertised to L2 mediated through L1; L0 steal-time cache never directly written by L2 guest.
+
+Per-doc rationale: steal-time exposes a guest-mapped page that the host updates from preempt-notifier context; the grsec reinforcement here validates the WRMSR enable to defend against unaligned/out-of-memslot GPAs, SANITIZEs the gfn-cache on disable to prevent successor-VM cross-contamination, and applies IOMMU protection so DMA cannot tamper with the same field a preempt notifier is writing.
+
 ## Open Questions
 
 (none at this Tier-3 level)

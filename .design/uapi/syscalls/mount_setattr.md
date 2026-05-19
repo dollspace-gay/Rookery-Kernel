@@ -279,6 +279,29 @@ mount_setattr-syscall reinforcement:
 - **Per-reserved-bit reject on attr_set/clr** — defense against per-future-flag-conflation.
 - **Per-namespace-lock around prepare+commit** — defense against per-concurrent-mount-mutation races.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by `mount_setattr(2)`:
+
+- **PAX_USERCOPY** — bounds-checked copy_from_user of the `struct mount_attr` extensible blob; trailing-zero rule enforced before any field read, eliminating uninitialized-stack disclosure.
+- **PAX_KERNEXEC** — keeps `mount->mnt_userns` install paths and `vfsmount_lock` critical sections in RX/RO text; attribute change cannot rewrite executable code.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on `do_mount_setattr` defeats stack-grooming routed through the attr struct.
+- **PAX_REFCOUNT** — saturating refs on `user_ns->count` for idmap installs and `mnt->mnt_count` for subtree walks; idmap-swap UAF cannot underflow.
+- **PAX_MEMORY_SANITIZE** — zeroes the kernel copy of `struct mount_attr` and prepared per-mount attribute snapshots on free, removing leftover attr bits from reused slab.
+- **PAX_UDEREF** — strict user/kernel pointer separation across attr fetch and userns_fd resolution.
+- **PAX_RAP / kCFI** — forward-edge CFI on `mnt_idmap_get/put` and `commit_set_attrs`, blocking JOP through a corrupted ops vector.
+- **GRKERNSEC_HIDESYM** — `do_mount_setattr`, `mount_setattr_prepare`, `mount_setattr_commit` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so attribute-rejection traces (idmap conflict, FS_ALLOW_IDMAP missing) do not leak FS_internal flags to non-root.
+
+Mount-family-specific reinforcement:
+
+- **CAP_SYS_ADMIN-in-mnt_ns->user_ns strict** — every attr_set/clr re-validates the owning userns capability; init_user_ns is not a fallback.
+- **GRKERNSEC_CHROOT_MOUNT** — chrooted task is denied mount_setattr outright, closing the attribute-relax-then-escape vector.
+- **GRKERNSEC_CHROOT_FCHDIR** — prevents fchdir into a mount whose attributes were just relaxed by a sibling task in the same chroot.
+- **GRKERNSEC_NOMOUNT** — sysctl override that forbids attribute changes by non-root even when userns capabilities are present.
+
+Rationale: `mount_setattr(2)` is the modern surface for idmap and MNT_LOCKED manipulation. Combining USERCOPY/UDEREF on the extensible-struct read with the grsec chroot/idmap gates prevents the attribute-relax-then-escape and userns-swap-TOCTOU classes that the legacy `mount(2)` MS_REMOUNT path could not cleanly defend against.
+
 ## Open Questions
 
 (none at this Tier-5 level)

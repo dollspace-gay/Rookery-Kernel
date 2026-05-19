@@ -253,6 +253,28 @@ VMLOAD/VMSAVE-specific reinforcement:
 - **Per-vCPU vmcb01 vs vmcb02 distinct save** — defense against L1/L2 state cross-contamination.
 - **SVM v2 LBR fields included** — defense against LBR-state-loss when active.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — host_save_area kernel-allocated; guest VMSAVE/VMLOAD target validated against memslots before SVM instruction.
+- **PAX_KERNEXEC** — `vmsave_host_state`, `vmload_host_state`, `__svm_vcpu_run` (vmsave/vmload window) resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — vmsave/vmload bracketing VMRUN inherits RANDKSTACK.
+- **PAX_REFCOUNT** — per-CPU host_save_area refcount saturating across vCPU schedule cycles.
+- **PAX_MEMORY_SANITIZE** — per-CPU host_save_area allocated at hotplug-online and zeroed; per-vCPU vmcb01 save fields zeroed on free so prior FS_BASE / GS_BASE / TR / LDTR cannot leak.
+- **PAX_UDEREF** — no user pointer in vmsave/vmload host path; guest-issued VMSAVE GPA validated through memslot lookup.
+- **PAX_RAP / kCFI** — vmsave/vmload asm wrappers RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-CPU host_save_area kaddr and FS/GS base values redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — vmsave/vmload-failure warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_RUN entry into SVM trampoline gated to CAP_SYS_ADMIN + gr-rbac-allowed process.
+- **VMCB PAX_USERCOPY** — `vmcb_pa` validated against kernel-allocated VMCB; guest VMSAVE/VMLOAD GPA validated against memslot, never against host kernel HVA.
+- **Save-area access preempt-disabled** — vmsave / VMRUN / vmload sequence run with preemption disabled so host IRQ cannot snapshot mid-save and corrupt FS_BASE write-order.
+- **vmcb01 vs vmcb02 distinct** — L1 host-state in vmcb01, nested L2 host-state in vmcb02; L1↔L2 transitions cannot cross-contaminate save areas.
+- **SVM v2 LBR fields included** — when LBR active, vmsave includes LBR_FROM/LBR_TO so LBR records do not leak across vmexit.
+- **Nested-virt strict** — nested guest VMSAVE/VMLOAD trapped through L0; L0 host_save never written by L2 directly.
+
+Per-doc rationale: VMSAVE/VMLOAD save/restore high-overhead segment + MSR state at VMRUN boundaries; the grsec reinforcement keeps the host_save_area kernel-allocated and preempt-disabled across the save+VMRUN+restore window, distinguishes vmcb01/vmcb02 to prevent L1↔L2 cross-contamination, and validates guest-issued VMLOAD GPA against memslots so a malicious guest cannot point VMLOAD at host kernel memory.
+
 ## Open Questions
 
 (none at this Tier-3 level)

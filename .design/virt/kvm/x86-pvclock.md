@@ -243,6 +243,26 @@ kvmclock-specific reinforcement:
 - **MSR_KVM_SYSTEM_TIME enable-bit** — defense against half-configured pvclock causing incoherent state.
 - **Per-vCPU pvclock_seq odd-during-update** — defense against guest reading mid-update value.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — pvclock page write uses `kvm_write_guest_cached`/`memcpy_to_guest` with bounded slab length; no user-pointer copy in the per-vCPU pvclock-update path.
+- **PAX_KERNEXEC** — `kvm_guest_time_update`, `kvm_set_msr_common` (MSR_KVM_SYSTEM_TIME branch) resolve through RX-only kernel text; per-vendor TSC offset ops in RO vtable.
+- **PAX_RANDKSTACK** — KVM_RUN, MSR write, and TSC catchup paths inherit RANDKSTACK from the originating syscall.
+- **PAX_REFCOUNT** — per-vCPU pvclock-data and global `kvm.arch.tsc_lock` references saturating; concurrent update + vCPU destroy cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `vcpu.arch.hv_clock`, `kvmclock_offset`, master_kernel_ns shadow zeroed on vCPU alloc/free; cached pvclock-gpa zeroed on disable so stale TSC scale never leaks.
+- **PAX_UDEREF** — pvclock-GPA validated against memslots; no raw user pointer used to dereference the pvclock page.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.get_l2_tsc_offset`, `write_tsc_offset`, `read_l1_tsc` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU pvclock-cache kaddr, master_kernel_ns, TSC offset redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — TSC unstable / pvclock-disable / master-clock-update warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_KVMCLOCK_CTRL, KVM_SET_CLOCK, KVM_GET_CLOCK gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR_KVM_SYSTEM_TIME passthrough validation** — enable-bit (bit 0) checked; reserved-bit and GPA-out-of-memslot writes intercepted and #GP-injected.
+- **TSC-scaling bounded** — per-VM TSC scaling ratio capped at hardware max (`kvm_max_tsc_scaling_ratio`); guest WRMSR(TSC) cannot force unbounded multiplier.
+- **Nested-virt strict** — L1 pvclock advertised to L2 propagated through nested CPUID gating; L0 master clock never directly visible to L2.
+
+Per-doc rationale: pvclock is a guest-mapped page that the host writes via cached GPA — the seq-counter discipline + master_*-clock locking is the load-bearing correctness contract; the grsec reinforcement protects the cache lifetime under PAX_REFCOUNT/SANITIZE so a destroyed vCPU's pvclock-GPA cannot be aimed at a successor's memslot, and caps TSC scaling so a malicious guest cannot induce kernel-side overflow.
+
 ## Open Questions
 
 (none at this Tier-3 level)

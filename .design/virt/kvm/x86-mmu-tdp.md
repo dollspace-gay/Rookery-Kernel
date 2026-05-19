@@ -192,6 +192,29 @@ tdp-mmu-specific reinforcement:
 - **Lockless walk RCU-protected** — `kvm_tdp_mmu_walk_lockless` reads pgtable under rcu_read_lock; pgtable-page free deferred via call_rcu.
 - **PML overflow handling** — Intel PML buffer fills → vmexit → KVM drains buffer + re-arms; never silent log loss.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — TDP pgtable bytes never copied to/from user.
+- **PAX_KERNEXEC** — TDP iter ops + zap callbacks RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per fault entry and per MMU-notifier callback.
+- **PAX_REFCOUNT** — kvm_tdp_mmu_root refcount + per-page sp refcount saturating.
+- **PAX_MEMORY_SANITIZE** — freed pgtable pages zeroed before call_rcu free.
+- **PAX_UDEREF** — pgtable hva never dereferenced as user range; assertion.
+- **PAX_RAP / kCFI** — tdp iter handler / zap-callback indirect dispatch type-checked.
+- **GRKERNSEC_HIDESYM** — root-PA / spte addresses redacted.
+- **GRKERNSEC_DMESG** — PML overflow + zap-cap warnings rate-limited.
+
+TDP-specific:
+
+- **W^X strict on TDP SPTEs** — defense against guest exec-writable mapping.
+- **NX-huge-page split is default for vulnerable CPUs** — speculation mitigation enforced.
+- **CAP_SYS_ADMIN on KVM_RUN** — privileged VMM only.
+- **TLB flush before pgtable-page reuse mandatory** — closes stale-TLB cross-mapping.
+
+Rationale: TDP MMU is the EPT/NPT pgtable backing for every guest mapping; W^X + sanitize-on-free + RAP-checked iter callbacks lock down the dominant memory-mapping forge surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

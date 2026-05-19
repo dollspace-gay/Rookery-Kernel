@@ -638,6 +638,26 @@ Raw-MIDI reinforcement:
 - **Per-snd_rawmidi_search under register_mutex** — defense against per-concurrent-register conflict.
 - **Per-snd_rawmidi_alloc_substreams limits subdevice index < SNDRV_RAWMIDI_DEVICES** — defense against per-out-of-range subdevice.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `snd_rawmidi_params`, `snd_rawmidi_status`, `snd_rawmidi_info`, and ump-endpoint info bounded against fixed struct sizes; ring buffer `read/write` length-checked against `runtime->buffer_size`.
+- **PAX_KERNEXEC** — `snd_rawmidi_f_ops`, ioctl dispatcher, and per-driver `snd_rawmidi_ops` (`open/close/trigger/drain`) resident in RX `.text`; driver ops resolved via kCFI-signed indirection.
+- **PAX_RANDKSTACK** — kstack-offset randomization on every `/dev/snd/midiC*D*` ioctl / read / write entry.
+- **PAX_REFCOUNT** — saturating refcount on `snd_rawmidi`, `snd_rawmidi_substream`, and `snd_rawmidi_file`; defense against open-vs-disconnect / drain-vs-release race wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `snd_rawmidi_runtime` buffers (avoiding leak of prior MIDI command stream into next open) and ump endpoint scratch.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every rawmidi ioctl path; `kernel_open` / `kernel_release` module_get/put balanced so `seq_midi` cannot leak refs.
+- **PAX_RAP / kCFI** — driver-supplied `snd_rawmidi_ops` dispatched via kCFI-signed indirect calls; mismatched ops trap before MIDI byte ingestion.
+- **GRKERNSEC_HIDESYM** — `snd_rawmidi_devices`, `register_mutex`, and per-substream runtime pointers masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — rawmidi register / disconnect / xrun diagnostics restricted to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict on /dev/snd/midi*** — devnode access governed by `audio` group; CAP_SYS_ADMIN required for udev override.
+- **`register_mutex` guards `snd_rawmidi_search`** — defense against concurrent-register conflict (would otherwise observe a half-registered substream).
+- **`alloc_substreams` clamps subdevice index < `SNDRV_RAWMIDI_DEVICES`** — defense against out-of-range subdevice from buggy driver.
+- **UMP endpoint version-pinned** — UMP-1.0 packet parser rejects unknown message types instead of silent forward; defense against unparsed UMP smuggling control bytes.
+
+Per-doc rationale: `/dev/snd/midiC*` is a raw byte-stream interface exposed via /dev nodes — historical CVEs (CVE-2018-10902, CVE-2023-0266) clustered here precisely because the byte-stream surface meets concurrent driver lifecycle. REFCOUNT + register_mutex + MEMORY_SANITIZE + UMP strict-parse together shut the historic patterns at the boundary.
+
 ## Open Questions
 
 (none at this Tier-3 level)

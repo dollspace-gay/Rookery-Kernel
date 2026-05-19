@@ -209,6 +209,27 @@ SMM-specific reinforcement:
 - **Save-area write atomic from KVM perspective** — defense against partial-save on host-IRQ between save fields.
 - **SMM-aware shadow MMU vs TDP MMU** — defense against SPTE-stale referring to non-SMM VA when guest in SMM (vCPU-shadow-mmu rebuild on smm_changed).
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_SMM_STATE and KVM_SMI ioctl bounded by `struct kvm_smm_state` / fixed enum payload; save-state-area written to guest GPA via `kvm_write_guest`.
+- **PAX_KERNEXEC** — `kvm_smm_changed`, `enter_smm`, `rsm_load_state_64`, `process_smi` resolve through RX-only kernel text; vendor `enable_smi_window` slot in RO vtable.
+- **PAX_RANDKSTACK** — SMI injection and RSM emulation paths inherit RANDKSTACK from KVM_RUN / event entry.
+- **PAX_REFCOUNT** — per-vCPU SMI pending / smi_count saturating; concurrent KVM_SMI ioctl and SMI-inject race cannot wrap.
+- **PAX_MEMORY_SANITIZE** — per-vCPU SMRAM shadow (CR/RIP/DR snapshot), `vcpu.arch.smbase`, smi_pending state zeroed on vCPU alloc/free so prior SMM context never leaks.
+- **PAX_UDEREF** — KVM_SMI args copy_from_user STAC/CLAC bracketed; save-state-area written to GPA-validated memslot.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.enable_smi_window`, `pre_enter_smm`, `pre_leave_smm`, `enable_nmi_window` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU SMBASE, SMRAM shadow kaddr, smi_count redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — RSM emulation failure, malformed-save-state warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_X86_SMM enable and KVM_SMI gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **SMM vs NMI priority strict** — SMI delivered before NMI per spec; priority-inversion defended by `kvm_check_request` strict ordering.
+- **Save-area atomic from KVM perspective** — save-state write/read sequence under `vcpu->mutex` so host IRQ cannot snapshot mid-save.
+- **SMM-aware MMU rebuild** — TDP/shadow MMU drops SPTEs on smm_changed; SMRAM (typically 0xA0000-0xBFFFF) mapping not visible from non-SMM CPL.
+- **Nested-virt strict** — nested SMI (L2 SMI bouncing to L1) emulated through L0 careful state-save; L2 cannot directly enter L0 SMM.
+
+Per-doc rationale: SMM is the highest-privilege x86 mode and KVM's emulation must perfectly hide host-side SMRAM and SMI handlers from the guest; the grsec reinforcement here SANITIZEs the per-vCPU SMM shadow so prior SMM context never bleeds, atomically saves state under vCPU->mutex to prevent host-IRQ snapshot races, and forces MMU rebuild on smm_changed so non-SMM code cannot retain SMRAM SPTEs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

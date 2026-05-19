@@ -584,6 +584,25 @@ ALSA card-init reinforcement:
 - **Per-`snd_BUG_ON(!card_ret)` defensive ABI** — defense against per-driver passing NULL out-param.
 - **Per-`WARN_ON(!module)` when CONFIG_SND modular** — defense against per-card outliving its driver module.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — card-info `snd_ctl_card_info` / `snd_pcm_info` returned via copy_to_user bounded by fixed struct sizes; card-id strings `snd_strlcpy_pad` zero-padded before publication.
+- **PAX_KERNEXEC** — `snd_card_register`, `snd_card_free`, `snd_card_disconnect`, and the per-device-type register vector reside in RX `.text`; per-device free callbacks (`snd_device_ops.dev_free`) dispatched through kCFI.
+- **PAX_RANDKSTACK** — kstack-offset randomization on every `/dev/snd/*` open path entering card lookup.
+- **PAX_REFCOUNT** — saturating refcount on `struct snd_card` (`refcount`, `files_count`); defense against driver-vs-userspace `snd_card_free_when_closed` lifetime races wrapping the count.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `snd_card` and per-device security-relevant buffers (PCM, control, rawmidi, seq, timer instances) so disconnected-card buffers cannot be recovered.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every card-ioctl path; sysfs / procfs attribute writes bounded.
+- **PAX_RAP / kCFI** — `snd_device_ops` (`dev_free`, `dev_register`, `dev_disconnect`) and `snd_card_ops` dispatched via kCFI-signed indirect calls.
+- **GRKERNSEC_HIDESYM** — `snd_cards[]`, `shutdown_files`, and `snd_card_lock` symbols stripped from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — card-register / disconnect / free diagnostics restricted to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict on /dev/snd/* mknod** — devnode creation through `snd_device_alloc` requires `mode = 0660 root:audio` by default; userspace must hold CAP_SYS_ADMIN to override permissions via udev rules.
+- **Two-pass `SndDevice::free_all` with CONTROL last** — defense against control-freed-while-PCM-still-alive UAF.
+- **`WARN_ON(!module)` on modular CONFIG_SND** — defense against card outliving its driver module (refcount on `snd_card->module`).
+
+Per-doc rationale: sound/core/init.c owns `snd_card` lifecycle — the parent object for every PCM, mixer, MIDI, sequencer, and timer instance. A REFCOUNT wrap or MEMORY_SANITIZE miss here cascades into UAF in every other ALSA submodule. The two-pass free ordering + saturating refcount + per-CPU TSAN bound on device-list mutation make `snd_card` lifetime auditable.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -401,6 +401,25 @@ LSM-audit reinforcement:
 - **Per-lockdown_reason indexed lookup (no format-string interpolation of user data)** — defense against per-format-string injection.
 - **Per-key_desc untrusted-string escape** — defense against per-key-description audit injection from userspace add_key().
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `common_lsm_audit` callers serialize `path`, `dentry`, `inode`, `tk`, `key`, `iattr`, `cap`, and `ipc` fields through fixed-shape `common_audit_data.u` unions; no direct copy_to_user — audit-buffer assembly stays in kernel `audit_log_format`.
+- **PAX_KERNEXEC** — `common_lsm_audit`, `dump_common_audit_data`, `lsm_network_audit`, and per-LSM pre/post callbacks live in RX `.text`; callback pointers (`a.lsm_pre_audit`, `a.lsm_post_audit`) registered through kCFI-signed indirection.
+- **PAX_RANDKSTACK** — kstack-offset randomization applied to every LSM hook that constructs `common_audit_data`.
+- **PAX_REFCOUNT** — saturating refcounts on audit-context lifetime fields (`audit_context->lsm_callback_state`, key-ref, file-ref) preventing wrap on long-running audit-streaming.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `common_audit_data` u-union scratch (especially `key_desc`, `path`, `iattr` buffers) before reuse.
+- **PAX_UDEREF (SMAP/SMEP)** — `audit_log_untrustedstring` escapes attacker-controlled strings (unix bind path, key description) before serialization; ASM_CLAC remains set across the whole audit-record build.
+- **PAX_RAP / kCFI** — `lsm_pre_audit` / `lsm_post_audit` callbacks dispatched via kCFI-signed indirect calls; type-mismatched LSM cross-callback traps.
+- **GRKERNSEC_HIDESYM** — `common_lsm_audit`, `dump_common_audit_data`, and `lsm_*` audit helpers masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — audit subsystem diagnostics restricted to CAP_SYSLOG; no leak of kernel pointers via audit failure messages.
+- **GRKERNSEC_AUDIT_GROUP** — `common_lsm_audit` records emitted only when `audit_enabled` AND caller's audit context is permitted; defense against per-task audit-rule bypass.
+- **lsm_network_audit strict** — fragment / non-initial-fragment offsets validated via `ip_hdr(skb)->frag_off & IP_OFFSET` before reading bogus L4 port fields; `skb_header_pointer` used for IPv6 to avoid non-linear pull faults.
+- **smp_load_acquire on unix `addr`** — paired with bind-path store_release to prevent racing audit consumption of a not-yet-published address.
+
+Per-doc rationale: lsm-audit is the cross-LSM audit-record assembly layer; an attacker who can craft a `common_audit_data` field that escapes audit_log_untrustedstring can inject forged audit records or smuggle kernel pointers into syslog. Overlapping PAX_USERCOPY + audit_log_untrustedstring + kCFI + UDEREF makes audit injection a multi-defense-failure event rather than a single bug.
+
 ## Open Questions
 
 (none at this Tier-3 level)

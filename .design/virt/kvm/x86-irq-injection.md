@@ -257,6 +257,28 @@ IRQ-injection-specific reinforcement:
 - **Per-vector range bounded [0, 255]** — defense against per-config OOB.
 - **Per-arch queue_exception_vmcs flushes vmcs/vmcb** — defense against per-shadow stale.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_INTERRUPT / KVM_NMI ioctl payloads bounded by sizeof.
+- **PAX_KERNEXEC** — exception/IRQ inject dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN vmenter-prep.
+- **PAX_REFCOUNT** — per-vCPU pending-events refcount saturating.
+- **PAX_MEMORY_SANITIZE** — pending_irq / pending_smi / pending_nmi fields zeroed on vCPU destroy and triple-fault shutdown.
+- **PAX_UDEREF** — kvm_interrupt user pointer validated.
+- **PAX_RAP / kCFI** — queue_exception / inject_irq vendor callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — vector / error-code redacted in trace.
+- **GRKERNSEC_DMESG** — injection-failure floods rate-limited.
+
+Injection-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_INTERRUPT / KVM_NMI** — defense against unprivileged exception forge.
+- **NMI cap = 1 enforced** — blocks per-NMI flood DoS.
+- **Triple-fault → KVM_EXIT_SHUTDOWN deterministic** — VM cannot loop in kernel.
+
+Rationale: event-injection is the highest-frequency vmenter-side touch on vCPU state; sanitize on destroy + RAP on vendor callbacks prevents stale-vector injection across vCPU teardown.
+
 ## Open Questions
 
 (none at this Tier-3 level)

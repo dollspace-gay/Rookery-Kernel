@@ -234,6 +234,29 @@ nested-SVM-specific reinforcement:
 - **MSR pass-through bitmap intersect** — defense against L1 leaking direct-MSR-access to L2 for protected MSRs.
 - **Per-VM nested-cap gating** via KVM_CAP_NESTED — defense against unauthorized nested-virt enablement.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — VMCB12 fetch from guest bounded by 4 KiB; VMCB02 never copied user-side.
+- **PAX_KERNEXEC** — nested-SVM dispatcher + intercept-merge RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per nested-VMRUN; vmcb02 prep on fresh stack.
+- **PAX_REFCOUNT** — vmcb02 cache + ASID slot + nested-NPT root refcount saturating.
+- **PAX_MEMORY_SANITIZE** — vmcb02 zeroed before reuse across L2 instances; hsave zeroed on L1 destroy.
+- **PAX_UDEREF** — VMCB12 GPA → hva validated user-range before copy.
+- **PAX_RAP / kCFI** — nested-svm vmrun/vmexit callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — VMCB12 GPA / hsave PA redacted.
+- **GRKERNSEC_DMESG** — nested-validate-failure floods rate-limited.
+
+Nested-SVM-specific:
+
+- **CAP_SYS_ADMIN on KVM_CAP_NESTED enable** — defense against unprivileged nested-virt.
+- **L0 OR L1 intercept merge — mandatory_exceptions enforced** — L0 never loses visibility.
+- **Per-L2 ASID distinct** — TLB-leak across L2 blocked.
+- **L1-MSR-bitmap intersected with L0** — guest-of-guest cannot pierce L0 intercept.
+
+Rationale: nested-SVM amplifies the trust boundary; sanitize vmcb02 + UDEREF on VMCB12 fetch close the dominant L1-forged-VMCB cross-VM escalation surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -255,6 +255,28 @@ async-PF-specific reinforcement:
 - **Per-vmenter check_async_pf_completion** — defense against ready-notify lost on rapid vmexit/vmenter cycle.
 - **Live-migrate clears in-flight queue** — defense against post-migrate stale work referencing prior-host mm.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — async-pf control-page copy bounded to sizeof(struct kvm_vcpu_pv_apf_data); no over-read into adjacent guest page.
+- **PAX_KERNEXEC** — apf_work queue dispatcher RO after registration.
+- **PAX_RANDKSTACK** — randomized kstack on KVM_RUN per-vmenter.
+- **PAX_REFCOUNT** — kvm_async_pf work refcount + mm_users grab saturating.
+- **PAX_MEMORY_SANITIZE** — async_pf work struct + token zeroed on completion/cancel.
+- **PAX_UDEREF** — guest control-page hva validated user range before copy.
+- **PAX_RAP / kCFI** — async-pf wake/inject callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — work / mm / gfn pointers redacted in tracepoints.
+- **GRKERNSEC_DMESG** — async-pf queue overflows rate-limited.
+
+async-PF-specific:
+
+- **CAP_SYS_ADMIN on async-pf-enabling ioctls** — defense against unprivileged paravirt-feature flip.
+- **Per-vCPU mm_users PAX_REFCOUNT** — defense against mm-UAF if vCPU torn down mid-fault.
+- **APF vector range [32,255] enforced** — blocks IDT-reserved-slot injection.
+
+Rationale: async-PF straddles guest scheduling and host paging; sanitize + refcount on work/mm closes the dominant UAF surface where a torn-down vCPU's work later fires against freed host mm.
+
 ## Open Questions
 
 (none at this Tier-3 level)

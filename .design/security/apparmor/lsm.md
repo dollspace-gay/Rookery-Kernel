@@ -512,6 +512,25 @@ AppArmor-hooks reinforcement:
 - **Per-`kernel_t` label on `kern==1` sockets** — defense against per-userspace-label leak into kernel sockets.
 - **Per-`aa_inherit_files` on transitioning exec** — defense against per-fd-handle-bypass after profile change.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — apparmorfs `replace_profiles`, `remove_profile`, `load_profile` payloads copy-from-user bounded against `aa_replace_profiles` size cap; profile-name buffers `kstrndup_quotable` length-checked before allocation.
+- **PAX_KERNEXEC** — `aa_dfa_match`, `unpack_*`, and DFA walker reside in RX `.text`; `apparmor_hooks[]` registered through `security_add_hooks` into kCFI-signed dispatch.
+- **PAX_RANDKSTACK** — kstack-offset randomization on every LSM hook entry (`apparmor_bprm_creds_for_exec`, `apparmor_file_open`, `apparmor_socket_*`, mount hooks).
+- **PAX_REFCOUNT** — saturating refcount on `struct aa_label`, `aa_profile`, `aa_ns`, `aa_loaddata`; defense against attacker-driven profile thrash wrapping the kref.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `aa_label`, profile policy DFA buffers, and `aa_audit_data` containing path-derivation buffers (per-CPU `aa_buffers` scrubbed before reuse).
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on apparmorfs write paths; policy-binary parser (`unpack_blob`, `unpack_array`, `unpack_u32`) bounds-checks before deref.
+- **PAX_RAP / kCFI** — `apparmor_hooks[]` LSM dispatch and `aa_dfa_ops` (next/perm table indirection) verified through kCFI on every transition.
+- **GRKERNSEC_HIDESYM** — `apparmor_hook_heads`, `root_ns`, `aa_dfa_*` symbols stripped from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — policy-load / DFA-corruption / audit-rule-parse diagnostics restricted to CAP_SYSLOG.
+- **CAP_MAC_ADMIN strict** — `replace_profiles` / `remove_profile` / namespace `.load` writes gated on CAP_MAC_ADMIN in the policy-owning user-ns; no fallthrough to CAP_SYS_ADMIN.
+- **Policy-binary magic + version pinned** — `aa_unpack_header` rejects mismatched `AA_PROFILE_MAGIC` and policy versions outside `[v5, v8]`; unknown opcodes refused, not skipped.
+- **LSM audit-rule strict-type-check** — `aa_audit_rule_init` validates audit field type against AUDIT_SUBJ_ROLE/USER/TYPE/SEN/CLR canonical set; rejects mixed-LSM audit predicates.
+
+Per-doc rationale: apparmor_lsm is the policy decision point for the unified label model — every exec, file_open, ptrace_check, and socket hook passes through here. A PAX_REFCOUNT wrap on `aa_label` or a USERCOPY miss on `replace_profiles` would let an unprivileged userspace replace its own profile with `unconfined` and escape MAC. The CAP_MAC_ADMIN strict gate + DFA RX-only + LSM kCFI overlap is what enforces the AppArmor invariant.
+
 ## Open Questions
 
 (none at this Tier-3 level)

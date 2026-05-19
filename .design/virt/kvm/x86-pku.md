@@ -201,6 +201,26 @@ PKU/PKS-specific reinforcement:
 - **CR4.PKE write rejected without OSPKE** — defense against guest forcing PKU via CR4 alone.
 - **Per-vCPU CPUID 0x07 mask gates PKU/PKS** — defense against per-VM feature mis-advertise.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_XSAVE / KVM_GET/SET_MSRS copies (PKRU XSAVE component-9, MSR_IA32_PKRS) bounded by fixed-size kernel slabs; per-copy length validated against `sizeof(struct kvm_xsave2)`.
+- **PAX_KERNEXEC** — per-vendor `kvm_x86_call(get_protected_pkrs)` indirect-call resolves through RAP-signed RO `kvm_x86_ops` vtable; CR4.PKE / CR4.PKS write handlers in RX-only text.
+- **PAX_RANDKSTACK** — VM-entry/exit and KVM_RUN syscall path randomized per-entry; PKRU permission-check fast-path inherits the syscall-bound randomization.
+- **PAX_REFCOUNT** — per-vCPU refcount (parent `kvm-core.md`) saturating; guest_fpu / pkrs shadow lifetime tied to vcpu refcount cannot wrap on parallel KVM_GET_XSAVE racing destroy.
+- **PAX_MEMORY_SANITIZE** — guest_fpu XSAVE area (containing PKRU) and `vcpu.arch.pkrs` zeroed on vCPU free so component-9 residue cannot leak to a successor vCPU through slab reuse.
+- **PAX_UDEREF** — KVM_SET_XSAVE / MSR ioctl copy_from_user bracketed by STAC/CLAC; no raw user pointer follows the PKRU/PKRS write path.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.get_protected_pkrs`, `set_msr`, `set_cr4` slots RAP-signed; per-vCPU `Mmu::permission_fault` indirect dispatch CFI-guarded.
+- **GRKERNSEC_HIDESYM** — `vcpu.arch.pkrs`, `guest_fpu` kaddrs, and per-vCPU PKRU offsets redacted from `/proc/kallsyms` / debugfs unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — PKU/PKS feature-mismatch warnings (CR4.PKE without OSPKE, unsupported PKRS write) rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_VM / KVM_SET_CPUID2 enabling X86_FEATURE_PKU/PKS gated to CAP_SYS_ADMIN + gr-rbac VM-create role; non-admin tenants cannot toggle PKU advertisement.
+- **MSR_IA32_PKRS passthrough validation** — pass-through whitelist enforces PKRS reserved-bit mask (bits[63:32] == 0); guest WRMSR of reserved bits intercepted and #GP-injected rather than silently written to MSR bitmap.
+- **Per-vCPU PKRU isolation** — XSAVE component-9 saved/restored via vendor-specific `kvm_load_guest_fpu` / `kvm_put_guest_fpu`; cross-vCPU PKRU bleed through eager-FPU path defended by per-vCPU `guest_fpu` allocation, not host-fpu reuse.
+- **Nested-virt strict** — L1 hypervisor advertising PKU/PKS to L2 must propagate through KVM's nested CPUID gating; L0 PKRU/PKRS not exposed to L2 without L1 explicit consent.
+
+Per-doc rationale: PKU/PKS are per-page hardware capability bits that turn user-space mprotect into a single WRPKRU; KVM virtualizes them via XSAVE component-9 and a privileged MSR, so the grsec reinforcement here centers on (a) CPUID gating so guests cannot use an unadvertised feature, (b) MEMORY_SANITIZE on the guest_fpu so stale PKRU never leaks, and (c) MSR-passthrough reserved-bit enforcement on PKRS so a guest cannot smuggle high bits into the host MSR.
+
 ## Open Questions
 
 (none at this Tier-3 level)

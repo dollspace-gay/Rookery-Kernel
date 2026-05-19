@@ -296,6 +296,26 @@ vmexit-handler-specific reinforcement:
 - **Per-stat counter rate-limit** — defense against stat-overflow from pathological vmexit pattern.
 - **Per-CPU vmexit-handler state isolated** — defense against cross-CPU-vCPU state leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — VMEXIT info copied to KVM_RUN exit-struct (`struct kvm_run`) via fixed-size mmap; no raw user pointer ingress at exit-reason dispatch.
+- **PAX_KERNEXEC** — `vmx_handle_exit`, `svm_handle_exit`, exit-handler vector (`kvm_vmx_exit_handlers[]`, `svm_exit_handlers[]`) all in RX-only kernel text; vectors `const`.
+- **PAX_RANDKSTACK** — VMEXIT handler dispatch inherits RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-vCPU exit-stats counters saturating; pathological vmexit pattern cannot wrap.
+- **PAX_MEMORY_SANITIZE** — per-vCPU exit_qualification, exit_intr_info, exit_intr_error_code zeroed on vCPU alloc/free.
+- **PAX_UDEREF** — no user pointer in exit-reason classification or dispatch path.
+- **PAX_RAP / kCFI** — exit-handler tables RAP-signed; per-exit-reason indirect call CFI-guarded.
+- **GRKERNSEC_HIDESYM** — per-vCPU exit-reason kaddr / exit_qualification redacted from debugfs unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — unknown-vmexit-reason, exit-reason-out-of-range warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_RUN entry from CAP_SYS_ADMIN + gr-rbac-allowed process only; non-admin tenants never reach exit-reason dispatch.
+- **Exit-reason allowlist** — exit-reason index validated against `kvm_vmx_max_exit_handlers` / `SVM_EXIT_MAX`; OOB rejected as KVM_EXIT_INTERNAL_ERROR rather than indirect-jump.
+- **Nested intercept-check** — `nested_vmx_exit_reflected` / `nested_svm_exit_handled` checked before L0 handler runs so L1-intended exit goes to L1, not L0 path.
+- **Per-CPU vmexit-handler state isolated** — no cross-CPU shared state in exit-dispatch; each vCPU's exit handled on the CPU that ran VMRUN.
+
+Per-doc rationale: the VMEXIT-reason dispatcher is the largest indirect-call surface in KVM and a prime target for spectre/CFI bypass; the grsec reinforcement RAP-signs the exit-handler vectors, validates exit-reason indices to defeat OOB jumps, and isolates nested intercept checks so a malicious L2 cannot reach an L0-only handler by crafting an exit-reason.
+
 ## Open Questions
 
 (none at this Tier-3 level)

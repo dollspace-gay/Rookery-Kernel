@@ -225,6 +225,29 @@ MSR-filter-specific reinforcement:
 - **Per-VM filter not migrated by default** — defense against post-migrate stale filter referencing source-userspace allocations.
 - **#GP injection on deny** — defense against silent-failure on denied MSR.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_X86_SET_MSR_FILTER bitmap copies bounded by MAX_BITMAP_SIZE.
+- **PAX_KERNEXEC** — filter eval + dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per WRMSR/RDMSR emulation.
+- **PAX_REFCOUNT** — filter struct refcount + RCU-swap saturating.
+- **PAX_MEMORY_SANITIZE** — old filter ranges + bitmap zeroed before kfree_rcu.
+- **PAX_UDEREF** — user filter pointer + per-range bitmap pointer validated.
+- **PAX_RAP / kCFI** — filter dispatch indirect-call type-checked.
+- **GRKERNSEC_HIDESYM** — MSR-address / filter pointer redacted.
+- **GRKERNSEC_DMESG** — deny-flood logs rate-limited.
+
+MSR-filter-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_X86_SET_MSR_FILTER** — defense against unprivileged filter flip.
+- **flags ⊆ VALID_MASK** — blocks unknown future flags.
+- **first-match-wins iter under SRCU** — defense against partial-filter visibility.
+- **#GP on deny is the only failure mode** — closes silent-leak path.
+
+Rationale: MSR filter is the userspace-policy gate over arbitrary MSR ops; sanitize on swap + UDEREF on bitmap pointers prevent stale-filter UAF and forged-bitmap escalation past deny rules.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -224,6 +224,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds skb head/tail copies on the v6 transform path and any XFRM netlink crossing for SA install on this transform.
+- **PAX_KERNEXEC** — keeps the `static const struct xfrm_type ah6/esp6/ipcomp6_type` registrations and per-protocol dispatch text W^X.
+- **PAX_RANDKSTACK** — randomises stack per `ah6_input`/`esp6_input`/`esp6_output` entry; mitigates ROP under v6 AH/ESP floods.
+- **PAX_REFCOUNT** — wraps `xfrm6_state` and tunnel-state refs taken during transform so concurrent SA delete cannot UAF an in-flight v6 ESP packet.
+- **PAX_MEMORY_SANITIZE** — zeroes crypto request buffers, freed decrypted skb frags, and freed extension-header walk scratch on free.
+- **PAX_UDEREF** — protects netlink-driven SA install (v6 selector) from userland deref on malformed addresses or selectors.
+- **PAX_RAP / kCFI** — protects indirect dispatch through `xfrm_type->{input,output}` and crypto-completion callbacks (AEAD) on the v6 path.
+- **GRKERNSEC_HIDESYM** — hides `esp6_*`, `ah6_*`, `ipcomp6_*`, `xfrm6_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so v6 ICV-failure / extension-header / SRv6 parse traces don't leak SPIs or peer addresses.
+- **IPsec SAD/SPD CAP_NET_ADMIN** — `XFRM_MSG_NEWSA`/`UPDSA` for v6 transforms requires CAP_NET_ADMIN in the SA's user_ns.
+- **XFRM key MEMORY_SANITIZE** — `XFRMA_ALG_AUTH`/`AEAD`/`CRYPT` keys on the v6 SA are wiped on destroy and on key-rollover.
+- **Replay-window protected** — `x->replay`/`x->preplay` is accessed only under `x->lock`; PAX_MEMORY_SANITIZE wipes the window on SA free.
+- **ICV verification bounded** — `esp6_input_done2`/`ah6_input` reject truncated trailers and ICV-length mismatch before crypto dispatch; ext-header walk uses SIZE_OVERFLOW-checked arithmetic against the SRv6/HBH/DST cases.
+
+Rationale: IPv6 AH/ESP inherit the IPv4 risk surface and add the extension-header walker plus SRv6 — exactly where the CVE-2024-class underflows live. The same USERCOPY/UDEREF/REFCOUNT/MEMORY_SANITIZE envelope, combined with bounded ext-header arithmetic and ICV-length checks, confines the realistic surface to crypto primitives covered separately.
+
 ## Open Questions
 
 (none — IPv6 AH/ESP/IPCOMP wire format + transforms exhaustively specified by RFCs 4302/4303/3173 + RFC 8754 SR-Header + RFC 4106/4309/4543 AEAD bindings + upstream)

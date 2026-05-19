@@ -164,6 +164,30 @@ dirty-tracking-specific reinforcement:
 - **Soft-full threshold tuned conservatively** (50% capacity by default); defense against ring-full vmexit-storm.
 - **Per-VM ring memory accounting** charged to kvm.mm; OOM-kill respects.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by KVM dirty-tracking:
+
+- **PAX_USERCOPY** — `copy_to_user` of the per-slot dirty bitmap (KVM_GET_DIRTY_LOG / KVM_CLEAR_DIRTY_LOG) is bounds-checked; rejects slab-crossing fetches before any guest dirty bits are exposed.
+- **PAX_KERNEXEC** — `kvm_arch_mmu_enable_log_dirty_pt_masked` and write-protect callbacks live in RX/RO text; tracking mode cannot be switched by code-pointer overwrite.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on KVM_GET_DIRTY_LOG and KVM_CLEAR_DIRTY_LOG ioctls.
+- **PAX_REFCOUNT** — saturating refs on `kvm->users_count` and per-memslot refs while a get/clear ioctl holds the bitmap.
+- **PAX_MEMORY_SANITIZE** — zeroes freed per-memslot dirty bitmap pages on memslot delete; reuse cannot leak prior guest write activity.
+- **PAX_UDEREF** — strict user/kernel pointer separation on KVM_DIRTY_LOG arg copy.
+- **PAX_RAP / kCFI** — forward-edge CFI on per-arch dirty-log helpers.
+- **GRKERNSEC_HIDESYM** — `kvm_vm_ioctl_get_dirty_log`, `kvm_vm_ioctl_clear_dirty_log`, `kvm_arch_sync_dirty_log` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so per-slot dirty traces do not leak guest write patterns.
+
+Dirty-tracking-specific reinforcement:
+
+- **CAP_SYS_ADMIN on the KVM fd** — gates enable of KVM_MEM_LOG_DIRTY_PAGES and ring mode.
+- **Dirty-bitmap PAX_USERCOPY-protected** — the bitmap copy-out is the primary disclosure surface; USERCOPY is the load-bearing control.
+- **Ring/bitmap mutual exclusion** — paired with PAX_REFCOUNT so a double-enable race traps rather than corrupting state.
+- **Ring size bounded MIN/MAX** — paired with PAX_MEMORY_SANITIZE on ring teardown so under-reuse cannot disclose prior dirty gfns.
+- **kvm.mm accounting** — paired with PAX_REFCOUNT on mm so an OOM-kill races safely with bitmap free.
+
+Rationale: dirty-tracking is the primary KVM side-channel that exposes guest write activity to userspace; PAX_USERCOPY on the bitmap copy and PAX_MEMORY_SANITIZE on slot delete together defend against both intra-VM corruption and cross-tenant residual disclosure.
+
 ## Open Questions
 
 (none at this Tier-3 level)

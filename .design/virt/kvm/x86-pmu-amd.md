@@ -211,6 +211,26 @@ AMD-PMU-specific reinforcement:
 - **Per-CPUID-change refresh** — defense against stale per-counter caps after live-migrate.
 - **AVIC interaction validated** — defense against AVIC-enabled VM leaking PMU state across vmexits.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_MSRS for PERF_CTL / PERF_CTR / CORE_PERF_GLOBAL_* uses fixed-size kernel slab buffers; copy length validated against `struct kvm_msrs`.
+- **PAX_KERNEXEC** — AMD-PMU vendor ops (`amd_pmu_ops.refresh`, `set_msr`, `is_valid_msr`) resolve through RO `kvm_pmu_ops` vtable; module text RX-only.
+- **PAX_RANDKSTACK** — VM-entry/exit on counter-overflow inherits per-syscall RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-vCPU `kvm_pmu` lifetime bound to vCPU refcount saturating; concurrent PMU MSR access and vCPU destroy cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `vcpu.arch.pmu` (counters[], events[], reprogram_pmi bits) zeroed on vCPU alloc and free so AMD PERF_CTR residue cannot leak to a successor vCPU.
+- **PAX_UDEREF** — KVM_SET_MSRS copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `kvm_pmu_ops` slots (`hw_event_available`, `pmc_idx_to_pmc`, `rdpmc_ecx_to_pmc`) RAP-signed.
+- **GRKERNSEC_HIDESYM** — `vcpu.arch.pmu` and per-PMC kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — AMD-PMU version-mismatch / unsupported-counter warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_SET_PMU_EVENT_FILTER and AMD-PMU enabling via CPUID gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR passthrough validation** — AMD PERF_CTR / PERF_CTL bitmap entries gated by `kvm_pmu_is_valid_msr`; reserved-bit / unsupported-event writes intercepted and #GP-injected.
+- **PMU event allowlist** — PMU event-filter `KVM_PMU_EVENT_ALLOW/DENY` enforced; guest cannot program a host-only PMC selector via WRMSR(PERF_CTL).
+- **Nested-virt strict** — L0 host PMCs never exposed to L2; nested PMU virtualization runs through software emulation only.
+
+Per-doc rationale: AMD-PMU exposes performance counters that double as side-channel oracles (LBR, IBS); the grsec hardening centers on (a) event-filter allowlist so an unprivileged tenant cannot select host-leaking events, (b) MSR-passthrough validation so PERF_CTR reserved bits cannot smuggle host state into the guest, and (c) MEMORY_SANITIZE on per-vCPU counter shadows so a destroyed vCPU's counter history cannot leak to a successor.
+
 ## Open Questions
 
 (none at this Tier-3 level)

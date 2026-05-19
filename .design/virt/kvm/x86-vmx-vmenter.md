@@ -271,6 +271,29 @@ vmenter-specific reinforcement:
 - **Per-vmenter VMRESUME-vs-VMLAUNCH flag** — defense against incorrect instruction selection.
 - **Stack-protector active** — defense against vmenter stack overrun.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — vmenter trampoline operates on kernel-side `vcpu->arch.regs[]` and VMCS; no user-pointer ingress in VMLAUNCH/VMRESUME assembly.
+- **PAX_KERNEXEC** — `__vmx_vcpu_run`, host-state save/restore assembly, VM-entry retpoline all in RX-only `.text`.
+- **PAX_RANDKSTACK** — VMLAUNCH/VMRESUME entry / VMEXIT-handler return path inherits RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-vCPU VMCS pin and per-CPU vmcs_host_state refcount saturating.
+- **PAX_MEMORY_SANITIZE** — per-CPU vmcs_host_state zeroed at hotplug-online; vcpu->arch.regs[] sanitized on VM-entry failure path so register residue cannot leak to userspace.
+- **PAX_UDEREF** — vmenter trampoline runs with CLAC; STAC inside forbidden.
+- **PAX_RAP / kCFI** — `__vmx_vcpu_run` indirect-call entry RAP-signed; VM-entry retpoline preserves CFI.
+- **GRKERNSEC_HIDESYM** — per-CPU vmcs_host_state kaddr, HOST_RSP value redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — VMfail (CF=1), VMRESUME-after-fail, invalid-VMCS warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_RUN entry to VMX trampoline gated to CAP_SYS_ADMIN + gr-rbac process.
+- **HOST_RSP refresh per-vmenter** — `HOST_RSP` VMCS field refreshed each vmenter so post-stack-relocation cannot return to invalid RSP.
+- **VMfail detection via CF** — VMfailInvalid (CF=1) / VMfailValid (ZF=1) checked immediately post-instruction; silent failure cannot progress.
+- **CR2 explicit save/restore** — host CR2 saved before VMLAUNCH, restored after VMEXIT (VMX does not auto-handle); guest #PF address never leaks through stale CR2.
+- **VMRESUME vs VMLAUNCH flag** — `vmx->loaded_vmcs->launched` tracks whether VMLAUNCH has run; subsequent re-entry uses VMRESUME so incorrect instruction selection causes VMfail.
+- **Per-CPU vmcs_host_state** — host-state save partitioned per-CPU so cross-CPU vCPU schedule cannot cause state confusion.
+- **Stack-protector active** — `__vmx_vcpu_run` compiled with `-fstack-protector-strong`; canary checked on trampoline return.
+
+Per-doc rationale: the VMX vmenter trampoline is the privileged hot-path between host and guest; the grsec reinforcement keeps host save/restore RAP-signed and stack-protected, validates VMfail CF immediately, distinguishes VMLAUNCH/VMRESUME to defeat silent failure, and SANITIZEs per-CPU host-state so cross-CPU vCPU schedule cannot leak CR2 / RSP residue.
+
 ## Open Questions
 
 (none at this Tier-3 level)

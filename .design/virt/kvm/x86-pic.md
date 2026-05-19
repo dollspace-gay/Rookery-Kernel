@@ -273,6 +273,29 @@ PIC-specific reinforcement:
 - **Per-PIC state migrated via KVM_GET_IRQCHIP** — defense against post-migrate guest seeing wrong PIC state.
 - **Per-output → BSP only** — defense against multi-vCPU PIC INT going to wrong CPU.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_IRQCHIP PIC state bounded by sizeof(struct kvm_pic_state).
+- **PAX_KERNEXEC** — PIC I/O port dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per IRQ deliver / IOPort emulate.
+- **PAX_REFCOUNT** — kvm_pic refcount saturating.
+- **PAX_MEMORY_SANITIZE** — kvm_pic state zeroed on irqchip destroy.
+- **PAX_UDEREF** — KVM_*_IRQCHIP user pointer validated.
+- **PAX_RAP / kCFI** — PIC IO_device read/write callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — IRR/ISR/IMR raw values redacted.
+- **GRKERNSEC_DMESG** — PIC malformed-ICW warnings rate-limited.
+
+PIC-specific:
+
+- **CAP_SYS_ADMIN on KVM_CREATE_IRQCHIP / SET_IRQCHIP** — defense against unprivileged PIC install.
+- **ICW state machine bounded** — defense against stuck-unknown-state.
+- **AEOI atomic ISR clear** — defense against per-EOI race losing IRQ.
+- **PIC output → BSP only enforced** — closes wrong-CPU routing.
+
+Rationale: 8259 PIC emulation is small but exposes I/O-port + state-machine attack surface; sanitize on destroy + RAP-checked I/O dispatch prevent stale-PIC-state UAF across irqchip rebuild.
+
 ## Open Questions
 
 (none at this Tier-3 level)

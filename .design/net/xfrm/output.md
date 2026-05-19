@@ -195,6 +195,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds any pre-encrypt skb data that originated from userland via `sendmsg`/`sendto`; XFRM-output is the last stop before the AEAD touches plaintext.
+- **PAX_KERNEXEC** — keeps `xfrm_type->output` dispatch tables and tunnel-mode wrapper code text W^X.
+- **PAX_RANDKSTACK** — randomises stack per `xfrm_output` entry; defeats ROP under sustained TX-side IPsec floods.
+- **PAX_REFCOUNT** — wraps `xfrm_state.refcnt` taken via dst_entry caching / lookup around every outbound packet against UAF on concurrent `XFRM_MSG_DELSA`.
+- **PAX_MEMORY_SANITIZE** — zeroes freed pre-encrypt skbs and freed AEAD scratch on free so plaintext doesn't bleed back into the slab.
+- **PAX_UDEREF** — relevant on the netlink path that installs the SAs and policies this output path consumes.
+- **PAX_RAP / kCFI** — protects indirect dispatch through `xfrm_type->output` and AEAD-completion callbacks invoked at `xfrm_output_resume`.
+- **GRKERNSEC_HIDESYM** — hides `xfrm_output*`, `xfrm_state_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so output-side errors (lifetime expiry, replay overflow) don't leak SPIs / peer addresses.
+- **SA-state PAX_REFCOUNT** — every SA ref taken on the output fast-path is saturating-refcount; trap-on-overflow under flow-flap.
+- **ICV-side bound** — output rejects fragments that would push final ESP length past `IP_MAX_MTU`/`IPV6_MAXPLEN` before crypto dispatch.
+- **IPsec SAD/SPD CAP_NET_ADMIN** — output runs in process context, but the SAs/policies it consumes come only from CAP_NET_ADMIN-gated SADB/SPD install at `state.md`/`policy.md`/`user.md`.
+- **XFRM key MEMORY_SANITIZE** — output never copies SA keys, but freed AEAD scratch (which contains derived per-packet IV/key) is wiped on free.
+- **Replay-window protected** — `x->replay`/`x->preplay` sequence advance is serialised under `x->lock`; SIZE_OVERFLOW-checked seq-number arithmetic prevents overflow into a forged sequence.
+- **curlft.bytes / packets SIZE_OVERFLOW** — counters are checked against soft/hard lifetime limits so a wrap cannot bypass SA expiry.
+
+Rationale: XFRM output sits at the boundary between user-controlled plaintext and the encrypt boundary; combining REFCOUNT on per-packet SA refs, PAX_RAP on `xfrm_type->output`, MEMORY_SANITIZE on freed pre-encrypt skbs and AEAD scratch, and SIZE_OVERFLOW-checked seq + lifetime arithmetic confines the realistic surface to cryptographic primitives covered elsewhere.
+
 ## Open Questions
 
 (none — TX pipeline semantics are exhaustively specified by upstream + RFCs 4302, 4303, 3173, 3948)

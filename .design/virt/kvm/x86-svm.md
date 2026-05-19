@@ -263,6 +263,27 @@ SVM-specific reinforcement:
 - **AVIC physical-id-table protection** — only KVM core writes; defense against userspace direct write breaking per-vCPU IPI delivery.
 - **Per-VMCB validation pre-VMRUN** (intercept-bitmaps non-null, ASID nonzero, etc.) — defense against malformed VMCB causing #SVME or VMEXIT_INVALID.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — VMCB control area written via host kernel-side struct; KVM_GET/SET_NESTED_STATE bounded by `KVM_STATE_NESTED_SVM_VMCB_SIZE`; no raw user copy into VMCB save area.
+- **PAX_KERNEXEC** — `svm_vcpu_run`, `handle_exit`, `nested_svm_vmrun`, `svm_handle_intr` and per-`kvm_x86_ops` SVM slots resolve through RX-only kernel text; ops vtable RO.
+- **PAX_RANDKSTACK** — VMRUN entry / VMEXIT handler dispatch inherits RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-vCPU VMCB / hsave / nested-state refcount, per-VM ASID counter saturating; concurrent destroy + VMRUN races cannot wrap.
+- **PAX_MEMORY_SANITIZE** — per-vCPU VMCB save area, MSR-bitmap, IOIO-bitmap, hsave region zeroed on alloc/free; nested-state buffer zeroed before slab handback so stale L1/L2 register state never leaks.
+- **PAX_UDEREF** — KVM_SET_NESTED_STATE copy_from_user STAC/CLAC bracketed; nested VMCB12 GPA validated before load.
+- **PAX_RAP / kCFI** — `kvm_x86_ops` SVM slot table RAP-signed; exit-handler dispatch via const `svm_exit_handlers[]` array CFI-guarded.
+- **GRKERNSEC_HIDESYM** — VMCB phys-addr, MSR-bitmap kaddr, hsave kaddr, per-vCPU regs[] kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — VMEXIT_INVALID, malformed-VMCB, AVIC inhibit, GIF-state warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_VM (SVM), KVM_SET_NESTED_STATE, KVM_MEMORY_ENCRYPT_OP gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **VMCB PAX_USERCOPY** — VMCB control + save area validated pre-VMRUN: intercept-bitmaps non-null, ASID non-zero, EFER consistent, CR0/CR4/CR3 within architectural bounds.
+- **MSR-bitmap / IOIO-bitmap host-managed** — guest cannot directly toggle interception; bitmap writes mediated by `svm_set_intercept` under vCPU lock.
+- **GIF state-machine** — STGI/CLGI tracked in kernel; KVM never raises GIF=1 with a pending interrupt to inject so the standard `vmcb.control.int_state` cannot drop an IRQ.
+- **Nested-virt strict** — L0 enforces VMCB12 consistency (CR0/CR4/EFER, intercept-bitmaps, intercept_exceptions for #UD/#DB/#BP minimum) before allowing L1→L2 transition; L2 cannot bypass L0 by crafting malformed VMCB12.
+
+Per-doc rationale: SVM is one of two hardware virtualization backends; the grsec reinforcement keeps VMCB authoritative kernel-side (no user write into save area), validates VMCB12 pre-nested-VMRUN to defeat L2 escape via malformed VMCB, SANITIZEs MSR/IOIO bitmaps on free, and gates GIF state so an unrooted IRQ never reaches a guest with intercept dropped.
+
 ## Open Questions
 
 (none at this Tier-3 level)

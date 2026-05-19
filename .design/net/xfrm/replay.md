@@ -217,6 +217,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — replay window state propagated through `xfrm_user_replay_state`, `xfrm_user_replay_state_esn[]` length-validated before copy; ESN bitmap_len bounded against `XFRMA_REPLAY_ESN_MAX`.
+- **PAX_KERNEXEC** — `xfrm_replay_check`, `xfrm_replay_advance`, `xfrm_replay_notify`, and `xfrm_replay_seqhi` callbacks resolved through RX `.text`; no runtime patching of replay-check fastpath.
+- **PAX_RANDKSTACK** — kstack offset randomization on netlink replay-state-update entry (`XFRMA_REPLAY_VAL` / `XFRMA_REPLAY_ESN_VAL`).
+- **PAX_REFCOUNT** — saturating refcount on `xfrm_state->replay_esn` allocation so replay-bitmap reallocation races cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `xfrm_replay_state_esn` (contains live sequence-number + bitmap of accepted SPI sequence space); prevents key-adjacent material leaking via slab reuse.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC before copying user-supplied `xfrm_user_replay_state_esn`; bmp_len multiplications saturated via `check_mul_overflow` before kmalloc.
+- **PAX_RAP / kCFI** — `xfrm_replay` dispatch table (BMP / SEQ / ESN modes) selected through kCFI-signed function pointers; mode-mismatch traps before bitmap arithmetic runs on the wrong layout.
+- **GRKERNSEC_HIDESYM** — `xfrm_replay_legacy`, `xfrm_replay_bmp`, `xfrm_replay_esn` symbols stripped from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — replay window underflow / oseq wraparound diagnostics restricted to CAP_SYSLOG.
+- **CAP_NET_ADMIN strict** — replay-state mutation via `XFRM_MSG_UPDSA` / `XFRMA_REPLAY_VAL` gated on per-net-ns CAP_NET_ADMIN.
+- **NLA strict-policy + overflow checks** — `bmp_len * sizeof(u32)` checked via `check_mul_overflow`; `replay_window <= XFRMA_REPLAY_ESN_MAX`; oseq / seq monotonicity enforced before SADB commit.
+- **Constant-time bitmap test** — replay-bitmap lookup (`__xfrm_replay_check`, `xfrm_replay_check_esn`) implemented without secret-dependent branches; defense against timing-side-channel SPI sequence enumeration.
+
+Per-doc rationale: anti-replay is the per-SA freshness guarantee of IPsec; any UAF or off-by-one in `replay_esn` bitmap reallocation would let attackers replay captured ESP/AH packets undetected, breaking RFC 4302/4303. MEMORY_SANITIZE + REFCOUNT + USERCOPY together shut the window between "user supplies new replay state" and "fastpath checks live bitmap".
+
 ## Open Questions
 
 (none — anti-replay window semantics are exhaustively specified by RFC 4302/4303 § 3.4.3 + RFC 4304)

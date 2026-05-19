@@ -187,6 +187,28 @@ PEBS-specific reinforcement:
 - **MSR_IA32_PERF_CAPABILITIES advertised mask filtered** — defense against guest detecting PEBS feature beyond what KVM supports.
 - **Per-VM PEBS-buffer accounting** — defense against VM with malicious PEBS-buffer-config consuming host memory.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_MSRS for PEBS MSRs (IA32_PEBS_ENABLE, IA32_DS_AREA, etc.) bounded by slab; PEBS DS area validated against memslots.
+- **PAX_KERNEXEC** — `intel_pmu_handle_pebs_data_cfg`, `vmx_passthrough_lbr_msrs` (PEBS subset) resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — PEBS-overflow PMI path inherits RANDKSTACK.
+- **PAX_REFCOUNT** — per-vCPU PEBS event refcount saturating.
+- **PAX_MEMORY_SANITIZE** — per-vCPU PEBS record-shadow, DS-area config zeroed on alloc/free; PEBS record entries cleared on counter overflow handling so prior microarch state cannot leak.
+- **PAX_UDEREF** — KVM_SET_MSRS copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `intel_pmu_ops.handle_pebs_data_cfg`, vendor PEBS slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU PEBS DS-area kaddr, PEBS record buffer redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — PEBS overflow / PEBS-format-mismatch warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_PMU_CAPABILITY (PEBS-enable bit) gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR passthrough validation** — PEBS-MSR-bitmap entries gated by `vmx_get_perf_capabilities` PEBS advertisement; reserved-bit writes intercepted.
+- **Per-counter PEBS gating** — `pebs_enable` bitmap per-counter; record leak across unrelated counters defended.
+- **DS-area memslot validation** — guest WRMSR(IA32_DS_AREA) GPA validated against memslots so PEBS hardware cannot write to host kernel memory.
+- **MSR_IA32_PERF_CAPABILITIES mask filtered** — guest sees only PEBS features KVM supports; cannot detect/use unsupported PEBS record formats.
+- **Nested-virt strict** — L2 PEBS not exposed to L1's host PEBS hardware; nested PEBS rejected.
+
+Per-doc rationale: PEBS records precise microarchitectural state (cache misses, branch mispredictions) that fuels Spectre/MDS-class attacks; the grsec reinforcement gates PEBS by KVM_CAP_PMU_CAPABILITY, validates DS-area GPA to prevent HW writing host memory, SANITIZEs PEBS record buffers on overflow, and filters PERF_CAPABILITIES so a guest cannot detect/enable a PEBS feature KVM cannot safely virtualize.
+
 ## Open Questions
 
 (none at this Tier-3 level)

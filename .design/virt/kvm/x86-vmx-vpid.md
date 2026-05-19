@@ -220,6 +220,29 @@ VPID-specific reinforcement:
 - **vmcs.secondary_exec_control bit-validate** — defense against guest manipulating ENABLE_VPID bit.
 - **Per-vCPU VPID accounting** — defense against ID-leak via vCPU-rapid-create-destroy attack.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — VPID is purely a kernel-side tag; no user-pointer ingress.
+- **PAX_KERNEXEC** — `allocate_vpid`, `free_vpid`, `vmx_flush_tlb_current`, `vmx_flush_tlb_guest` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — INVVPID path inherits RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-CPU `vmx_vpid_bitmap` and per-vCPU vpid lifetime refcount saturating.
+- **PAX_MEMORY_SANITIZE** — `vmcs.virtual_processor_id`, per-vCPU vpid zeroed on free; vpid_bitmap-slot cleared atomically.
+- **PAX_UDEREF** — no user-pointer ingress.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.flush_tlb_current`, `flush_tlb_guest`, `flush_tlb_all` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU vpid value redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — vpid-exhaustion, INVVPID-failure warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_VM (with VPID) gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **INVVPID after cross-CPU migrate** — vCPU migration to new physical CPU issues `INVVPID single-context` so stale TLB on new CPU is flushed.
+- **Nested-VPID distinct from L1-VPID** — L2 VPID allocated separately from L1 to defeat L1/L2 TLB-aliasing.
+- **VPID exhaustion fallback** — when `vmx_vpid_bitmap` exhausted, fallback to vpid=0 (forces VMRUN to flush TLB) so allocation-failure cannot crash VM.
+- **VMXOFF flush** — `vmx_hardware_disable` issues `INVVPID all-context` so post-disable stale TLB cannot persist.
+- **invvpid-type whitelist** — only spec-defined INVVPID types issued; fluid type causing CPU #UD defended.
+- **secondary_exec_control validated** — ENABLE_VPID bit in `vmcs_config.cpu_based_2nd_exec_ctrl` validated against IA32_VMX_PROCBASED_CTLS2; guest manipulation defended.
+
+Per-doc rationale: VPID is the Intel TLB-isolation tag complementary to EPT; the grsec reinforcement allocates VPIDs from a kernel-side bitmap with saturating refcount, issues INVVPID on cross-CPU migrate and VMXOFF, distinguishes L1/L2 VPIDs, and provides graceful fallback to vpid=0 so VPID exhaustion never crashes the VM.
+
 ## Open Questions
 
 (none at this Tier-3 level)

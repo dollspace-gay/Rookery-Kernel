@@ -227,6 +227,28 @@ MMU-cache-specific reinforcement:
 - **Per-topup honors min before capacity** — defense against per-topup over-alloc when min sufficient.
 - **Per-arch caches (pte_list_desc, page_header, etc.) zero-init backing kmem** — defense against per-arch-specific stale data.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — MMU cache objects never copied to/from user; access bounded by mc->capacity.
+- **PAX_KERNEXEC** — mc op-table (kmem vs page) RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per fault path / KVM_RUN.
+- **PAX_REFCOUNT** — per-cache nobjs saturating (panic on overflow rather than wrap).
+- **PAX_MEMORY_SANITIZE** — every alloc uses __GFP_ZERO; objects re-zeroed before drain-free.
+- **PAX_UDEREF** — no user-pointer touched by mc; redundancy assertion.
+- **PAX_RAP / kCFI** — mc->alloc / mc->free indirect-call type-checked.
+- **GRKERNSEC_HIDESYM** — mc->objects[i] pointers redacted in WARN.
+- **GRKERNSEC_DMESG** — empty-cache-in-atomic WARNs rate-limited.
+
+MMU-cache-specific:
+
+- **CAP_SYS_ADMIN on KVM_RUN** — only privileged VMM can drive MMU caches.
+- **GFP_ZERO+drain-zero is mandatory** — no host-kernel-data leak via stale SP / pte_list_desc.
+- **kmem_cache vs page dispatch RAP-checked** — defense against free-mismatch UAF.
+
+Rationale: MMU caches back every shadow-page / pte_list_desc; double-sanitize (alloc-zero + drain-zero) closes the dominant info-leak surface where a fresh SP would otherwise inherit stale host bytes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

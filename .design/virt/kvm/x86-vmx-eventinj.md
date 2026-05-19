@@ -223,6 +223,28 @@ event-injection-specific reinforcement:
 - **NMI count bounded** — defense against unbounded NMI-pending build-up.
 - **Live-migrate pending events serialized** — defense against post-migrate event loss.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_VCPU_EVENTS bounded by `struct kvm_vcpu_events` slab size; KVM_INTERRUPT / KVM_NMI inject through fixed-size ioctl args.
+- **PAX_KERNEXEC** — `vmx_inject_irq`, `vmx_inject_nmi`, `vmx_inject_exception`, `kvm_inject_pending_event` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — IRQ/NMI inject paths inherit RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-vCPU `vcpu->arch.nmi_pending`, `nmi_queued`, `interrupt.injected` saturating; pathological NMI-pending build-up bounded by `KVM_MAX_NMI_QUEUED` (= 2).
+- **PAX_MEMORY_SANITIZE** — per-vCPU exception cache, interrupt injection struct, soft_vector zeroed on alloc/free.
+- **PAX_UDEREF** — KVM_INTERRUPT / KVM_NMI / KVM_SET_VCPU_EVENTS copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.inject_irq`, `inject_nmi`, `inject_exception` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU exception cache and IRQ injection kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — invalid-vector / invalid-event-type warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_INTERRUPT, KVM_NMI, KVM_SMI, KVM_SET_VCPU_EVENTS gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **VM-entry interruption-info validated** — VMCS `VM_ENTRY_INTR_INFO_FIELD` reserved-bits checked; invalid vector / type combination rejected pre-VMRUN.
+- **error_code only with exception types** — error-code field meaningful only for type=3 (hardware exception); non-exception injects ignore error-code to defeat guest mis-classification.
+- **VM_ENTRY_INSTRUCTION_LEN populated for software-int** — software-int / privileged-software-exception requires instruction-length so guest mid-instruction state cannot corrupt RIP.
+- **Atomic injection bookkeeping** — `vcpu->arch.exception` / `interrupt` / `nmi_pending` updated under preempt-disable or vcpu->mutex so torn-state across CPU schedule cannot occur.
+- **Nested-virt strict** — L0 must reflect events to L1 per nested intercept-check; L2-injection through L0 mediated by `nested_vmx_check_interrupt`.
+
+Per-doc rationale: event injection is the IRQ/NMI/exception delivery interface from KVM to guest; the grsec reinforcement bounds NMI-pending build-up to defeat unbounded-pending DoS, validates VM-entry interruption-info against Intel reserved-bits, atomizes injection bookkeeping under vCPU lock, and SANITIZEs the exception cache so a destroyed vCPU's pending event cannot bleed to a successor.
+
 ## Open Questions
 
 (none at this Tier-3 level)

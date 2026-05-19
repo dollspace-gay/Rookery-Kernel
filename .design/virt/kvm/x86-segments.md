@@ -231,6 +231,27 @@ segment-virtualization-specific reinforcement:
 - **Per-vmenter consistency-check** — defense against guest entering with malformed segment state.
 - **TR / LDTR descriptor-table-pointers validated** — defense against pointing to invalid GDT entry.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET_SREGS / KVM_SET_SREGS copies bounded by `struct kvm_sregs` slab size; per-segment fields validated before VMCS/VMCB load.
+- **PAX_KERNEXEC** — vendor `get_segment` / `set_segment` / `get_cpl` ops resolve through RO `kvm_x86_ops` vtable; module text RX-only.
+- **PAX_RANDKSTACK** — VM-entry / segment-cache invalidation paths inherit RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-vCPU segment-cache (`segment_cache`) and per-vCPU CPL state saturating refcount through vCPU lifetime.
+- **PAX_MEMORY_SANITIZE** — `vcpu.arch.segment_cache`, `regs_avail`, `regs_dirty` zeroed on vCPU alloc/free so stale segment-base/limit cannot leak to a successor vCPU.
+- **PAX_UDEREF** — KVM_SET_SREGS copy_from_user STAC/CLAC bracketed; no raw user pointer follows the segment-write path.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.get_segment`, `set_segment`, `get_cpl`, `set_idt`, `set_gdt` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU segment-cache kaddr and CS/SS/TR base redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — invalid-segment / VMCS-consistency-check warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_SET_SREGS / KVM_SET_SREGS2 gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **VMCS / VMCB segment field validation** — per-segment selector/base/limit/AR consistency enforced before VMRESUME; malformed state rejected at KVM_SET_SREGS rather than at vmentry.
+- **CPL ↔ CS.RPL atomic read** — per-vCPU CPL computed atomically from CS.RPL so torn-read cannot expose stale ring-level to permission checks.
+- **TR / LDTR descriptor pointer validation** — TR/LDTR base validated against GDT bounds; pointing to invalid descriptor rejected.
+- **Nested-virt strict** — L2 segment state validated independently of L1's VMCS shadow; L0 host segment state never directly written by L2.
+
+Per-doc rationale: segments are the foundation of x86 ring-level enforcement; the grsec reinforcement here validates segment-cache writes early (at KVM_SET_SREGS) rather than at vmentry, atomic-reads CPL to defeat torn-read CPL race, and SANITIZEs the per-vCPU segment cache so stale CS/SS/TR base addresses cannot bleed across vCPU lifetimes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

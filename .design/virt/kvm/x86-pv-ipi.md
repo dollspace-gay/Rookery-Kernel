@@ -240,6 +240,27 @@ PV-IPI-specific reinforcement:
 - **PV-SCHED-YIELD validates target apicid** — defense against yield_to invalid task.
 - **Per-VM stat counters bounded** — defense against attacker monitoring counter overflow timing.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — hypercall argument vectors (PV-IPI APIC-id bitmap, PV-TLB-FLUSH GFN list) bounded by per-hypercall length-limit; copy length validated against `KVM_MAX_VCPUS` for IPI bitmaps.
+- **PAX_KERNEXEC** — `kvm_pv_ipi`, `kvm_pv_flush_tlb`, `kvm_pv_send_ipi_to_cpu` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — hypercall entry path inherits RANDKSTACK from VM-exit.
+- **PAX_REFCOUNT** — per-vCPU and per-VM hypercall serial / kick counters saturating; concurrent send-ipi + vCPU destroy cannot wrap.
+- **PAX_MEMORY_SANITIZE** — per-hypercall scratch buffers zeroed on allocation; PV-IPI APIC bitmap zeroed between calls so prior recipient set never bleeds.
+- **PAX_UDEREF** — hypercall args fetched from guest registers (already in kernel `pt_regs`-like struct); no user-pointer follow.
+- **PAX_RAP / kCFI** — hypercall dispatch table (`hypercall_table` / `kvm_emulate_hypercall`) RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-VM hypercall stats kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — invalid-hypercall, target-apicid-mismatch warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_PV_IPI / KVM_CAP_PV_SEND_IPI advertisement gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **Hypercall CPL gating** — PV-IPI / PV-SCHED-YIELD / PV-TLB-FLUSH allowed from CPL=0 only; ring-3 ring-bypass hypercall rejected with #GP.
+- **Target apicid validation** — `kick_cpu` and PV-IPI target apicid validated against in-kernel APIC map; non-existent vCPU rejects rather than NULL-deref.
+- **Cross-VM containment** — PV-IPI bitmap can only address current-VM vCPUs; cross-VM kick rejected at lookup.
+- **Nested-virt strict** — L2 hypercalls trapped through L1; L0 PV-IPI never delivers cross-L1 IPIs from a malicious L2.
+
+Per-doc rationale: PV-IPI / PV-TLB-FLUSH replace IPI loops with a hypercall that touches per-vCPU state across the VM; the grsec reinforcement here keeps the target-apicid validated to prevent NULL-deref, gates the hypercalls at CPL=0 so ring-3 guest processes cannot reach the hypercall surface, and enforces cross-VM containment so a malicious tenant cannot kick a co-resident VM's vCPU.
+
 ## Open Questions
 
 (none at this Tier-3 level)

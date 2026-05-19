@@ -221,6 +221,28 @@ DR-virtualization-specific reinforcement:
 - **#DB exception priority correct** — defense against MTF/INT3/etc. priority confusion.
 - **Per-DR access privileged in nested-VMX** — defense against L2 reading L1's DR.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_DEBUGREGS copy bounded by sizeof(struct kvm_debugregs).
+- **PAX_KERNEXEC** — DR read/write dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN; #DB save/restore on fresh stack.
+- **PAX_REFCOUNT** — host HW-BP slot reservation refcount saturating.
+- **PAX_MEMORY_SANITIZE** — vCPU effective DR0–DR7 zeroed on vCPU destroy; no DR leak across VMs.
+- **PAX_UDEREF** — KVM_GET/SET_DEBUGREGS user pointer validated.
+- **PAX_RAP / kCFI** — set_dr / get_dr indirect-call type-checked.
+- **GRKERNSEC_HIDESYM** — DR0–DR3 (guest BP addresses) redacted in trace.
+- **GRKERNSEC_DMESG** — DR-intercept floods rate-limited.
+
+DR-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_SET_GUEST_DEBUG / KVM_SET_DEBUGREGS** — defense against unprivileged BP injection.
+- **HW-BP slots namespaced per-VM, accounted refcounted** — defense against per-VM slot exhaustion.
+- **DR-content sanitize on live-migrate destroy** — no breakpoint-address leak across migrations.
+
+Rationale: guest DR holds breakpoint VAs that can fingerprint guest binaries; sanitize on destroy + UDEREF on ioctl payload prevents cross-VM DR-leak fingerprinting.
+
 ## Open Questions
 
 (none at this Tier-3 level)

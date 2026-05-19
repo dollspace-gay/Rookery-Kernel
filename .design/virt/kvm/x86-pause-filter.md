@@ -219,6 +219,28 @@ Pause-Filter-specific reinforcement:
 - **Per-vCPU pause_filter_count reset at vmenter (SVM)** — defense against guest pre-loading false-positive count.
 - **Per-yield-pass distinguishes in_kernel vs user** — defense against yielding to user-mode vCPU when host expected kernel-mode lock-holder.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — PLE-tuning sysfs/module-param writes bounded.
+- **PAX_KERNEXEC** — PLE adjust + yield-to dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per PAUSE-vmexit.
+- **PAX_REFCOUNT** — last_boosted_vcpu round-robin counter saturating.
+- **PAX_MEMORY_SANITIZE** — ple_window / pause_filter_count zeroed on vCPU destroy.
+- **PAX_UDEREF** — no user-pointer in pause path; assertion.
+- **PAX_RAP / kCFI** — yield_to / vCPU-list traversal callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — boost-target vCPU pointer redacted.
+- **GRKERNSEC_DMESG** — PAUSE-flood warnings rate-limited.
+
+PLE-specific:
+
+- **CAP_SYS_ADMIN on KVM_X86_DISABLE_EXITS_PAUSE** — only privileged VMM can disable PLE intercept.
+- **yield_to target.mutex try-lock** — defense against yield-deadlock.
+- **target ≠ self enforced** — closes self-yield NOP-loop DoS.
+
+Rationale: PAUSE-loop-exiting drives vCPU yield scheduling; sanitize on destroy + RAP-checked traversal prevent stale-vCPU-pointer yield against torn-down vCPU.
+
 ## Open Questions
 
 (none at this Tier-3 level)

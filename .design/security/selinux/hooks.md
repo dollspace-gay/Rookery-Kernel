@@ -494,6 +494,26 @@ SELinux-hooks reinforcement:
 - **Per-`secureexec` set on no-NOATSECURE transition** — defense against per-LD_PRELOAD style abuse on domain change.
 - **Per-binder `BINDER__SET_CONTEXT_MGR` once-only** — defense against per-binder-mgr hijack.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `selinux_setprocattr` / `selinux_getprocattr` copy bounded against `SECURITY_CONTEXT_MAX`; context-string conversion via `security_context_to_sid` length-checked and zero-terminated before SID lookup.
+- **PAX_KERNEXEC** — `selinux_hooks[]` table and `selinux_state` resident in RX/RO sections; AVC fastpath (`avc_has_perm_noaudit`, `avc_lookup`, `avc_compute_av`) lives in RX `.text`.
+- **PAX_RANDKSTACK** — kstack-offset randomization at every LSM hook entry from syscalls.
+- **PAX_REFCOUNT** — saturating refcount on `struct sidtab_node`, `selinux_state.policy`, `avc_node->ae.refcnt`, and per-task `task_security_struct` SID slots; prevents wrap on policy-reload thrash.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `task_security_struct`, `inode_security_struct`, `superblock_security_struct`, and the old `policy` blob on reload; defense against UAF revealing labels for revoked objects.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every `selinuxfs` write (`load`, `commit_bools`, `disable`); policy-binary parser bounds-checks every `next_entry()` step.
+- **PAX_RAP / kCFI** — `selinux_hooks[]` LSM dispatch and `security_ops` policy-server callbacks (`policydb_read`, `policydb_write`, `sidtab_*`) verified via kCFI on every indirect call.
+- **GRKERNSEC_HIDESYM** — `selinux_state`, `sidtab`, `avc_cache`, and `policydb` symbols masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — `avc:  denied` records when audit unavailable restricted to CAP_SYSLOG; no leak of kernel pointers via denial messages.
+- **CAP_MAC_ADMIN strict** — `selinuxfs` `load`, `disable`, `enforce`, `commit_bools`, and `policyvers` writes gated on CAP_MAC_ADMIN in init_user_ns; `setenforce` requires CAP_MAC_ADMIN even with `SELINUX_DEVELOP`.
+- **AVC bounded** — AVC cache capped at `AVC_CACHE_SLOTS` with `avc_reclaim`; per-SID lookups bounded via sidtab `roll-back` on overflow rather than unbounded growth.
+- **`enforcing` flag `WRITE_ONCE` / `selinux_state.initialized` `smp_store_release`** — defense against torn mode-switch and pre-policy hook entry returning ambiguous result.
+- **`secureexec` on no-NOATSECURE transition** — defense against LD_PRELOAD-style abuse on domain change.
+
+Per-doc rationale: SELinux hooks own the kernel's flagship MAC policy enforcement. A REFCOUNT wrap on `sidtab_node` or a UDEREF miss in `policydb_read` lets an attacker forge SIDs and silently bypass type enforcement. The strict overlap (CAP_MAC_ADMIN-gated reload + bounded AVC + saturating sidtab refcount + RO policy after commit) is what makes SELinux denial decisions trustworthy.
+
 ## Open Questions
 
 (none at this Tier-3 level)

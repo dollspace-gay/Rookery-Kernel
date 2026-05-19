@@ -570,6 +570,25 @@ Control-core reinforcement:
 - **Per-numid xa_store_range plus name xa_insert collision flag** — defense against per-hash-collision missed lookup (falls back to linear).
 - **Per-power-suspend ⟹ -ENOPROTOOPT (SNDRV_CTL_IOCTL_POWER)** — defense against per-userspace forcing power state.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `snd_ctl_elem_info`, `snd_ctl_elem_value`, `snd_ctl_tlv` ioctl payloads bounded against fixed struct size; enum-name aggregates capped at 64 KiB total / 64 B per name before kmalloc.
+- **PAX_KERNEXEC** — `snd_ctl_f_ops`, `snd_ctl_ioctls[]`, and `snd_kcontrol_new` `get`/`put`/`info`/`tlv` callbacks resident in RX `.text`; driver-supplied control ops resolved via kCFI-signed indirection.
+- **PAX_RANDKSTACK** — kstack-offset randomization on every `/dev/snd/controlC*` ioctl entry.
+- **PAX_REFCOUNT** — saturating refcount on `snd_kcontrol`, `snd_ctl_file`, and `snd_card` (control device pins card via `snd_card_file_add`); defense against userspace open/close thrash.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `snd_ctl_elem_value` user-event buffer queues and TLV scratch (prevents leak of in-flight mixer values to subsequent open).
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every control-ioctl copy_from_user; `numid` indirection via `xa_load` instead of unchecked pointer.
+- **PAX_RAP / kCFI** — `snd_kcontrol_new.info/get/put/tlv` per-driver callbacks dispatched via kCFI-signed indirect calls; driver-supplied vtables verified at register.
+- **GRKERNSEC_HIDESYM** — `snd_ctl_dev_register`, `snd_kcontrol_new[]`, and `snd_card->controls` symbols masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — control-add / TLV-size-mismatch / driver-validation diagnostics restricted to CAP_SYSLOG.
+- **CAP_SYS_ADMIN gating for unsafe ioctls** — `SNDRV_CTL_IOCTL_POWER`, `SNDRV_CTL_IOCTL_PRIVILEGED`, control-element ADD/REMOVE on USER-type controls gated on CAP_SYS_ADMIN; per-control `SNDRV_CTL_ELEM_ACCESS_USER` validation strict.
+- **SND_CTL_INPUT_VALIDATION** — `snd_ctl_elem_write` validates integer ranges (`min..max`, `step`) against driver-declared bounds before calling `put`; defense against driver-trusts-userspace bugs.
+- **Power-suspend ⟹ -ENOPROTOOPT** — defense against userspace forcing power-state via SNDRV_CTL_IOCTL_POWER while card suspended.
+
+Per-doc rationale: `/dev/snd/controlCN` is the highest-bandwidth ALSA userspace surface — every mixer and DSP-tuning userspace probe lands here, and historically the ioctl path has been a frequent CVE source (CVE-2014-4656, CVE-2017-15265, CVE-2020-27786, CVE-2023-0266). Overlapping PAX_USERCOPY + SND_CTL_INPUT_VALIDATION + kCFI on `put/info` + saturating REFCOUNT on `snd_kcontrol` keeps the historic UAF patterns blocked at the boundary.
+
 ## Open Questions
 
 (none at this Tier-3 level)

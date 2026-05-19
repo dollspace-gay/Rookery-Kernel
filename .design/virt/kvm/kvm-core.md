@@ -226,6 +226,30 @@ kvm-core specific reinforcement:
 - **Per-VM debugfs dir owned by mode 0700 root** — defense against unprivileged process reading guest-state-derived stats.
 - **MAX_VCPUS hard cap = 1024 per VM** in v0 (configurable via Kconfig); defense against per-VM resource exhaustion.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by KVM core:
+
+- **PAX_USERCOPY** — bounds-checks every KVM ioctl arg copy (`struct kvm_run`, `kvm_userspace_memory_region`, `kvm_one_reg`, …); rejects oversized and slab-crossing fetches before any per-arch handler runs.
+- **PAX_KERNEXEC** — `kvm_chardev_ops`, `kvm_vm_fops`, `kvm_vcpu_fops`, and per-arch `kvm_x86_ops` vtables live in RX/RO text; ioctl dispatch cannot be redirected.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on KVM_RUN and every ioctl entry; defeats stack-grooming across vmenter/vmexit.
+- **PAX_REFCOUNT** — saturating refs on `kvm->users_count`, `vcpu->refcount`, `kvm->mm` reference; close-during-run and concurrent-destroy traps rather than UAF.
+- **PAX_MEMORY_SANITIZE** — zeroes freed `struct kvm`, per-vCPU caches, and arch slabs; reuse cannot disclose prior guest register state.
+- **PAX_UDEREF** — strict user/kernel pointer separation on every KVM ioctl arg copy and shared-page interaction.
+- **PAX_RAP / kCFI** — forward-edge CFI on the entire kvm_x86_ops vtable; blocks JOP through tampered per-arch hooks (a historically rich exploitation surface).
+- **GRKERNSEC_HIDESYM** — `kvm_vm_ioctl`, `kvm_vcpu_ioctl`, `kvm_arch_vcpu_ioctl_run`, and per-arch handlers hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so KVM_RUN errors (invalid memslots, vmexit reasons) do not leak per-VM internal state.
+
+KVM-core-specific reinforcement:
+
+- **CAP_SYS_ADMIN on /dev/kvm** — KVM_RUN and the entire VM-creation path require CAP_SYS_ADMIN OR `kvm` group membership; unprivileged callers cannot synthesize a VM to exploit a guest-side bug.
+- **vCPU PAX_REFCOUNT** — saturating ref on `vcpu->refcount` paired with vcpu.mutex + signal_pending closes the close-during-run UAF window.
+- **ioctl PAX_USERCOPY** — every per-arch ioctl arg copy is the canonical USERCOPY surface; defense-in-depth alongside per-ioctl bounds.
+- **MAX_VCPUS=1024 + memslot bounds** — paired with PAX_REFCOUNT so VM-bomb DoS traps the counter.
+- **debugfs mode 0700 root + GRKERNSEC_PROC_USERGROUP** — restricts visibility of per-VM stats and owning task.
+
+Rationale: KVM core is the single largest privileged kernel surface area exposed to userspace; the combined CFI on `kvm_x86_ops`, USERCOPY/UDEREF on every ioctl, and REFCOUNT on every lifecycle object collapses the dominant exploitation classes (per-arch hook JOP, vCPU UAF, memslot OOB).
+
 ## Open Questions
 
 (none at this Tier-3 level)

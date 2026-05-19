@@ -252,6 +252,26 @@ PMU-specific reinforcement:
 - **Per-vCPU PMU refresh on CPUID change drops all perf_events** — defense against stale-CPU-config perf_event after migration.
 - **Per-VM `disable_pmu` per-VM-arg honored** — defense against guests using PMU when VM-create requested no-PMU.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_MSRS and KVM_SET_PMU_EVENT_FILTER copy through slab-fixed buffers; per-filter entry count bounded by `KVM_PMU_EVENT_FILTER_MAX_EVENTS`.
+- **PAX_KERNEXEC** — generic `kvm_pmu_ops` dispatch and per-vendor `set_msr` / `refresh` resolve through RO vtable; module text RX-only.
+- **PAX_RANDKSTACK** — PMI delivery and KVM_RUN re-entry inherit RANDKSTACK from the originating syscall.
+- **PAX_REFCOUNT** — per-vCPU `kvm_pmu` and per-VM event-filter SRCU refcount saturating; concurrent KVM_SET_PMU_EVENT_FILTER and PMC reprogram cannot wrap.
+- **PAX_MEMORY_SANITIZE** — per-vCPU pmu (pmc[], filter, event_count, all_valid_pmc_idx) zeroed on alloc/free; old event-filter blob zeroed before kfree on filter-replace.
+- **PAX_UDEREF** — KVM_SET_PMU_EVENT_FILTER copy_from_user STAC/CLAC bracketed; per-entry validated before slab installation.
+- **PAX_RAP / kCFI** — `kvm_pmu_ops` slots RAP-signed; per-vendor `hw_event_available` indirect call CFI-guarded.
+- **GRKERNSEC_HIDESYM** — `vcpu.arch.pmu` and per-VM filter kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — PMU version-mismatch and event-filter validation warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_SET_PMU_EVENT_FILTER and KVM_CAP_PMU_CAPABILITY gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR passthrough validation** — generic `kvm_pmu_is_valid_msr` enforces per-MSR allowlist; reserved-bit and disabled-counter writes intercepted and #GP-injected.
+- **PMU event allowlist** — `KVM_PMU_EVENT_ALLOW/DENY` enforced; default-deny when filter present rejects guest selection of host-leaking event codes.
+- **Nested-virt strict** — L1 hypervisor PMU exposure to L2 mediated by software emulation; L0 host PMCs never reprogrammed by L2 directly.
+
+Per-doc rationale: this is the generic KVM PMU plane that fans out to AMD / Intel vendors; the grsec reinforcement keeps the cross-vendor invariants — event-filter allowlist, MSR-passthrough validation, SANITIZE on filter swap — at the dispatch layer so that vendor backends inherit the same guarantees rather than each re-implementing them.
+
 ## Open Questions
 
 (none at this Tier-3 level)

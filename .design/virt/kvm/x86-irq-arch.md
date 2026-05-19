@@ -221,6 +221,28 @@ x86-irq-arch-specific reinforcement:
 - **Per-set_pic_irq guards on pic_in_kernel** — defense against per-userspace-PIC routing leak.
 - **Per-set_ioapic_irq guards on ioapic_in_kernel** — defense against per-split-irqchip mis-route.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_SET_GSI_ROUTING entries bounded by KVM_MAX_IRQ_ROUTES.
+- **PAX_KERNEXEC** — routing-entry parser/dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per route-set / IRQ-deliver.
+- **PAX_REFCOUNT** — kvm_irq_routing_table refcount + RCU-protected swap saturating.
+- **PAX_MEMORY_SANITIZE** — old routing-table zeroed before kfree_rcu.
+- **PAX_UDEREF** — KVM_IRQ_ROUTING user array validated.
+- **PAX_RAP / kCFI** — route-entry set_irq function-pointer indirect-call type-checked.
+- **GRKERNSEC_HIDESYM** — route entries / fn-ptrs redacted.
+- **GRKERNSEC_DMESG** — bad-route failures rate-limited.
+
+IRQ-routing-specific:
+
+- **CAP_SYS_ADMIN on KVM_SET_GSI_ROUTING** — defense against unprivileged route flip.
+- **set_irq fn-ptr non-null post-parse** — RAP-checked dispatch panics on stale ptr.
+- **x2apic-MSI format gated by guest x2APIC enable** — blocks 32-bit-dest in xAPIC mode.
+
+Rationale: IRQ-routing tables are RCU-swapped on the hot path; sanitize on free + RAP-checked dispatch close the dominant fn-ptr-overwrite surface seen by guests forging GSI entries.
+
 ## Open Questions
 
 (none at this Tier-3 level)

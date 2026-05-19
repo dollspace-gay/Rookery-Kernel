@@ -200,6 +200,28 @@ PDPTR-specific reinforcement:
 - **Per-mode PAE detection accurate** — defense against load_pdptrs running in long-mode.
 - **Live-migrate PDPTRs included** — defense against post-migrate page-table inconsistency.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — PDPTR ioctl payloads (KVM_GET/SET_SREGS, KVM_GET/SET_VCPU_EVENTS) bounded.
+- **PAX_KERNEXEC** — load_pdptrs path RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per PDPTR-load (CR3 change / vmenter).
+- **PAX_REFCOUNT** — PDPT page ref saturating.
+- **PAX_MEMORY_SANITIZE** — vCPU PDPTR cache zeroed on destroy / INIT.
+- **PAX_UDEREF** — guest CR3 → PDPT hva validated.
+- **PAX_RAP / kCFI** — load_pdptrs vendor callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — PDPTR raw values + PDPT PA redacted.
+- **GRKERNSEC_DMESG** — invalid-PDPTR warnings rate-limited.
+
+PDPTR-specific:
+
+- **CAP_SYS_ADMIN on KVM_SET_SREGS** — privileged VMM only.
+- **PDPTE.addr ≤ host MAXPHYADDR enforced** — closes high-bit alias.
+- **L1-vs-L2 PDPTR cache separated** — defense against nested leak.
+
+Rationale: PDPTR is the PAE root chokepoint; sanitize + UDEREF on the four-entry table prevent stale-entry carryover after CR3/CR4 mode transitions.
+
 ## Open Questions
 
 (none at this Tier-3 level)

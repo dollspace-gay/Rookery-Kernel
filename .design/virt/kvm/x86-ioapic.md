@@ -259,6 +259,28 @@ IOAPIC-specific reinforcement:
 - **Per-VM ioapic memory page locked** — defense against guest MMIO probe of host-physical mem.
 - **Per-VM EOI vector ↔ RTE matched only for level** — defense against edge-RTE getting EOI-clear.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_IRQCHIP IOAPIC state bounded by sizeof(struct kvm_ioapic_state).
+- **PAX_KERNEXEC** — IOAPIC MMIO read/write dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN.
+- **PAX_REFCOUNT** — IOAPIC eoi_inject work refcount saturating.
+- **PAX_MEMORY_SANITIZE** — kvm_ioapic struct (24 RTEs + IRR + IOREG) zeroed on irqchip destroy.
+- **PAX_UDEREF** — KVM_*_IRQCHIP user pointer validated.
+- **PAX_RAP / kCFI** — IOAPIC io_device read/write callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — RTE.dest/vector redacted in trace.
+- **GRKERNSEC_DMESG** — IOAPIC MMIO-probe floods rate-limited.
+
+IOAPIC-specific:
+
+- **CAP_SYS_ADMIN on KVM_CREATE_IRQCHIP** — defense against unprivileged in-kernel-IRQ-chip enable.
+- **RTE.delivery_mode validated against enum table** — blocks reserved-mode injection.
+- **Per-RTE write under ioapic_lock — TOCTOU-safe** — concurrent KVM_SET_IRQCHIP cannot race.
+
+Rationale: IOAPIC RTEs are the cross-CPU IRQ-routing table; sanitize on irqchip destroy + RAP-checked MMIO callbacks prevent stale-RTE redelivery into a torn-down vCPU.
+
 ## Open Questions
 
 (none at this Tier-3 level)

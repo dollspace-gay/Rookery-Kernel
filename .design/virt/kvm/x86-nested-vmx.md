@@ -258,6 +258,30 @@ nested-VMX-specific reinforcement:
 - **Per-cycle vmcs02 VMCLEAR before reuse** — defense against per-CPU VMCS-cache stale referencing freed memory.
 - **Posted-IRQ NV (notification vector)** validated — defense against L1 specifying reserved vector causing CPU exception.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — VMCS12 fetch bounded by 4 KiB; KVM_GET/SET_NESTED_STATE sized.
+- **PAX_KERNEXEC** — nested-vmx vmlaunch/vmresume + intercept-merge dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per nested-VMLAUNCH/VMRESUME.
+- **PAX_REFCOUNT** — vmcs02 cache + VPID slot + nested-EPT root refcount saturating.
+- **PAX_MEMORY_SANITIZE** — vmcs02 zeroed before reuse; shadow-vmcs bitmap zeroed on nested-disable.
+- **PAX_UDEREF** — VMCS12 GPA → hva validated; KVM_SET_NESTED_STATE user pointer validated.
+- **PAX_RAP / kCFI** — nested-vmexit/vmenter callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — VMCS12 GPA / EPTP redacted.
+- **GRKERNSEC_DMESG** — VMfail floods rate-limited.
+
+Nested-VMX-specific:
+
+- **CAP_SYS_ADMIN on KVM_CAP_NESTED enable** — defense against unprivileged nested-VMX.
+- **L0 ∩ L1 control-bits enforced** — L1 cannot enable features L0 lacks.
+- **Shadow-VMCS field-bitmap restrictive (write-sensitive excluded)**.
+- **Per-L2 VPID distinct** — TLB-leak blocked.
+- **Per-VMCS02 VMCLEAR-before-reuse** — defense against stale-VMCS UAF.
+
+Rationale: nested-VMX is the deepest trust-amplifier in KVM; sanitize vmcs02 + UDEREF on L1-supplied VMCS12 close the dominant L1-forged-VMCS cross-VM escalation surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

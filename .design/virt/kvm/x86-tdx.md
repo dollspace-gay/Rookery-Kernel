@@ -262,6 +262,28 @@ TDX-specific reinforcement:
 - **S-EPT managed by TDX-module** — defense against KVM-side page-table tampering.
 - **Per-vCPU pi_desc in IOMMU-protected shared memory** — defense against device-DMA writing protected fields.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — TDX ioctls (KVM_TDX_INIT_VM, KVM_TDX_INIT_VCPU, KVM_TDX_FINALIZE_VM) bounded by per-cmd struct sizes; SEAMCALL argument vectors fixed-length.
+- **PAX_KERNEXEC** — `tdx_vm_init`, `tdx_vcpu_init`, `tdx_handle_exit`, SEAMCALL trampolines resolve through RX-only kernel text; SEAMCALL wrapper RAP-signed.
+- **PAX_RANDKSTACK** — TDX ioctl entry and TDEXIT handler dispatch inherit RANDKSTACK from KVM_RUN / syscall.
+- **PAX_REFCOUNT** — per-TD HKID, per-vCPU TDVPR, and SEAMCALL serialization counters saturating.
+- **PAX_MEMORY_SANITIZE** — pre-add private pages zeroed; TDH.MNG.VPFLUSHDONE drains TLB before HKID reuse; per-vCPU TDX scratch buffers zeroed on free.
+- **PAX_UDEREF** — TDX ioctl copy_from_user STAC/CLAC bracketed; user-supplied measurement registers validated before SEAMCALL.
+- **PAX_RAP / kCFI** — TDX vendor ops slots in `kvm_x86_ops` RAP-signed; SEAMCALL dispatch via const wrapper CFI-guarded.
+- **GRKERNSEC_HIDESYM** — TDX HKID, TDVPR phys-addr, S-EPT root, MRTD measurement kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — SEAMCALL error codes, TDX-module-init failures, MRTD-update warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_TDX_CAPABILITIES, KVM_TDX_INIT_VM, KVM_TDX_FINALIZE_VM gated to CAP_SYS_ADMIN + gr-rbac TDX-create role.
+- **Trust-domain attestation** — guest-visible measurement (MRTD, MRCONFIGID, MROWNER, MROWNERCONFIG) locked at FINALIZE; post-finalize page-add rejected by TDX-module.
+- **HKID lifecycle** — HKID allocated by KVM but managed by TDX-module; TDH.MNG.VPFLUSHDONE required before HKID free so successor TD cannot read prior TD's encrypted memory.
+- **S-EPT managed by TDX-module** — KVM cannot directly write S-EPT entries; SEAMCALL TDH.MEM.PAGE.ADD/AUG mediates so KVM compromise cannot tamper TD memory mapping.
+- **Per-CPU TDX-module init** — TDH.SYS.LP.INIT required before any TD runs on a logical processor; KVM tracks per-CPU init state.
+- **Nested-virt strict** — nested TDX not supported; L1 TDX hypervisor cannot run L2 TDs through L0.
+
+Per-doc rationale: TDX moves trust to a separate SEAM-mode module; the grsec reinforcement here protects the host-side surface that drives SEAMCALLs — validating ioctl args, sanitizing HKID lifecycle with VPFLUSHDONE, locking measurement at FINALIZE, and ensuring KVM cannot reach into S-EPT without the TDX-module's mediation.
+
 ## Open Questions
 
 (none at this Tier-3 level)

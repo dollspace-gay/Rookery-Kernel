@@ -243,6 +243,28 @@ shadow-MMU-specific reinforcement:
 - **MMU notifier integration** — host MM operations (swap, migrate, COW) invalidate SPTEs via rmap; defense against host-page-reuse-while-mapped.
 - **PAE root quirk validated** — exactly 4 PDPTE slots; defense against PAE walker reading out-of-range PDPTE index.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_SREGS guest CR3 / pgtable-PA copies bounded.
+- **PAX_KERNEXEC** — shadow-MMU walker + sync_page op-table RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per page-fault entry; guest pgtable walk uses fresh stack.
+- **PAX_REFCOUNT** — kvm_mmu_page root_count + per-SP refcount saturating.
+- **PAX_MEMORY_SANITIZE** — kvm_mmu_page (sp->spt 4 KiB + sp->gfns + sp metadata) GFP_ZERO at alloc; zeroed at free.
+- **PAX_UDEREF** — guest CR3 → hva translation rejects host-kernel VA.
+- **PAX_RAP / kCFI** — sync_page / link_shadow_page / mmu_role-vtable dispatch type-checked.
+- **GRKERNSEC_HIDESYM** — sp / spte / pgtable-PA redacted.
+- **GRKERNSEC_DMESG** — SP-overgrowth / spte-corrupt warnings rate-limited.
+
+Shadow-MMU-specific:
+
+- **CAP_SYS_ADMIN on KVM_RUN** — privileged VMM only.
+- **W^X enforced on SPTEs** — never set both W and X without explicit policy.
+- **mmu_valid_gen post-memslot-change forces root re-init** — closes stale-root UAF.
+
+Rationale: shadow MMU is the highest-bandwidth pointer surface in KVM (GFP_ZERO SPs, per-fault walker); sanitize + RAP + W^X close the dominant SPTE-forge surface and prevent stale-root UAF on memslot churn.
+
 ## Open Questions
 
 (none at this Tier-3 level)

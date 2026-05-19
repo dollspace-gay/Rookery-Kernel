@@ -248,6 +248,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds copyin of every `sadb_msg` / `sadb_ext` TLV across the PF_KEY socket boundary; rejects oversized auth/encrypt key material before alloc.
+- **PAX_KERNEXEC** — keeps the `static const` SADB_* dispatch table and pfkey proto_ops text W^X.
+- **PAX_RANDKSTACK** — randomises stack per `pfkey_sendmsg` entry, defeating ROP from a crafted SADB stream.
+- **PAX_REFCOUNT** — wraps `pfkey_sock` and the SA/SP refs taken during SADB_ADD/SADB_UPDATE/SADB_GET so concurrent dump+delete cannot UAF.
+- **PAX_MEMORY_SANITIZE** — zeroes auth-key, encr-key, AEAD-key copies and the broadcast-reply skb (which echoes the full SA state) on free.
+- **PAX_UDEREF** — blocks accidental userland deref in TLV walker (`sadb_ext_min_len` mismatch path).
+- **PAX_RAP / kCFI** — protects indirect dispatch through the `pfkey_funcs[]` SADB-msg handler table.
+- **GRKERNSEC_HIDESYM** — hides `pfkey_*`, `xfrm_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so SADB-parse warnings don't leak SPI / key-length to non-root.
+- **PF_KEYv2 strict CAP_NET_ADMIN** in `pfkey_create()`; gradm `ipsec_admin` role recommended as the only subject that may open `AF_KEY`.
+- **XFRM key MEMORY_SANITIZE** — `sadb_key.sadb_key_bits` material is wiped immediately after install into the kernel SA, before broadcast.
+- **Replay-window protected** — replay-counter/state copied out via SADB_GET is bounded and read under `x->lock`; never copied while the SA is being updated.
+- **SADB_REGISTER satype filter** — only registered satypes can be broadcast; prevents an unprivileged listener from receiving every key install.
+
+Rationale: PF_KEYv2 is a legacy, broadcast-by-default key-management channel — any holder of an AF_KEY socket sees every SA install. USERCOPY/UDEREF on TLV parse, strict CAP_NET_ADMIN+RBAC gating of `AF_KEY` socket creation, MEMORY_SANITIZE on every key copy and on broadcast skbs, and REFCOUNT on the legacy sock/SA path collapse the legacy-IPsec attack surface to the underlying SAD/SPD which is covered elsewhere.
+
 ## Open Questions
 
 (none — PF_KEYv2 wire format is exhaustively specified by RFC 2367 + upstream Linux X-extensions)

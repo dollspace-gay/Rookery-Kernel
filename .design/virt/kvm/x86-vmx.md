@@ -281,6 +281,28 @@ VMX-specific reinforcement:
 - **Nested-VMX controls validated against vmcs_config** — defense against L2 escape via unsupported control bit.
 - **Per-vCPU msr_bitmap distinct from msr_bitmap_legacy** when nested — defense against L1 leaking MSR access to L2.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — VMCS regions kernel-allocated; KVM_GET/SET_NESTED_STATE bounded by `KVM_STATE_NESTED_VMX_VMCS_SIZE`; no raw user copy into VMCS regions.
+- **PAX_KERNEXEC** — `vmx_vcpu_run`, `vmx_handle_exit`, `vmx_handle_external_intr`, vendor ops resolve through RX-only kernel text; `kvm_x86_ops` VMX slot table RO.
+- **PAX_RANDKSTACK** — VM-entry / VM-exit handler dispatch inherits RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-vCPU VMCS, msr_bitmap, vmcs02 nested-cache refcount saturating; concurrent destroy + VMRUN races cannot wrap.
+- **PAX_MEMORY_SANITIZE** — per-vCPU VMCS, msr_bitmap, io_bitmap, posted-int desc zeroed on alloc/free; vmcs02 nested-cache zeroed before slab handback so L2 register state never leaks.
+- **PAX_UDEREF** — KVM_SET_NESTED_STATE copy_from_user STAC/CLAC bracketed; vmcs12 GPA validated before VMPTRLD-emulation.
+- **PAX_RAP / kCFI** — `kvm_x86_ops` VMX table RAP-signed; `kvm_vmx_exit_handlers[]` and per-vmexit handler indirect calls CFI-guarded.
+- **GRKERNSEC_HIDESYM** — VMCS phys-addr, msr_bitmap kaddr, posted-int desc kaddr redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — VM-entry-failure, VMX-feature-mismatch, vmptrld-mismatch warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_VM (VMX), KVM_SET_NESTED_STATE, KVM_CAP_NESTED_STATE gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **VMCS PAX_USERCOPY** — VMCS revision_id matches CPU per `setup_vmcs_config`; cross-CPU-revision VMPTRLD rejected to defeat #UD-bait.
+- **VMX feature-MSR enforcement** — `vmcs_config` enforced against host VMX capability MSRs (IA32_VMX_BASIC, IA32_VMX_PROCBASED_CTLS, etc); unsupported feature combos rejected at boot.
+- **MSR-bitmap host-managed** — `vmx->msr_bitmap` writes mediated by `vmx_disable_intercept_for_msr` / `vmx_enable_intercept_for_msr` under vCPU lock; guest cannot toggle interception directly.
+- **EXIT_HANDLERS table bounded** — exit-reason validated against `kvm_vmx_max_exit_handlers`; OOB rejected as KVM_EXIT_INTERNAL_ERROR.
+- **Nested-VMX controls validated** — VMCS12 controls validated against host `vmcs_config` before L1→L2 transition; L2 escape via unsupported control bit defended.
+
+Per-doc rationale: VMX is one of two hardware virtualization backends; the grsec reinforcement keeps VMCS authoritative kernel-side, validates VMCS revision_id and feature-MSR consistency, RAP-signs the exit-handler dispatch, and SANITIZEs per-vCPU VMCS/bitmap state so L2 register residue cannot bleed to L1 across nested transitions.
+
 ## Open Questions
 
 (none at this Tier-3 level)

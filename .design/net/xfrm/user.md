@@ -231,6 +231,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — every `XFRM_MSG_*` payload (`xfrm_usersa_info`, `xfrm_userpolicy_info`, `xfrm_user_acquire`, `xfrm_user_expire`, `xfrm_user_report`, `xfrm_user_polexpire`, `xfrm_user_mapping`) length-validated against `nlmsg_len` and against `xfrma_policy[]` strict NLA lengths before any structural deref.
+- **PAX_KERNEXEC** — `xfrm_dispatch[]` (the XFRM_MSG_* → handler table) lives in RO `.text`; `xfrm_link[]` resolved via kCFI-signed indirect dispatch.
+- **PAX_RANDKSTACK** — kstack-offset randomization on every `xfrm_user_rcv_msg` netlink entry.
+- **PAX_REFCOUNT** — saturating refcounts on `xfrm_user` socket users (`net->xfrm.nlsk`) and on per-message walkers (`xfrm_dump_*`, `xfrm_get_*`) preventing wrap on long-running netlink dumps.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for any `xfrm_state` / `xfrm_policy` / key buffers built during parse before publication; defense against partial-parse leaks.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every netlink `nla_get_*` path; cb_arg / cb->args[] never aliased to user-controlled memory.
+- **PAX_RAP / kCFI** — `xfrm_link[]` (per-MSG `doit` + `dumpit` + `nla_pol`) verified via kCFI on dispatch; out-of-range NLMSG_TYPE rejected before lookup.
+- **GRKERNSEC_HIDESYM** — `xfrm_link[]`, `xfrm_dispatch[]`, `nlmsg_parse` callbacks masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — netlink parse-failure diagnostics restricted to CAP_SYSLOG.
+- **CAP_NET_ADMIN strict** — XFRM_MSG_NEW*/UPD*/DEL*/FLUSH*/ALLOCSPI/MIGRATE/SET*/MAPPING gated on per-net-ns CAP_NET_ADMIN; XFRM_MSG_GET* / dumps gated on at least CAP_NET_ADMIN over net-ns.
+- **NLA strict-policy** — `xfrma_policy[]` mandates `NLA_STRICT_LEN` and `.validation_type = NLA_VALIDATE_FUNCTION` for selector / template / mark / replay; nested attrs validated bottom-up before commit.
+- **GRKERNSEC_BRUTE** — repeated CAP_NET_ADMIN-failed netlink requests subject to per-cred pacing.
+- **No 32-bit compat (v0)** — `xfrm_compat.c` deliberately out-of-scope; the attack surface of 32-bit ABI translation is removed entirely rather than hardened, per REQ-12.
+
+Per-doc rationale: `xfrm_user` is the sole netlink-side authentication boundary into both SPD and SADB; compromise here cascades into both `policy.md` and `state.md`. The grsec posture matches the multiplier: strict NLA policy + USERCOPY + CAP_NET_ADMIN at every doit/dumpit + kCFI on dispatch.
+
 ## Open Questions
 
 (none — NETLINK_XFRM wire format is exhaustively specified by upstream; v0 explicitly omits 32-bit compat per REQ-12)

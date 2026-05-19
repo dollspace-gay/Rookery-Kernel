@@ -236,6 +236,29 @@ MSR-autoload-specific reinforcement:
 - **Per-add_atomic_switch_msr serialized via vmx_load_lock** — defense against concurrent-vCPU race.
 - **Per-special-case validated against feature MSRs** — defense against per-non-supported MSR claimed-special.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — VM-entry/exit MSR autoload lists kernel-allocated; no user-pointer copy into VMCS load/store list pages.
+- **PAX_KERNEXEC** — `add_atomic_switch_msr`, `clear_atomic_switch_msr`, `vmx_set_msr`, `vmx_get_msr` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — autoload-list manipulation under VMRUN path inherits RANDKSTACK.
+- **PAX_REFCOUNT** — per-vCPU `vmx->msr_autoload.guest.nr`, `.host.nr`, `.guest.val[]` index counters saturating; pathological add/remove cannot wrap.
+- **PAX_MEMORY_SANITIZE** — autoload-list pages (entry / exit / store) zeroed on alloc; per-slot zeroed on remove; entire list zeroed on vCPU free so prior MSR values never leak.
+- **PAX_UDEREF** — no user pointer in autoload-list path; KVM_SET_MSRS copy_from_user bracketed elsewhere.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.set_msr`, `get_msr` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — autoload-list kaddrs and VMCS_*MSR_LOAD_ADDR fields redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — autoload-list-full / VM_ENTRY_LOAD_*_COUNT-mismatch warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_SET_MSRS that triggers autoload list growth gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR_LOAD_ADDR / MSR_STORE_ADDR validated** — VMCS list-address fields populated from kernel-allocated page; never user-controlled.
+- **List page pinned** — autoload list pages kernel-allocated and pinned; host swap cannot move them mid-VMRUN.
+- **List count consistent** — `VM_EXIT_MSR_LOAD_COUNT`, `VM_ENTRY_MSR_LOAD_COUNT`, `VM_EXIT_MSR_STORE_COUNT` kept consistent with `list.nr`; mismatch causes HW to read garbage, so KVM enforces atomic update under vCPU lock.
+- **Add fails gracefully on full list** — `add_atomic_switch_msr` returns -ENOSPC rather than silently truncating; caller must handle.
+- **Special-case MSR validation** — special-case MSRs (IA32_EFER, IA32_PERF_GLOBAL_CTRL, IA32_PAT) validated against `vmcs_config` advertised feature MSRs.
+- **Nested-virt strict** — L2 autoload lists distinct from L1's (vmcs02 vs vmcs01); L2 cannot inject into L1 autoload.
+
+Per-doc rationale: the VMX MSR autoload feature lets HW save/restore specific MSRs at VM-entry/exit boundary; the grsec reinforcement keeps the list pages kernel-allocated and pinned, enforces atomic count-vs-list consistency (a mismatch causes HW to read garbage and possibly leak host MSR), and SANITIZEs list slots on remove so a prior MSR value never persists into a fresh entry.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -239,6 +239,30 @@ Dirty-ring-specific reinforcement:
 - **Per-vmenter check_request gates dirty work** — defense against per-vCPU silently overrunning.
 - **Per-VM noncoherent_dma_count agnostic** — dirty-ring works orthogonally to PAT-quirk.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by the KVM dirty-ring:
+
+- **PAX_USERCOPY** — the ring page is mmap'd shared memory; USERCOPY bounds-checks any kernel-side stale-slab fetch into the page during teardown/migration.
+- **PAX_KERNEXEC** — `kvm_dirty_ring_push` and per-arch reset paths live in RX/RO text; the producer cannot be redirected.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on KVM_RUN exit paths that drive ring pushes.
+- **PAX_REFCOUNT** — saturating refs on `kvm->users_count` and per-vCPU refs while a mmap'd ring page is held by userspace; ring-vs-VM-destroy traps cleanly.
+- **PAX_MEMORY_SANITIZE** — zeroes ring pages and reset-mapping pages on free so a follow-on mmap by another tenant cannot observe prior dirty-gfn entries.
+- **PAX_UDEREF** — strict user/kernel pointer separation for KVM_ENABLE_CAP and KVM_RESET_DIRTY_RINGS args.
+- **PAX_RAP / kCFI** — forward-edge CFI on the dirty-ring reset and arch hooks.
+- **GRKERNSEC_HIDESYM** — `kvm_dirty_ring_push`, `kvm_dirty_ring_reset` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so ring-soft-full / overrun traces do not leak per-VM guest activity profile.
+
+Dirty-ring-specific reinforcement:
+
+- **CAP_SYS_ADMIN on the KVM fd** — gates KVM_CAP_DIRTY_LOG_RING enable and ring mmap; unprivileged tenants cannot observe a foreign VM's dirty gfns.
+- **Dirty-bitmap/ring PAX_USERCOPY-protected during reset** — defense in depth alongside per-entry flag state machine.
+- **Ring size locked-once + bounded** — paired with PAX_REFCOUNT so resize-race is impossible.
+- **Per-vCPU ring producer locality** — paired with PAX_KERNEXEC so the per-CPU producer path is unmodifiable.
+- **mmap KVM_DIRTY_LOG_PAGE_OFFSET only after ENABLE_CAP** — paired with PAX_MEMORY_SANITIZE so pre-enable slab cannot leak via the offset.
+
+Rationale: the dirty ring is a guest-execution side-channel by construction; PAX_MEMORY_SANITIZE on ring teardown removes cross-tenant disclosure, while CAP_SYS_ADMIN gating plus HIDESYM keeps the producer/consumer state opaque to unprivileged observers.
+
 ## Open Questions
 
 (none at this Tier-3 level)

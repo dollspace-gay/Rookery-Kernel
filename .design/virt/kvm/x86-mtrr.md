@@ -207,6 +207,28 @@ MTRR-specific reinforcement:
 - **MTRR + PAT state included in live-migration MSR list** — defense against post-migrate cache-config inconsistency.
 - **Per-vCPU MTRR re-init on KVM_VCPU_RESET** — defense against carryover MTRR state across guest INIT.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — MTRR/PAT MSR set via KVM_SET_MSRS bounded.
+- **PAX_KERNEXEC** — MTRR combine table + walker RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per WRMSR(MTRR/PAT) emulation.
+- **PAX_REFCOUNT** — MTRR cache invalidate refcount saturating.
+- **PAX_MEMORY_SANITIZE** — kvm_mtrr per-vCPU struct zeroed at INIT and destroy.
+- **PAX_UDEREF** — KVM_SET_MSRS user pointer validated.
+- **PAX_RAP / kCFI** — MTRR walk/lookup callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — MTRR base/mask values redacted in trace.
+- **GRKERNSEC_DMESG** — MTRR-misconfig warnings rate-limited.
+
+MTRR-specific:
+
+- **CAP_SYS_ADMIN on KVM_SET_MSRS for MTRR/PAT** — defense against unprivileged memory-type flip.
+- **Reserved-type 2/3/7 rejected at WRMSR** — closes combine-table OOB.
+- **Passthrough device-MMIO force-UC** — defense against guest WC-on-MMIO IO corruption.
+
+Rationale: MTRR/PAT control memory-type for every SPTE; sanitize on destroy + reserved-type rejection prevent combine-table OOB and post-INIT stale cache-policy carryover.
+
 ## Open Questions
 
 (none at this Tier-3 level)

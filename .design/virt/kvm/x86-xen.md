@@ -250,6 +250,29 @@ Xen-specific reinforcement:
 - **Long-mode flag** validated against guest CR0 — defense against pointer-size mismatch in hypercall args.
 - **Live-migrate clears caches + re-validates on first vmenter** — defense against post-migrate stale HVA.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_XEN_HVM_SET_ATTR / KVM_XEN_VCPU_SET_ATTR bounded by `struct kvm_xen_hvm_attr` / `struct kvm_xen_vcpu_attr` slab sizes; hypercall arg blobs read via `kvm_read_guest`.
+- **PAX_KERNEXEC** — `kvm_xen_hypercall`, `kvm_xen_set_evtchn`, `kvm_xen_setup_runstate_page`, `kvm_xen_update_runstate` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — Xen hypercall (EVENTCHANNELOP, SCHEDOP) and shared_info update paths inherit RANDKSTACK.
+- **PAX_REFCOUNT** — per-VM xen_evtchn refcount, per-vCPU runstate / vcpu_info cache refcount saturating.
+- **PAX_MEMORY_SANITIZE** — shared_info gfn_to_hva_cache, vcpu_info cache, runstate cache zeroed on alloc/free; evtchn_eventfd table zeroed on disable so stale bindings cannot leak.
+- **PAX_UDEREF** — Xen ioctl copy_from_user STAC/CLAC bracketed; hypercall arg GPAs validated against memslots.
+- **PAX_RAP / kCFI** — Xen hypercall dispatch table RAP-signed; `kvm_xen_evtchn_send` indirect-call CFI-guarded.
+- **GRKERNSEC_HIDESYM** — shared_info HPA, vcpu_info HVA, evtchn-eventfd kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — Xen hypercall validation failures, evtchn-binding errors, runstate-update warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_XEN_HVM, KVM_XEN_HVM_CONFIG, evtchn-eventfd binding gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **Hyper-V/Xen para-virt MSR allowlist** — guest MSR access to Xen MSR range restricted; only KVM-supported subset allowed.
+- **shared_info gfn_to_hva_cache invalidation** — cache invalidated on memslot delete; UAF defended.
+- **evtchn_pending_lock spinlock** — concurrent evtchn-fire serialized so shared_info update is torn-write-free.
+- **Runstate atomic via version-counter** — `version`-counter scheme (same as kvmclock) defeats guest reading torn runstate.
+- **Long-mode flag validated against guest CR0** — hypercall arg pointer-size matches guest mode; mismatch rejects so 32-bit guest cannot smuggle 64-bit pointer.
+- **Live-migrate clears caches** — gfn caches invalidated + re-validated on first vmenter; post-migrate stale HVA defended.
+
+Per-doc rationale: KVM's Xen-compat layer is the second para-virt protocol after KVM's native PV; the grsec reinforcement gates the Xen hypercall surface behind a CAP_SYS_ADMIN-gated KVM_CAP_XEN_HVM, validates MSRs against an allowlist, atomic-locks shared_info / runstate updates with version-counter discipline, and SANITIZEs gfn caches on memslot delete to prevent UAF — the cache invalidation is the key defense since shared_info / vcpu_info / runstate are guest-mapped pages cached as HVA.
+
 ## Open Questions
 
 (none at this Tier-3 level)

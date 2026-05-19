@@ -267,6 +267,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `xfrm_userpolicy_info`, `xfrm_user_tmpl[]`, and selector blobs copied across the netlink/setsockopt boundary use bounded `copy_from_user` against canonical sizes; nested NLA payloads are length-checked against `nla_policy` before any structural deref.
+- **PAX_KERNEXEC** — policy lookup hot path (`__xfrm_policy_lookup`, bydst/byidx hash tables, dst-cache walkers) lives in RX `.text`; flow-cache resolver callbacks are registered through a kCFI-signed indirection table.
+- **PAX_RANDKSTACK** — kstack offset randomization applied across the `setsockopt(IP_XFRM_POLICY)`, `xfrm_user` netlink, and pfkey entry paths.
+- **PAX_REFCOUNT** — saturating refcounts on `struct xfrm_policy` (`refcnt`), `xfrm_policy_walk_entry`, and per-policy `security` LSM context preventing wraparound on aggressive insert/delete-from-attacker flows.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `xfrm_policy`, `xfrm_sec_ctx`, and embedded selector / template arrays so freed IPsec policy material cannot be recovered via UAF or slab-spray.
+- **PAX_UDEREF (SMAP/SMEP)** — every netlink/pfkey copy_from_user is preceded by ASM_CLAC; resolver-callback dispatch never deref's user-controlled pointers.
+- **PAX_RAP / kCFI** — `xfrm_policy_afinfo` per-AF vtable (`dst_lookup`, `get_saddr`, `decode_session`, `init_path`, `fill_dst`) dispatched via kCFI-signed indirect calls; type-mismatched callbacks trap before XFRM consumes them.
+- **GRKERNSEC_HIDESYM** — `xfrm_policy_hash_table`, `net->xfrm.policy_byidx`, and `xfrm_policy_afinfo[]` kernel pointers stripped from `/proc/kallsyms` for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — XFRM policy parse-failure and template-validation diagnostics restricted to CAP_SYSLOG; no kernel-pointer leakage into userspace dmesg.
+- **CAP_NET_ADMIN strict** — all policy mutation (`XFRM_MSG_NEWPOLICY/UPDPOLICY/DELPOLICY/FLUSHPOLICY`) gated on per-net-ns CAP_NET_ADMIN; no fallthrough on missing capability.
+- **NLA strict-policy validation** — `xfrma_policy[]` mandates `NLA_STRICT_LEN` for every attribute; out-of-range `XFRM_POLICY_TYPE_*`, `XFRM_POLICY_ACTION_*`, `dir`, and `share` enum values rejected pre-allocation.
+- **GRKERNSEC_BRUTE pacing** — repeated CAP_NET_ADMIN failures on `xfrm_user` netlink subject to per-task brute-force delay; defense against policy-enumeration probes.
+
+Per-doc rationale: xfrm/policy is the kernel's IPsec policy decision plane; a single missed length-check on a user-supplied `xfrm_user_tmpl[]` would let unprivileged-namespace attackers inject arbitrary IPsec transforms into the data path. Overlapping PAX_USERCOPY + NLA strict + PAX_REFCOUNT + MEMORY_SANITIZE keep policy authentication failures bounded to "request rejected" rather than "type-confusion in dst_cache".
+
 ## Open Questions
 
 (none — SPD + xfrm_lookup semantics are exhaustively specified by upstream + RFC 4301)

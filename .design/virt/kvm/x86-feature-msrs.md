@@ -215,6 +215,29 @@ feature-MSR-specific reinforcement:
 - **Live-migrate per-vCPU feature MSRs validated against destination CPUID** — defense against post-migrate invalid state.
 - **FEAT_CTL.SGX_LC_ENABLE gated** — defense against unauthorized SGX-LC config.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_MSRS payloads bounded by sizeof(struct kvm_msrs) + nmsrs * sizeof(entry).
+- **PAX_KERNEXEC** — feature-MSR write-handler table RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN / KVM_SET_MSRS.
+- **PAX_REFCOUNT** — per-CPU IBPB/FLUSH_CMD rate-limit counters saturating.
+- **PAX_MEMORY_SANITIZE** — kvm_vcpu_arch feature-MSR cache zeroed on vCPU destroy.
+- **PAX_UDEREF** — kvm_msrs array pointer validated.
+- **PAX_RAP / kCFI** — feature-MSR set/get callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — MSR addresses + raw values redacted in trace.
+- **GRKERNSEC_DMESG** — write-rejections rate-limited.
+
+Feature-MSR-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_SET_MSRS** — defense against unprivileged feature-MSR flip.
+- **FEAT_CTL.LOCK enforced by host-side WRMSR validation** — guest cannot replay unlock.
+- **PRED_CMD/IBPB per-CPU token-bucket** — flood DoS bounded.
+- **arch_capabilities mask sanitized on migrate-in** — destination CPUID drives the bits.
+
+Rationale: feature MSRs gate Spectre-class mitigations and TSX/SGX policy; sanitize+CAP discipline keeps guests from rolling back host mitigation posture mid-run.
+
 ## Open Questions
 
 (none at this Tier-3 level)

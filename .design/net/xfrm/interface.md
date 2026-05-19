@@ -195,6 +195,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds rtnl NLA parsing (`IFLA_XFRM_*`) and ip-link create payloads on the user/kernel boundary.
+- **PAX_KERNEXEC** — keeps the `static const rtnl_link_ops xfrmi_link_ops` and `net_device_ops` vtables text W^X.
+- **PAX_RANDKSTACK** — randomises stack per XFRMi xmit / rtnl entry; mitigates ROP through hostile if_id collisions.
+- **PAX_REFCOUNT** — wraps the per-XFRMi netdev refcount and per-tenant `if_id` lookup refs against UAF on hot delete.
+- **PAX_MEMORY_SANITIZE** — zeroes freed XFRMi private data (`if_id`, `if_link`, per-tenant identifier) on `dellink` / netdev free.
+- **PAX_UDEREF** — protects rtnl creation paths from userland deref on malformed `IFLA_XFRM_IF_ID` / `IFLA_XFRM_LINK`.
+- **PAX_RAP / kCFI** — protects indirect dispatch through `rtnl_link_ops` and `net_device_ops` on the XFRMi xmit/setup paths.
+- **GRKERNSEC_HIDESYM** — hides `xfrmi_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so XFRMi setup / lookup errors don't leak per-tenant if_id values to non-root.
+- **IPsec SAD/SPD CAP_NET_ADMIN** — `ip link add type xfrm` requires CAP_NET_ADMIN in `xfrmi->net`'s user_ns; no fallback for unprivileged-userns creators.
+- **XFRM key MEMORY_SANITIZE** — XFRMi itself never holds SA key material, but freed per-tenant scratch is wiped so cross-tenant `if_id` leakage is impossible.
+- **Replay-window protected** — replay is owned by underlying SAs at `state.md`; XFRMi serialises its lookup so a delete cannot race a live xmit.
+- **`if_id` uniqueness enforced** — duplicate XFRMi `if_id` per netns is rejected at `newlink`; SIZE_OVERFLOW-checked mark/mask arithmetic prevents collision via integer wrap.
+
+Rationale: XFRMi is the multi-tenant separator on top of IPsec; if `if_id` can collide or a netdev refcount can UAF, tenants leak traffic to each other. CAP_NET_ADMIN gating, REFCOUNT on the netdev, MEMORY_SANITIZE of per-tenant scratch, and SIZE_OVERFLOW-checked `if_id` arithmetic preserve the tenant boundary regardless of how aggressively userspace cycles XFRMi devices.
+
 ## Open Questions
 
 (none — XFRMi semantics are exhaustively specified by upstream)

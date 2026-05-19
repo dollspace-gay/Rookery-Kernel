@@ -218,6 +218,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds any user-visible offload status / stats copyout across the XFRM netlink boundary.
+- **PAX_KERNEXEC** — keeps the `static const struct xfrmdev_ops` driver vtables and the offload dispatch shims text W^X.
+- **PAX_RANDKSTACK** — randomises stack per offload `xdo_dev_state_add`/`xdo_dev_state_delete` entry, defeating ROP through a hostile driver path.
+- **PAX_REFCOUNT** — wraps `xfrm_state.refcnt` and `net_device` refs held during offload-lifetime (`netdev_hold`/`dev_put`) against UAF on hot-unplug.
+- **PAX_MEMORY_SANITIZE** — zeroes the per-SA HW context buffer (which may mirror key material into device memory) at `xdo_dev_state_delete` and at driver teardown.
+- **PAX_UDEREF** — protects the XFRM_MSG_NEWSA path that triggers offload from userland deref on malformed `XFRMA_OFFLOAD_DEV`.
+- **PAX_RAP / kCFI** — protects indirect dispatch through `xfrmdev_ops->xdo_dev_*` per-driver function pointers; mis-typed driver callbacks abort.
+- **GRKERNSEC_HIDESYM** — hides `xfrm_dev_*`, `xdo_dev_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so offload-fallback warnings don't leak SPI / per-SA encryption-cap to non-root.
+- **HW-offload CAP_NET_ADMIN** — `XFRMA_OFFLOAD_DEV` install requires CAP_NET_ADMIN in the SA's user_ns; non-privileged users cannot pin SA state into device memory.
+- **IPsec SAD/SPD CAP_NET_ADMIN** — every offload-eligible SA add/del/upd goes through the SAD/SPD CAP_NET_ADMIN gate at `state.md`.
+- **XFRM key MEMORY_SANITIZE on offload teardown** — driver is required to wipe HW-context key material on `xdo_dev_state_free`; this is enforced via the contract documented here.
+- **Replay-window protected across offload** — HW-replay counters synced under `x->lock` only; PAX_MEMORY_SANITIZE wipes shadow state on SA destroy.
+
+Rationale: IPsec HW-offload mirrors SA key material into device-side memory and adds a per-driver indirect-call surface; combining PAX_RAP on `xfrmdev_ops`, MEMORY_SANITIZE on HW context, REFCOUNT on net_device+SA refs, and a strict CAP_NET_ADMIN install gate limits a hostile driver or hot-unplug race to recoverable failure paths instead of SA-key leak.
+
 ## Open Questions
 
 (none — `xfrmdev_ops` contract is exhaustively specified by upstream + the Linux IPSec offload API documentation)

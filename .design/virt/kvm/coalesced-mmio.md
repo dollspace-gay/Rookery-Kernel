@@ -175,6 +175,30 @@ coalesced-mmio specific reinforcement:
 - **Per-VM coalesced-zones count cap** — bounded (default 64 zones per VM); defense against per-VM zone-flood.
 - **Per-VM ring page bounded to single 4 KB** — fixed size; defense against userspace-controlled ring size attacks.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by KVM coalesced-MMIO:
+
+- **PAX_USERCOPY** — bounds-checks the ring page contents whenever stale slab is touched in setup/teardown; the mmap data path itself is not copy_to_user, but registration paths still rely on USERCOPY for zone descriptors.
+- **PAX_KERNEXEC** — `kvm_io_device_ops` for coalesced zones live in RX/RO text; a registration bug cannot rewrite the per-zone write handler.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on KVM_REGISTER_COALESCED_MMIO and KVM_RUN entries via coalesced zones.
+- **PAX_REFCOUNT** — saturating refs on `kvm`, `kvm_io_bus`, and per-zone `kvm_coalesced_mmio_dev->kvm` reference; register-vs-VM-destroy traps cleanly.
+- **PAX_MEMORY_SANITIZE** — zeroes freed ring page on VM teardown so a follow-on mmap by another tenant cannot observe residual MMIO entries.
+- **PAX_UDEREF** — strict user/kernel pointer separation across ioctl arg copy.
+- **PAX_RAP / kCFI** — forward-edge CFI on the coalesced-zone write handler invoked by `kvm_io_bus_write`.
+- **GRKERNSEC_HIDESYM** — `coalesced_mmio_write`, `kvm_coalesced_mmio_init`, `coalesced_mmio_in_range` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so zone-overlap errors do not leak per-VM IO bus layout.
+
+Coalesced-MMIO-specific reinforcement:
+
+- **CAP_SYS_ADMIN on the KVM fd** — gates the mmap of the ring page and zone registration ioctl.
+- **MMIO ring PAX_USERCOPY-protected during setup** — the ring is mmap'd shared memory; PAX_USERCOPY catches any kernel-side stale-slab fetch into the page before publication.
+- **Ring bounded to single 4 KB page** — paired with PAX_MEMORY_SANITIZE so reuse after VM destroy cannot leak prior entries.
+- **Zone count cap (default 64/VM)** — paired with PAX_REFCOUNT so register-bomb is impossible.
+- **Zeroing of entry `data[8]` beyond `len`** — defense-in-depth alongside PAX_MEMORY_SANITIZE.
+
+Rationale: coalesced-MMIO directly shares a 4 KB ring with userspace; PAX_MEMORY_SANITIZE on the ring page across VM lifecycle is the primary defense against cross-tenant disclosure, while PAX_KERNEXEC keeps the per-zone write handler unmodifiable.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -275,6 +275,29 @@ Hyper-V-specific reinforcement:
 - **HV_STATUS validation per-spec** — defense against non-compliant return values confusing guest.
 - **Live-migrate: synic.scontrol disabled briefly during transit** — defense against post-migrate stale SINT-fire.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — Hyper-V hypercall arg / SIMP / SIEFP copies bounded by page size.
+- **PAX_KERNEXEC** — Hyper-V emulation dispatch + hypercall table RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN; hypercall entry uses fresh stack.
+- **PAX_REFCOUNT** — synic / stimer / vp-assist refcounts saturating.
+- **PAX_MEMORY_SANITIZE** — synic.simp, siefp, vp_assist_page zeroed on vCPU destroy.
+- **PAX_UDEREF** — synic.simp/siefp guest-PA → kvm_vcpu_gfn_to_hva validated user-range.
+- **PAX_RAP / kCFI** — Hyper-V hypercall dispatch type-checked.
+- **GRKERNSEC_HIDESYM** — simp/siefp/vp_assist GPAs redacted.
+- **GRKERNSEC_DMESG** — BSOD writes + hypercall-flood rate-limited.
+
+Hyper-V-specific:
+
+- **CAP_SYS_ADMIN on KVM_CAP_HYPERV_* enable** — defense against unprivileged Hyper-V emulation surface.
+- **TLB-flush hypercall vCPU-mask range-checked against KVM_MAX_VCPUS** — blocks OOB vCPU access.
+- **stimer-period floor (≥ 1µs)** — blocks LAPIC IPI-flood DoS.
+- **Synthetic IC SINT vector [16,255] hard-enforced** — defense against reserved-IDT injection.
+
+Rationale: Hyper-V emulation exposes a parallel hypercall ABI with shared guest pages (synic SIMP/SIEFP); sanitize + UDEREF on those pages closes the dominant cross-VM message-leak surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

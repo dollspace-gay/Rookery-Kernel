@@ -228,6 +228,30 @@ IRQ-routing-specific reinforcement:
 - **Per-update kvm_arch_irq_routing_update propagates to PI/IRTE** — defense against per-VFIO posted-IRQ stale routing.
 - **Per-userspace MSI uses KVM_USERSPACE_IRQ_SOURCE_ID** — defense against per-source confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by the KVM irqchip / IRQ routing:
+
+- **PAX_USERCOPY** — bounds-checks the `KVM_SET_GSI_ROUTING` arg copy (an array of `struct kvm_irq_routing_entry`); rejects oversize fetches or slab-crossing copies before any entry is parsed.
+- **PAX_KERNEXEC** — the `kvm_irq_routing_table` and per-entry `set` callbacks live in RX/RO text; routing updates cannot rewrite the dispatch table at runtime.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on KVM_CREATE_IRQCHIP and KVM_SET_GSI_ROUTING.
+- **PAX_REFCOUNT** — saturating refs on `kvm`, the routing table allocation, per-entry IRTE/posted-IRQ consumers; SRCU update-vs-fast-path traps cleanly.
+- **PAX_MEMORY_SANITIZE** — zeroes the old routing table after `srcu_synchronize` so the freed allocation cannot leak prior MSI addresses/data.
+- **PAX_UDEREF** — strict user/kernel pointer separation on the SET_GSI_ROUTING arg copy.
+- **PAX_RAP / kCFI** — forward-edge CFI on per-entry `set` callbacks (IOAPIC, PIC, MSI, HV_SINT, XEN_EVTCHN).
+- **GRKERNSEC_HIDESYM** — `kvm_set_irq`, `kvm_set_msi`, `kvm_set_routing_entry` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so per-entry routing failures do not leak GSI/MSI layout.
+
+KVM irqchip-specific reinforcement:
+
+- **CAP_SYS_ADMIN on the KVM fd for KVM_CREATE_IRQCHIP** — gates creation of the in-kernel irqchip; unprivileged tenants cannot synthesize a foreign VM's IRQ topology.
+- **MSI-routing PAX_USERCOPY-protected** — the routing entry array is the canonical USERCOPY surface; per-entry parse runs only against bounds-checked kernel copies.
+- **KVM_MAX_IRQ_ROUTES bound** — paired with PAX_REFCOUNT so routing-table-bomb is impossible.
+- **vmalloc'd routing table** — paired with PAX_MEMORY_SANITIZE on free so prior MSI addresses cannot survive.
+- **Posted-IRQ valid_devid required** — paired with PAX_RAP on the bypass consumer chain.
+
+Rationale: IRQ routing is one of KVM's largest userspace-driven surface areas; PAX_USERCOPY on the entry array combined with HIDESYM and CAP_SYS_ADMIN gating denies an attacker both the input vector and the offset leak needed to weaponize a routing bug.
+
 ## Open Questions
 
 (none at this Tier-3 level)

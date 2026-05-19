@@ -267,6 +267,30 @@ Binary-stats-specific reinforcement:
 - **Per-VM destroy invalidates outstanding fds via fput** — defense against post-VM lingering fd accessing freed kvm.
 - **Per-rcu-protected stat reads** — defense against per-mid-read stat-struct realloc.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by KVM binary-stats fds:
+
+- **PAX_USERCOPY** — primary guard: every `copy_to_user` of the binary stats blob is bounds-checked, slab-boundary-validated, and refuses fetches that would cross object boundaries; the entire raison d'être of this control on a binary-stats fd.
+- **PAX_KERNEXEC** — `kvm_stats_fops` vtable stays in RX/RO text; a bug in stat-fd installation cannot be turned into a method-pointer rewrite.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization on the stats-fd read() defeats stack-grooming via repeated probe reads.
+- **PAX_REFCOUNT** — saturating refs on `kvm->users_count` and per-vCPU refs; stat-fd-vs-VM-destroy races trap rather than UAF.
+- **PAX_MEMORY_SANITIZE** — zeroes the stats descriptor/name allocation on free; reuse of the slab cannot leak a previous VM's identifiers.
+- **PAX_UDEREF** — strict user/kernel pointer separation on the read() buffer.
+- **PAX_RAP / kCFI** — forward-edge CFI on `kvm_stats_read` and per-arch stat-fill callbacks.
+- **GRKERNSEC_HIDESYM** — `kvm_stats_read`, `kvm_vm_stats_fops`, `kvm_vcpu_stats_fops` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so stat-fd installation errors do not leak per-VM internal offsets.
+
+KVM-binary-stats-specific reinforcement:
+
+- **CAP_SYS_ADMIN on the KVM fd to obtain the stats fd** — the binary-stats fd is gated by VM ownership; unprivileged third parties cannot open one against a foreign VM.
+- **Read-only enforced via fops** — paired with PAX_KERNEXEC so write() returns -EINVAL even under a tampered ops pointer.
+- **Offset bounds-checked + PAX_USERCOPY** — defense in depth: a calculation bug in the offset path cannot escalate to OOB read because USERCOPY catches the slab crossing.
+- **RCU-protected stat-desc array** — paired with PAX_REFCOUNT on kvm so a mid-read realloc is sequenced cleanly.
+- **GRKERNSEC_SYSFS_RESTRICT** — limits debugfs/sysfs exposure of stats-fd metadata to root.
+
+Rationale: binary-stats is the canonical KVM userspace pathway for raw kernel counter data; PAX_USERCOPY on the copy-out is essential, and HIDESYM removes the per-stat offset disclosure that a binary blob would otherwise hand to an attacker.
+
 ## Open Questions
 
 (none at this Tier-3 level)

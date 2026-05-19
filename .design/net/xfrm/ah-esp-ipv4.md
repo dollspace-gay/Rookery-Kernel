@@ -237,6 +237,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds any skb head/tail data crossing the user/kernel boundary via XFRM netlink (SA add/get) on this transform path.
+- **PAX_KERNEXEC** — keeps the `static const struct xfrm_type ah/esp/ipcomp_type` registrations and per-protocol dispatch text W^X.
+- **PAX_RANDKSTACK** — randomises stack per `ah4_input`/`esp_input`/`esp_output` entry; mitigates ROP under sustained AH/ESP floods.
+- **PAX_REFCOUNT** — wraps `xfrm_state` refs taken during transform on each datagram so a concurrent SA-delete cannot UAF an in-flight ESP packet.
+- **PAX_MEMORY_SANITIZE** — zeroes crypto request buffers, freed decrypted skb frags, and key-derivation scratch on free.
+- **PAX_UDEREF** — protects the netlink-driven SA install path from userland deref on malformed `XFRMA_ALG_AUTH`/`XFRMA_ALG_CRYPT`.
+- **PAX_RAP / kCFI** — protects indirect dispatch through `xfrm_type->{input,output}` and the crypto API completion callbacks (`aead_request_complete`).
+- **GRKERNSEC_HIDESYM** — hides `esp_*`, `ah_*`, `ipcomp_*`, `xfrm_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so ICV-failure / replay-detected traces don't leak SPIs / peer IPs to non-root.
+- **IPsec SAD/SPD CAP_NET_ADMIN** — `XFRM_MSG_NEWSA`/`UPDSA` for AH/ESP transforms requires CAP_NET_ADMIN in the SA's user_ns.
+- **XFRM key MEMORY_SANITIZE** — `XFRMA_ALG_AUTH`/`AEAD`/`CRYPT` key material is wiped from `x->aalg`/`x->ealg`/`x->aead` on SA destroy and on key-rollover.
+- **Replay-window protected** — `x->replay`/`x->preplay` is accessed only under `x->lock`; PAX_MEMORY_SANITIZE wipes the window on SA free.
+- **ICV verification bounded** — `esp_input_done2`/`ah4_input` reject truncated trailers and ICV-length mismatch before any crypto dispatch; integer arithmetic on `esph->seq_no` is SIZE_OVERFLOW-checked.
+
+Rationale: AH/ESP for IPv4 sit on the hot ingress path with attacker-controlled lengths and SPIs; combining USERCOPY/UDEREF on the SA-install netlink path, REFCOUNT on per-packet SA refs, MEMORY_SANITIZE on every key buffer and freed payload, and bounded ICV/replay arithmetic confines the realistic surface to the AEAD primitives themselves (covered under crypto).
+
 ## Open Questions
 
 (none — AH/ESP/IPCOMP wire format + transforms exhaustively specified by RFCs 4302/4303/3173 + RFC 4106/4309/4543 AEAD bindings + upstream)

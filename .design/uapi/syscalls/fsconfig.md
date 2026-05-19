@@ -302,6 +302,26 @@ fsconfig-syscall reinforcement:
 - **Per-GRKERNSEC_CHROOT_MOUNT applies (chroot blocked from fsconfig)** — defense against per-chroot-escape via mount-API plumbing.
 - **Per-fd attached via SET_FD ref-counted** — defense against per-UAF on dup-and-drop sequences.
 
+## Grsecurity/PaX-style Reinforcement
+
+This syscall inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `fsconfig(2)` key/value/aux buffers copy_from_user bounded against fs-context parameter caps; STRING / BINARY / PATH / PATH_EMPTY / FD payload sizes validated per command before allocation.
+- **PAX_KERNEXEC** — `do_fsconfig`, `vfs_parse_fs_string`, `vfs_parse_fs_param`, per-FS `parser` tables, and `fs_context_operations.parse_param` reside in RX `.text`; FS parser dispatch via kCFI-signed indirection.
+- **PAX_RANDKSTACK** — kstack-offset randomization on syscall entry; defense against ROP-via-fsconfig (REQ-PAX_RANDKSTACK).
+- **PAX_REFCOUNT** — saturating refcount on `struct fs_context` (`fc->users`, `fc->root`) and per-fd `SET_FD` attached files; defense against UAF on dup-and-drop sequences.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `fs_context` param scratch (key/value buffers may carry credentials for cifs/9p/nfs) and per-FSCONFIG-command staging.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every key/value copy_from_user; FSCONFIG_CMD_* enum strictly validated against canonical set.
+- **PAX_RAP / kCFI** — `fs_context_operations` (`parse_param`, `parse_monolithic`, `get_tree`, `reconfigure`) and per-FS `init_fs_context` dispatched via kCFI-signed indirect calls.
+- **GRKERNSEC_HIDESYM** — `fs_context`, `vfs_parse_fs_*` symbols masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — parameter-parse failure / context-state-mismatch diagnostics restricted to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** — `fsconfig(2)` mutation gated on `fs_context` owner's CAP_SYS_ADMIN in init_user_ns (or per-mountns equivalent); FSCONFIG_CMD_CREATE / CMD_RECONFIGURE never fall through on capability miss.
+- **FSCONFIG_* enum strict-validation** — out-of-range `cmd` rejected with -EINVAL pre-dispatch; STRING/BINARY length-discrimination enforced; aux ≤ PAGE_SIZE for BINARY.
+- **GRKERNSEC_CHROOT_MOUNT** — chrooted task blocked from fsconfig; defense against chroot-escape via mount-API plumbing.
+- **`-EBUSY` on phase mismatch (no silent fallthrough)** — defense against stale-state programming where attacker re-orders CREATE/RECONFIGURE.
+
+Per-syscall rationale: `fsconfig(2)` is the parameter-configuration arm of the new mount API; an attacker controlling the value blob of `cifs` / `nfs` / `9p` key=value can inject credentials or path-references into a kernel `fs_context` that survives across the userspace boundary. PAX_USERCOPY + capability gate + per-FS parser kCFI + MEMORY_SANITIZE of credential-bearing buffers are the layered defense.
+
 ## Open Questions
 
 (none at this Tier-5 level)

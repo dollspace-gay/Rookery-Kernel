@@ -204,6 +204,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds rtnl/NETLINK_XFRM `XFRMA_IPTFS_*` payload copyin so attacker-supplied IPTFS knobs cannot OOB the parser.
+- **PAX_KERNEXEC** — keeps the `static const` IPTFS per-SA ops vtable and packetizer/depacketizer dispatch text W^X.
+- **PAX_RANDKSTACK** — randomises stack per `iptfs_input`/`iptfs_output` entry; defeats ROP under aggressive aggregator-flood inputs.
+- **PAX_REFCOUNT** — wraps the per-IPTFS-SA refcounts (TX queue + RX reassembly state) against UAF on SA delete during reassembly.
+- **PAX_MEMORY_SANITIZE** — zeroes freed TX-queue skbs (pre-encrypt plaintext) and freed reassembly buffers on free; padding-byte buffers wiped too.
+- **PAX_UDEREF** — protects netlink-driven IPTFS configuration paths from userland deref on malformed `XFRMA_IPTFS_*`.
+- **PAX_RAP / kCFI** — protects indirect dispatch through the IPTFS ops vtable and the underlying ESP `xfrm_type->output` it wraps.
+- **GRKERNSEC_HIDESYM** — hides `iptfs_*`, `xfrm_iptfs_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so IPTFS reassembly errors (Block Offset / fragment-length) don't leak SA SPIs or framing details.
+- **IPsec SAD/SPD CAP_NET_ADMIN** — IPTFS-enabled SAs install only via the CAP_NET_ADMIN-gated XFRM netlink path; an unprivileged user cannot enable aggregation on a foreign SA.
+- **XFRM key MEMORY_SANITIZE** — IPTFS itself does not hold SA keys; the AEAD/ESP key buffers it consumes are wiped by `ah-esp-*` and `state.md` on SA destroy.
+- **Replay-window protected** — IPTFS replay (Block Offset uniqueness) is checked under `x->lock`; PAX_MEMORY_SANITIZE wipes the window on SA free.
+- **Block Offset SIZE_OVERFLOW** — Block Offset + fragment-length arithmetic is range-checked so a malformed offset cannot OOB-read into a neighbouring reassembly buffer.
+- **LATENT_ENTROPY-padded bytes** — padding bytes are seeded from the kernel CSPRNG (RFC 9347 § 6.6 SHOULD), defeating fingerprinting via constant pad patterns.
+
+Rationale: IPTFS is the newest XFRM tunnel feature (RFC 9347) and reintroduces application-supplied length+offset arithmetic into the IPsec hot path; combining SIZE_OVERFLOW on Block Offset, MEMORY_SANITIZE on TX/reassembly buffers, REFCOUNT on per-SA state, and LATENT_ENTROPY-driven padding collapses the new attack surface to the same envelope as classic ESP.
+
 ## Open Questions
 
 (none in v0 — IPTFS Subtype 0 fully specified; Subtype 1 CC mode marked as future work in REQ-9 since RFC 9347 § 2.2.2 is recently-finalized and not yet a deployment-blocker for typical IPSec installations)

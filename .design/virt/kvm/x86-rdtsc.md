@@ -210,6 +210,26 @@ TSC-virtualization-specific reinforcement:
 - **Per-vCPU tsc_catchup gating** — defense against pathological catchup-loop after pause.
 - **Nested-virt L2 offset combined correctly** — defense against L2 reading wrong TSC.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_MSRS (MSR_IA32_TSC, TSC_ADJUST, TSC_DEADLINE) and KVM_GET/SET_TSC_KHZ copy through slab-fixed buffers.
+- **PAX_KERNEXEC** — `kvm_write_tsc`, `kvm_read_l1_tsc`, `kvm_compute_tsc_offset_l1` and vendor `write_tsc_offset`/`write_tsc_multiplier` resolve through RO `kvm_x86_ops` vtable; module text RX-only.
+- **PAX_RANDKSTACK** — RDTSC vmexit (if intercepted) and MSR write paths inherit RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — per-VM `kvm.arch.last_tsc_offset` and per-vCPU TSC-bound refcount saturating.
+- **PAX_MEMORY_SANITIZE** — per-vCPU TSC fields (tsc_offset, tsc_scaling_ratio, l1_tsc_offset) zeroed on alloc/free so stale offsets never leak to a successor vCPU.
+- **PAX_UDEREF** — KVM_SET_MSRS copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.write_tsc_offset`, `read_l1_tsc`, `get_l2_tsc_offset` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU TSC offset / scaling ratio kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — TSC unstable, synchronize-tsc-failed, scale-multiplier overflow warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_SET_TSC_KHZ, KVM_KVMCLOCK_CTRL gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR_IA32_TSC passthrough validation** — WRMSR(TSC) validated against `last_tsc_nsec` to detect unsync write; reserved-bit writes intercepted.
+- **TSC-scaling bounded** — multiplier capped at hardware `kvm_max_tsc_scaling_ratio`; guest cannot induce kernel-side overflow via WRMSR multiplier.
+- **Nested-virt strict** — L2 TSC offset = L1_offset + L1_scaled(L0_tsc); combination computed in kernel under per-VM lock so L2 cannot diverge L1's view.
+
+Per-doc rationale: TSC virtualization is the time-foundation of every guest; the grsec reinforcement caps scaling to prevent kernel-side overflow, validates MSR writes to detect sync attacks, and SANITIZEs per-vCPU offsets so a destroyed vCPU's TSC trajectory cannot bleed into a successor — the live-migration cross-host TSC discipline depends on these invariants holding.
+
 ## Open Questions
 
 (none at this Tier-3 level)

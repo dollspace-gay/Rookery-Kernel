@@ -227,6 +227,28 @@ MCA-specific reinforcement:
 - **KVM_X86_GET_MCE_CAP_SUPPORTED** — userspace can query before configure to avoid unsupported features.
 - **Per-vCPU MCA emulation isolated** — defense against host-MCE spilling into other VMs' guests.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_X86_SETUP_MCE / KVM_X86_SET_MCE payloads bounded by sizeof.
+- **PAX_KERNEXEC** — MCA MSR write-handler table RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN; MCE-inject uses fresh stack.
+- **PAX_REFCOUNT** — per-vCPU MCA bank refcount saturating.
+- **PAX_MEMORY_SANITIZE** — per-vCPU MCA bank state (mci_ctl/status/addr/misc) zeroed on vCPU destroy.
+- **PAX_UDEREF** — KVM_X86_SET_MCE user pointer validated.
+- **PAX_RAP / kCFI** — MCA inject callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — MCA address/misc fields redacted in trace.
+- **GRKERNSEC_DMESG** — MCE-inject floods rate-limited.
+
+MCA-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_X86_SET_MCE** — defense against unprivileged MCE injection.
+- **mcg_cap features ⊆ host-supported** — guest cannot fabricate unsupported MCE format.
+- **LMCE/CMCI gated by LVT_CMCI presence** — blocks unsolicited CMCI delivery.
+
+Rationale: MCA state encodes hardware error context; sanitize on destroy + RAP-checked inject closes cross-VM error-message leak and forged-MCE escalation paths.
+
 ## Open Questions
 
 (none at this Tier-3 level)

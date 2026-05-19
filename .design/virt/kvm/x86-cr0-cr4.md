@@ -255,6 +255,29 @@ CR-virtualization-specific reinforcement:
 - **Live-migrate CR0/CR3/CR4 validated against destination CPUID** — defense against post-migrate invalid state.
 - **Per-vmenter consistency check** — defense against guest entering with invalid CR-state.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_SET_SREGS CR0/CR3/CR4 copy bounded by sizeof(struct kvm_sregs).
+- **PAX_KERNEXEC** — CR-write handler vtable RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN.
+- **PAX_REFCOUNT** — paging-mode change MMU role refcount saturating.
+- **PAX_MEMORY_SANITIZE** — kvm_mmu_role and pgtable shadow caches zeroed on MMU re-init.
+- **PAX_UDEREF** — KVM_GET/SET_SREGS user pointer validated.
+- **PAX_RAP / kCFI** — set_cr0 / set_cr3 / set_cr4 indirect-call type-checked across VMX/SVM.
+- **GRKERNSEC_HIDESYM** — CR3 / pgd-pa redacted in tracepoints.
+- **GRKERNSEC_DMESG** — invalid-CR-set failures rate-limited.
+
+CR-specific:
+
+- **CAP_SYS_ADMIN on KVM_SET_SREGS** — defense against unprivileged CR-flip.
+- **CR0.WP=1 enforced when CR4.CET=1** — closes ROP-bypass.
+- **CR4.VMXE flip requires explicit CPUID + cap()** — no silent nested-VMX enable.
+- **CR3 high-bits clamped by host MAXPHYADDR** — defense against guest-claimed > host PA width.
+
+Rationale: CR-virtualization is the chokepoint for paging, SMEP/SMAP, and VMXE; sanitize/RAP on the write paths prevents stale MMU-role pointers from being re-used after a mode-change, which would otherwise be a direct EPT-tear-down UAF.
+
 ## Open Questions
 
 (none at this Tier-3 level)

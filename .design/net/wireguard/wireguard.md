@@ -274,6 +274,23 @@ WireGuard-specific reinforcement:
 - **Per-namespace WG socket scoped** — defense against cross-ns leakage.
 - **Per-CAP_NET_ADMIN for genl WG_CMD_SET** — defense against unprivileged WG-config.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bound-checks WG_CMD_SET payloads (peer/key/allowedips arrays) on the user/kernel boundary.
+- **PAX_KERNEXEC** — keeps WireGuard genl dispatch and noise-protocol code text W^X.
+- **PAX_RANDKSTACK** — randomises the stack for each handshake / data-packet entry, neutralising ROP probes from a flood.
+- **PAX_REFCOUNT** — wraps `wg_peer` / `wg_device` / keypair refcounts to trap over/underflow under churn.
+- **PAX_MEMORY_SANITIZE** — zeroes Curve25519 ephemeral keys, ChaCha20-Poly1305 session keys, and Noise hash state on free.
+- **PAX_UDEREF** — blocks accidental userland deref while parsing genl nlattr peer descriptors.
+- **PAX_RAP / kCFI** — protects indirect calls in udp_tunnel rx and AEAD crypto API dispatch.
+- **GRKERNSEC_HIDESYM** — hides `wg_socket_*`, `noise_*`, `cookie_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so handshake-failure traces never leak peer pubkeys to non-root.
+- **Curve25519/ChaCha20 keys MEMORY_SANITIZE** — static + ephemeral key material is wiped on rekey, peer-remove, and device-destroy.
+- **Peer-table PAX_REFCOUNT** — `peers_list_lock` / `allowedips` RCU references are refcount-protected against UAF on concurrent SET/GET.
+- **Strict CAP_NET_ADMIN** on `WG_CMD_SET_DEVICE`, `WG_CMD_GET_DEVICE` — and no fallback path for unprivileged netlink consumers.
+
+Rationale: WireGuard concentrates long-lived secret key material plus an unauthenticated UDP attack surface in one module; combining USERCOPY/UDEREF on the netlink path, MEMORY_SANITIZE on every key buffer, and REFCOUNT on per-peer objects collapses the realistic exploitation surface to cryptographic primitives that are themselves out-of-scope here.
+
 ## Open Questions
 
 (none at this Tier-3 level)

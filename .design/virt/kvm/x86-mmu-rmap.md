@@ -264,6 +264,28 @@ Rmap-specific reinforcement:
 - **Per-rmap_head zeroed at memslot-create** — defense against per-stale-spte after slot reuse.
 - **Per-collapse single-from-multi atomicity** — defense against per-collapse race-with-add.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — rmap chains never copied to/from user; accessor bounds-checked.
+- **PAX_KERNEXEC** — rmap walker callbacks RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per fault / MMU-notifier callback.
+- **PAX_REFCOUNT** — pte_list_desc.spte_count saturating; panic on overflow.
+- **PAX_MEMORY_SANITIZE** — pte_list_desc kmem_cache GFP_ZERO; freed-back chunks zeroed.
+- **PAX_UDEREF** — no user pointer in rmap; assert hva→gfn translation safe.
+- **PAX_RAP / kCFI** — rmap_walk handler indirect-call type-checked.
+- **GRKERNSEC_HIDESYM** — spte pointer / pte_list_desc address redacted.
+- **GRKERNSEC_DMESG** — overflow / unrecoverable rmap warnings rate-limited.
+
+Rmap-specific:
+
+- **CAP_SYS_ADMIN on KVM_RUN / memslot ops that pin rmap chains** — defense against unprivileged rmap mutation.
+- **rmap_head LSB tag bit guarded by cmpxchg** — TOCTOU-safe.
+- **Memslot delete zaps rmap before slot free** — closes per-slot-reuse stale-spte UAF.
+
+Rationale: rmap is the reverse-map index from gfn→spte; sanitize + saturating refcount close stale-spte UAF that would otherwise let a torn-down memslot's mapping survive into a new one.
+
 ## Open Questions
 
 (none at this Tier-3 level)

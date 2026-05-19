@@ -208,6 +208,26 @@ PV-EOI-specific reinforcement:
 - **Per-flag-byte check before each subsequent IRQ-inject** — defense against per-IRQ stale flag.
 - **Per-tracepoint kvm_pv_eoi rate-limited** — defense against per-IRQ trace-flood.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — PV-EOI flag-byte write/read uses `kvm_write_guest_cached`/`kvm_read_guest_offset_cached` against a bounded 1-byte gfn-cache; no user pointer ingress.
+- **PAX_KERNEXEC** — `pv_eoi_set_pending`, `pv_eoi_get_pending`, `kvm_lapic_set_eoi_accelerated` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — IRQ-inject and WRMSR paths inherit RANDKSTACK from KVM_RUN / IRQ entry.
+- **PAX_REFCOUNT** — per-vCPU pv_eoi gfn-cache pinned through SRCU + vCPU refcount saturating; concurrent disable + IRQ delivery cannot wrap.
+- **PAX_MEMORY_SANITIZE** — pv_eoi gfn-cache and per-vCPU pending flag zeroed on alloc/free; on WRMSR(0) disable the cached GPA is cleared so a successor enable-MSR cannot inherit it.
+- **PAX_UDEREF** — pv_eoi GPA validated against memslots; no raw user pointer dereference.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.set_apic_access_page_addr` and `kvm_pv_eoi_set_pending` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — pv_eoi gfn-cache kaddr and per-vCPU pending state redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — pv_eoi WRMSR validation failures and lapic-not-in-kernel warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_PV_EOI advertisement and irqchip creation (KVM_CREATE_IRQCHIP) gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR_KVM_PV_EOI_EN passthrough validation** — enable-bit (bit 0) and GPA validated; reserved-bit and out-of-memslot writes intercepted and #GP-injected.
+- **lapic_in_kernel required** — MSR_KVM_PV_EOI_EN WRMSR rejected when in-kernel lapic disabled so userspace-lapic VMs cannot enable PV-EOI half-configured.
+- **Nested-virt strict** — L2 PV-EOI mediated by L1; L0 pv_eoi cache never directly written by L2 guest.
+
+Per-doc rationale: PV-EOI swaps an IRQ-acknowledge MSR write for a shared flag-byte; the grsec reinforcement here is targeted at (a) GPA validation so a guest cannot redirect the flag write to host-controlled memory, (b) the lapic_in_kernel guard so a half-configured VM cannot enable a broken PV path, and (c) MEMORY_SANITIZE on disable so a successor cannot inherit a stale flag-byte cache.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -211,6 +211,28 @@ MTF / guest-debug-specific reinforcement:
 - **vmcs.GUEST_PENDING_DBG_EXCEPTIONS clear at vmenter** — defense against stale pending #DB.
 - **Per-vmexit RIP saved before MTF clear** — defense against losing instruction-completion location.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_SET_GUEST_DEBUG payload bounded by sizeof(struct kvm_guest_debug).
+- **PAX_KERNEXEC** — MTF + debug-step dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN; #DB save on fresh stack.
+- **PAX_REFCOUNT** — guest_debug refcount + pending #DB refcount saturating.
+- **PAX_MEMORY_SANITIZE** — guest_debug state + pending-dbg-exceptions zeroed on vCPU destroy.
+- **PAX_UDEREF** — KVM_SET_GUEST_DEBUG user pointer validated.
+- **PAX_RAP / kCFI** — debug-inject callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — RIP / DR0..3 redacted in trace.
+- **GRKERNSEC_DMESG** — MTF-storm warnings rate-limited.
+
+MTF-specific:
+
+- **CAP_SYS_ADMIN on KVM_SET_GUEST_DEBUG** — defense against unprivileged debug-attach.
+- **MTF one-shot enforced** — defense against infinite vmexit loop.
+- **GUEST_PENDING_DBG_EXCEPTIONS cleared at vmenter** — defense against stale #DB carryover.
+
+Rationale: MTF is a single-step primitive that can be abused to time-side-channel host kernel; CAP gate + sanitize on destroy + one-shot enforcement close the cross-VM debug-state leak surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

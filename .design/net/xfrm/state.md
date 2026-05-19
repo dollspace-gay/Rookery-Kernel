@@ -227,6 +227,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `xfrm_usersa_info`, `xfrm_algo`, `xfrm_algo_auth`, `xfrm_algo_aead`, and embedded key material copied across netlink/pfkey use bounded `copy_from_user`; alg_key_len / alg_icv_len validated against `XFRM_MAX_KEY_BITS` before any kmalloc.
+- **PAX_KERNEXEC** — SADB hash-walkers (`__xfrm_state_lookup`, `byspi`, `byaddr`, `bysrc`) live in RX `.text`; per-protocol AH/ESP/IPCOMP `xfrm_state_afinfo` registered through kCFI-signed indirection.
+- **PAX_RANDKSTACK** — kstack-offset randomization on `XFRM_MSG_NEWSA / UPDSA / DELSA / GETSA / ALLOCSPI` entry paths.
+- **PAX_REFCOUNT** — saturating `refcnt` / `tunnel_users` / `genid` on `struct xfrm_state`; prevents wrap on attacker-driven NEWSA/DELSA churn.
+- **PAX_MEMORY_SANITIZE** — **keys are key material** — `aead->alg_key`, `aalg->alg_key`, `ealg->alg_key`, `calg`, and the entire `xfrm_state` are wiped on free via `kfree_sensitive`/zero-on-free; defense against slab-spray recovery of IPsec session keys.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on every key-import path; `XFRMA_ALG_*` blobs validated before kmemdup.
+- **PAX_RAP / kCFI** — `xfrm_type` / `xfrm_type_offload` vtables (`input`, `output`, `reject`, `hdr_offset`, `encap`) dispatched through kCFI-signed pointers.
+- **GRKERNSEC_HIDESYM** — `net->xfrm.state_bydst/bysrc/byspi` hash tables and `xfrm_state_afinfo[]` masked from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — SA install / decap-failure diagnostics restricted to CAP_SYSLOG; no key-length or SPI leakage into dmesg.
+- **CAP_NET_ADMIN strict** — SADB mutation gated on per-net-ns CAP_NET_ADMIN; `XFRM_MSG_ALLOCSPI` SPI-range checks enforce non-reserved SPI space.
+- **NLA strict-policy + alg-name strict** — `xfrma_policy[]` validates `XFRMA_ALG_AUTH/CRYPT/AEAD/COMP` length and zero-terminates alg_name via fixed-size buffer; rejects out-of-range `XFRM_MODE_*`, `XFRM_OFFLOAD_*` flags.
+- **Per-net-ns SPI space** — SPIs scoped to net-ns; CAP_NET_ADMIN in init_user_ns required to install SAs visible across namespaces.
+
+Per-doc rationale: SADB owns the kernel's IPsec session-key store. A single PAX_USERCOPY miss or REFCOUNT wrap on `struct xfrm_state` would let an attacker either exfiltrate live AEAD keys or pin a stale SA past key-rotation. Triple-overlap (USERCOPY + kfree_sensitive MEMORY_SANITIZE + saturating REFCOUNT) is mandatory because IPsec keys must never survive UAF.
+
 ## Open Questions
 
 (none — SADB semantics are exhaustively specified by upstream + RFC 4302 + 4303)

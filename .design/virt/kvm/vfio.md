@@ -222,6 +222,28 @@ VFIO-specific reinforcement:
 - **Per-SPAPR_TCE ppc-only at v0** — defense against per-arch unsupported attribute.
 - **Per-attr KVM_DEV_VFIO_FILE_ADD/DEL/SET_SPAPR_TCE validated** — defense against per-attr injection.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_DEV_VFIO_* attribute payloads bounded; copy_from_user size-checked.
+- **PAX_KERNEXEC** — kvm_device_ops table RO after registration.
+- **PAX_RANDKSTACK** — randomized kstack on every KVM_CREATE_DEVICE / SET_DEVICE_ATTR.
+- **PAX_REFCOUNT** — VFIO-file `fget` reference counted; saturating to prevent fput-after-free.
+- **PAX_MEMORY_SANITIZE** — kvm_vfio_group / file-list nodes zeroed on detach.
+- **PAX_UDEREF** — attr.addr validated as user pointer before copy_from_user.
+- **PAX_RAP / kCFI** — device-op dispatch (set_attr/get_attr/destroy) type-checked.
+- **GRKERNSEC_HIDESYM** — kvm/file pointers redacted in error paths.
+- **GRKERNSEC_DMESG** — VFIO bind failures rate-limited.
+
+VFIO-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_CREATE_DEVICE(VFIO)** — defense against unprivileged DMA binding.
+- **file_set_kvm hook indirect-call type-checked** — defense against forged op-vector.
+- **noncoherent_dma counter saturating** — overflow → panic instead of stale coherency.
+
+Rationale: VFIO bind hands KVM control over DMA-capable device files; refcount/sanitize discipline blocks dangling-file UAF that would let a torn-down VM smuggle DMA into a fresh one.
+
 ## Open Questions
 
 (none at this Tier-3 level)

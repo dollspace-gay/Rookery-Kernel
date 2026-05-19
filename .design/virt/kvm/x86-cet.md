@@ -211,6 +211,29 @@ CET-specific reinforcement:
 - **WRSS / SETSSBSY / RSTORSSP intercept policy** — defense against guest abuse of supervisor-CET ops from user-mode.
 - **CPUID 0x07.0:ECX[7] / EDX[20] gated by KVM module-param** — defense against unexpected CET-on per-VM.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — CET MSR get/set ioctl payloads bounded; no oversized SSP/INT_SSP_TAB write.
+- **PAX_KERNEXEC** — CET MSR write handler table RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN; CET-save/restore sees fresh stack.
+- **PAX_REFCOUNT** — vCPU XSAVE-area pin refcount saturating.
+- **PAX_MEMORY_SANITIZE** — guest CET XSAVE bytes (S_CET/U_CET/PL_SSP/INT_SSP_TAB) zeroed on vCPU destroy.
+- **PAX_UDEREF** — INT_SSP_TAB and PL_SSP host-side validation rejects host-kernel hva.
+- **PAX_RAP / kCFI** — #CP injection / WRSS-intercept callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — SSP / INT_SSP_TAB values redacted in trace.
+- **GRKERNSEC_DMESG** — CET intercept floods rate-limited.
+
+CET-specific:
+
+- **CAP_SYS_ADMIN on KVM_SET_MSR(CET_*)** — defense against unprivileged CET MSR flip.
+- **CR0.WP=1 hard-enforced before CR4.CET=1** — closes ROP-via-writable-kernel-pages bypass.
+- **WRSS supervisor-only intercept** — guest user-mode WRSS abuse blocked.
+- **Live-migrate CET XSAVE PAX_MEMORY_SANITIZE on source** — no shadow-stack pointer leak across VMs.
+
+Rationale: CET shadow-stack state is high-value forensic data; sanitize on destroy + UDEREF on table pointers prevents shadow-stack-pointer leaks that would enable cross-VM ROP-chain reuse.
+
 ## Open Questions
 
 (none at this Tier-3 level)

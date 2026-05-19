@@ -307,6 +307,30 @@ mount-syscall reinforcement:
 - **Per-PAX_RANDKSTACK on syscall entry** — defense against per-ROP-via-mount-arg.
 - **Per-idmap immutability after mount established** — defense against per-uid-map-races (see mount_setattr).
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by the legacy `mount(2)` syscall:
+
+- **PAX_USERCOPY** — bounds-checks every `strndup_user` of source/target/fstype/data; aborts on slab-boundary crossings before any vfs_parse_monolithic step.
+- **PAX_KERNEXEC** — `file_system_type` and `super_operations` vtables are RX/RO; rules out post-init rewrites of method tables during a remount race.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack offset randomization on `__do_sys_mount` defeats stack-pivot exploits routed through long `data=` strings.
+- **PAX_REFCOUNT** — saturating refcount on `mnt->mnt_count`, `sb->s_active`, and `file_system_type->fs_supers` references; mount-vs-umount UAF races trap rather than underflow.
+- **PAX_MEMORY_SANITIZE** — auto-zeroes `data` page and `kfree(source/target/fstype)` to remove tenant-supplied options from reused slab.
+- **PAX_UDEREF** — strict user/kernel split on the five user pointers; a hostile process cannot smuggle kernel addresses through `data`.
+- **PAX_RAP / kCFI** — forward-edge CFI on `file_system_type->mount` and `super_operations->remount_fs`, blocking JOP via tampered vtables.
+- **GRKERNSEC_HIDESYM** — `do_mount`, `path_mount`, and per-fs `get_tree_*` symbols hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so per-fs mount failure traces (which often leak slab/module layout) are root-only.
+
+Mount-family-specific reinforcement:
+
+- **CAP_SYS_ADMIN-in-mnt_ns->user_ns strict** — every mode (new, bind, remount, propagation, move) re-checks owning-userns capability rather than init_user_ns alone.
+- **GRKERNSEC_CHROOT_MOUNT** — chrooted task is unconditionally denied `mount(2)`; closes the classic chroot-escape-via-bind-mount path.
+- **GRKERNSEC_CHROOT_PIVOT / CHROOT_DOUBLE** — blocks bind-mount-then-pivot sequences from inside a chroot even with CAP_SYS_ADMIN spoofed via userns.
+- **GRKERNSEC_NOMOUNT** — sysctl gate forbidding any non-root mount, even with userns capabilities, for hard multi-tenant policy.
+- **GRKERNSEC_SYSFS_RESTRICT** — limits leakage of `/sys/fs/<type>` state observed via mount errors during fuzzing.
+
+Rationale: legacy `mount(2)` is the highest-risk capable syscall in the VFS surface; combining USERCOPY/UDEREF on the five user pointers with the grsec chroot/nomount gates collapses an entire historical class of container-escape and DoS bugs without disturbing the syscall ABI.
+
 ## Open Questions
 
 (none at this Tier-5 level)

@@ -188,6 +188,27 @@ TPR-shadow-specific reinforcement:
 - **Per-vmexit IRQ-priority re-evaluated** — defense against stale stale per-vCPU IRR vs TPR.
 - **Live-migrate TPR shadow + virtual_apic_page** — defense against post-migrate inconsistent state.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — virtual_apic_page allocated kernel-side; no user-pointer copy into TPR shadow field.
+- **PAX_KERNEXEC** — `vmx_update_cr8_intercept`, `kvm_lapic_set_tpr`, `kvm_apic_update_apicv` and AMD `svm_update_cr8_intercept` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — TPR-below-threshold vmexit / IRQ-window paths inherit RANDKSTACK from KVM_RUN.
+- **PAX_REFCOUNT** — virtual_apic_page lifetime tied to vCPU refcount saturating.
+- **PAX_MEMORY_SANITIZE** — virtual_apic_page (kernel-allocated APIC register shadow) zeroed on alloc and free; AMD V_TPR field zeroed in VMCB control area on vCPU free.
+- **PAX_UDEREF** — no user-pointer dereference in TPR-shadow path.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.update_cr8_intercept`, `set_apic_access_page_addr` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — virtual_apic_page HPA and per-vCPU TPR shadow value redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — APICv inhibit, TPR-threshold-update warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CREATE_IRQCHIP and APICv enable gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **AMD V_TPR atomic-update** — V_TPR field in VMCB updated under `apic->lock` so torn-update during VMRUN cannot leak partial state.
+- **TPR_BELOW_THRESHOLD idempotent** — repeated vmexit on same threshold collapsed in `kvm_lapic_irq_pending`; cannot DoS host via vmexit storm.
+- **lapic_in_kernel switch** — TPR-shadow only active when in-kernel LAPIC enabled; userspace-LAPIC mode bypasses with full vmexit.
+- **Nested-virt strict** — L2 TPR threshold honored only through L1 VMCS12 mediation; L0 host TPR shadow not directly exposed to L2.
+
+Per-doc rationale: the TPR shadow avoids per-CR8-write vmexit by mapping a kernel-allocated APIC register page; the grsec reinforcement keeps the V_TPR / virtual_apic_page atomic-updated, SANITIZEs on alloc to prevent residue, and serializes APICv inhibit transitions so a guest's spammy CR8 writes cannot cause torn-state vulnerability.
+
 ## Open Questions
 
 (none at this Tier-3 level)

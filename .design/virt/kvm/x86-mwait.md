@@ -208,6 +208,28 @@ MWAIT/PAUSE-specific reinforcement:
 - **Per-vCPU pause_count rate-limit log** — defense against spam-log on pathological PAUSE.
 - **Live-migrate carries per-VM disable_exits flags** — defense against post-migrate inconsistent intercept policy.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_X86_DISABLE_EXITS payload bounded.
+- **PAX_KERNEXEC** — PLE / mwait-intercept dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN.
+- **PAX_REFCOUNT** — pause/mwait counter saturating.
+- **PAX_MEMORY_SANITIZE** — per-vCPU pause_count zeroed on vCPU destroy.
+- **PAX_UDEREF** — disable_exits cap user pointer validated.
+- **PAX_RAP / kCFI** — pause-handler / mwait-handler callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — monitored-addr / PAUSE-RIP redacted.
+- **GRKERNSEC_DMESG** — PAUSE/MWAIT spam rate-limited.
+
+MWAIT-specific:
+
+- **CAP_SYS_ADMIN on KVM_X86_DISABLE_EXITS** — defense against unprivileged CPU-monopolization.
+- **MWAIT/HLT/PAUSE intercept default-on** — disable requires explicit opt-in + cpuset pinning.
+- **MONITOR address range-checked** — defense against guest monitoring host-kernel VA.
+
+Rationale: MWAIT/HLT/PAUSE intercept disable lets a guest hog a host CPU; CAP+opt-in + RAP-checked dispatch ensure only privileged userspace can take that trade-off.
+
 ## Open Questions
 
 (none at this Tier-3 level)

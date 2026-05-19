@@ -227,6 +227,29 @@ MSR-passthrough-specific reinforcement:
 - **Per-VMX MSR-bitmap-page locked in host phys-addr** — defense against host swap moving page mid-vmenter.
 - **Per-init memset 0xff guards future MSRs** — defense against forward-MSR-leak when host kernel adds new MSRs.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — bitmap pages not user-touched; assertion enforced.
+- **PAX_KERNEXEC** — vmx/svm bitmap-flip helpers RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per vmenter.
+- **PAX_REFCOUNT** — bitmap-page ref + per-vCPU passthrough slot refcount saturating.
+- **PAX_MEMORY_SANITIZE** — bitmap page memset(0xff) at alloc; memset(0xff) at vCPU destroy (default-intercept).
+- **PAX_UDEREF** — no user pointer in bitmap path; assertion.
+- **PAX_RAP / kCFI** — bitmap update callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — bitmap PA / MSR addresses redacted.
+- **GRKERNSEC_DMESG** — passthrough-flip floods rate-limited.
+
+Passthrough-specific:
+
+- **CAP_SYS_ADMIN on KVM_RUN** — privileged VMM only.
+- **PRED_CMD passthrough write-only** — guest cannot read host SPEC_CTRL.
+- **x2APIC passthrough gated by APICv enable** — defense against missing infra.
+- **memset(0xff) on init guards future-MSR forward-leak**.
+
+Rationale: MSR passthrough is the most dangerous default — sanitize-to-deny on alloc + destroy ensures any forgotten MSR defaults to intercept, blocking accidental host-MSR exposure.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -267,6 +267,24 @@ AF_XDP reinforcement:
 - **Per-mmap UMEM offsets sanity-check** — defense against per-mmap OOB.
 - **Per-XDP_USE_NEED_WAKEUP opt-in** — defense against per-userspace polling-spin.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds setsockopt(XDP_*)/getsockopt copyin/out (UMEM_REG, TX_RING, RX_RING descriptors).
+- **PAX_KERNEXEC** — keeps `xsk_proto.proto_ops` and XDP redirect dispatch text W^X.
+- **PAX_RANDKSTACK** — randomises stack per `xsk_sendmsg`/`xsk_recvmsg` entry; mitigates ROP under packet floods.
+- **PAX_REFCOUNT** — wraps `xdp_umem.users`, `xsk_buff_pool.users`, and `xs->refcnt` against shared-UMEM/XSKMAP UAF.
+- **PAX_MEMORY_SANITIZE** — zeroes UMEM completion-queue slots and freed `xdp_buff` headroom so previous packet payload doesn't bleed into the next chunk.
+- **PAX_UDEREF** — blocks accidental userland deref while validating `xdp_umem_reg.addr` / chunk descriptors.
+- **PAX_RAP / kCFI** — protects indirect calls in xdp_sock proto_ops and the `bpf_redirect_map` tailcall edge.
+- **GRKERNSEC_HIDESYM** — hides `xsk_*`, `xdp_umem_*`, `xsk_buff_pool_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so UMEM-misuse / queue-overflow warnings don't leak UMEM layout.
+- **AF_XDP strict CAP_NET_RAW** in the bind net_ns — no fallback to CAP_NET_ADMIN-only sockets; rejects unprivileged users who only have CAP_BPF.
+- **UMEM PAX_REFCOUNT** — shared-UMEM (`XDP_SHARED_UMEM`) refs and per-socket pool refs trap on over/underflow under fast attach/detach.
+- **mmap'd rings bounded** — `xsk_mmap` validates `offset + len <= ring_size`; descriptor `addr` is masked into `[0, umem_size)` and 8-byte aligned before any DMA path.
+- **XDP_RX_RING / XDP_TX_RING max_entries cap** — ring size is bounded and power-of-two to prevent integer wrap on producer/consumer arithmetic.
+
+Rationale: AF_XDP exposes raw DMA buffers and zero-copy NIC paths to userland; combining USERCOPY/UDEREF on setsockopt, strict CAP_NET_RAW, REFCOUNT on UMEM/pool/socket, bounded mmap'd rings, and MEMORY_SANITIZE on freed chunks closes the only zero-copy path in the stack where userspace can directly steer NIC DMA.
+
 ## Open Questions
 
 (none at this Tier-3 level)

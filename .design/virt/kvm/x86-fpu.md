@@ -216,6 +216,28 @@ FPU-virtualization-specific reinforcement:
 - **Live-migrate XSAVE2 ioctl includes all features** — defense against post-migrate state truncation.
 - **Per-CPU host FPU restored before kernel-fpu-begin** — defense against host kernel-FPU-task corruption.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_XSAVE / XSAVE2 buffers bounded by host xsave_size (no over-read).
+- **PAX_KERNEXEC** — XSAVE component-vtable RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN, KVM_*_XSAVE.
+- **PAX_REFCOUNT** — guest_fpu pin (during emulated XSAVES/XRSTORS) saturating.
+- **PAX_MEMORY_SANITIZE** — guest_fpu fpstate (incl. AMX TILEDATA, AVX-512) zeroed on vCPU destroy; XFD-lazy buffers zeroed on free.
+- **PAX_UDEREF** — XSAVE user buffer pointer validated.
+- **PAX_RAP / kCFI** — fpu_swap_kvm_fpstate / xsave component-handler dispatch type-checked.
+- **GRKERNSEC_HIDESYM** — fpstate pointer + xsave-area redacted in trace.
+- **GRKERNSEC_DMESG** — XSETBV/XFD failures rate-limited.
+
+FPU-specific:
+
+- **CAP_SYS_ADMIN on KVM_SET_XSAVE / SET_XSAVE2** — defense against unprivileged FPU smuggling.
+- **XCR0 host-mask AND guest-CPUID intersection enforced** — guest cannot enable host-disabled component.
+- **SEV-ES/TDX confidential fpstate host-read-blocked** — host kernel cannot peek encrypted regs.
+
+Rationale: FPU/XSAVE state is a high-bandwidth side-channel; sanitize on destroy + UDEREF on XSAVE ioctls prevents AMX/AVX-512 register-content leak across VMs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

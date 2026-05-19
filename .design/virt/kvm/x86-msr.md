@@ -235,6 +235,28 @@ MSR-autoload-specific reinforcement:
 - **Per-VM autoload guest-list distinct from host-list** — defense against value-leak.
 - **Per-vCPU autoload clears on vCPU destroy** — defense against stale autoload referencing freed memory.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — KVM_GET/SET_MSRS array bounded by nmsrs * sizeof(entry).
+- **PAX_KERNEXEC** — MSR autoload + intercept-flip dispatch RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per vmenter / RDMSR/WRMSR emulation.
+- **PAX_REFCOUNT** — autoload slot count + bitmap page-ref saturating.
+- **PAX_MEMORY_SANITIZE** — autoload guest-list + bitmap pages zeroed on vCPU destroy.
+- **PAX_UDEREF** — user kvm_msrs pointer validated.
+- **PAX_RAP / kCFI** — get_msr / set_msr vendor callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — MSR addresses + bitmap PA redacted.
+- **GRKERNSEC_DMESG** — autoload-overflow warnings rate-limited.
+
+MSR-specific:
+
+- **CAP_SYS_ADMIN strict on KVM_SET_MSRS** — defense against unprivileged MSR flip.
+- **Default-intercept on uninit bitmap** — closes leak via uninitialized bitmap.
+- **Nested L1-bitmap ∩ L0-bitmap merge enforced** — L1 cannot peel back L0 intercept.
+
+Rationale: MSR autoload is the per-vmenter MSR-list mechanism; sanitize + saturating refs close the per-vCPU autoload UAF where a stale slot would survive vCPU destroy.
+
 ## Open Questions
 
 (none at this Tier-3 level)

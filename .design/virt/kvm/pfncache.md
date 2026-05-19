@@ -260,6 +260,28 @@ GPC-specific reinforcement:
 - **Per-VM destroy iterates gpc_list** — defense against post-VM-destroy lingering gpc.
 - **Per-2-page span vmap-contiguous** — defense against per-cross-page khva non-contiguous.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — gpc khva read/write bounded by `gpc->len` ≤ 2 pages; rejects user-supplied lengths past cache window.
+- **PAX_KERNEXEC** — gpc op-vtables read-only after publish.
+- **PAX_RANDKSTACK** — randomized kstack on KVM_RUN paths that drive gpc_refresh.
+- **PAX_REFCOUNT** — `struct gfn_to_pfn_cache` activate/deactivate ref counted (saturating).
+- **PAX_MEMORY_SANITIZE** — pfn/khva fields zeroed on deactivate; vmap'd pages poisoned before free.
+- **PAX_UDEREF** — INVALID_GPA HVA path validates user range before copy.
+- **PAX_RAP / kCFI** — gpc check/refresh callbacks indirect-call type-checked.
+- **GRKERNSEC_HIDESYM** — gpa/khva/pfn redacted in tracepoints.
+- **GRKERNSEC_DMESG** — gpc invalidation storms rate-limited.
+
+GPC-specific:
+
+- **CAP_SYS_ADMIN on KVM ioctls that arm a gpc** (kvm_xen, kvm_pv shared pages) — defense against unprivileged guest-shared-page setup.
+- **MMU-notifier release path PAX_REFCOUNT-aware** — gpc cannot be re-armed mid-tear-down.
+- **2-page span MEMORY_SANITIZE on cross-page rollover** — defense against stale neighbour-page bytes.
+
+Rationale: gpc holds a long-lived kernel mapping of guest memory; UAF here grants host-kernel arbitrary R/W. Sanitize-on-deactivate + saturating refs close the dominant escalation paths.
+
 ## Open Questions
 
 (none at this Tier-3 level)

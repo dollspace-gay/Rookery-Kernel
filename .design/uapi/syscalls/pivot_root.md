@@ -235,6 +235,30 @@ pivot_root-syscall reinforcement:
 - **Per-PaX UDEREF + KERNEXEC across pivot critical section** — defense against per-kernel-execute-user-page.
 - **Per-fs_struct rewrite local to current task** — defense against per-cross-task fs hijack.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by `pivot_root(2)`:
+
+- **PAX_USERCOPY** — bounds-checks `getname` of new_root/put_old paths; oversize or slab-crossing fetches are rejected before namespace_lock is taken.
+- **PAX_KERNEXEC** — fs_struct->root/pwd swap and `mnt_set_mountpoint` execute in RX/RO text; pivot critical section cannot be patched on-the-fly.
+- **PAX_RANDKSTACK** — per-entry kernel-stack offset randomization on `SYSCALL_DEFINE2(pivot_root)` defeats ROP through the pivot path.
+- **PAX_REFCOUNT** — saturating refcounts on `mount`, `mnt_namespace`, and `fs_struct` references involved in the swap; pivot-vs-umount UAF traps cleanly.
+- **PAX_MEMORY_SANITIZE** — zeroes freed `struct mount` slots and the put_old detach copy, preventing reuse-disclosure of pre-pivot root state.
+- **PAX_UDEREF** — strict user/kernel separation when copying both pathnames; defeats kernel-pointer-fixup tricks across the lock-held region.
+- **PAX_RAP / kCFI** — forward-edge CFI on `attach_recursive_mnt` and propagation walk callbacks consulted during pivot.
+- **GRKERNSEC_HIDESYM** — `do_pivot_root`, `attach_mnt`, and propagation helpers hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so pivot-failure traces (mount layout, propagation state) are root-only.
+
+Mount-family/chroot-specific reinforcement:
+
+- **GRKERNSEC_CHROOT_PIVOT** — primary gate: any chroot'd caller is unconditionally denied `pivot_root(2)`, closing the classic pivot-out-of-chroot escape.
+- **GRKERNSEC_CHROOT_DOUBLE** — refuses chroot-within-chroot interleaved with pivot, eliminating the double-chroot evasion of CHROOT_PIVOT.
+- **GRKERNSEC_CHROOT_MOUNT** — chrooted task cannot perform the bind-mount-first half of a pivot exploit chain.
+- **GRKERNSEC_CHROOT_FCHDIR** — blocks fchdir into the put_old subtree post-pivot.
+- **CAP_SYS_ADMIN in mnt_ns->user_ns strict** — userns-pivot still requires owning userns capability, not init_user_ns.
+
+Rationale: `pivot_root(2)` has historically been the highest-value primitive in container escape chains. The grsec chroot family (PIVOT/DOUBLE/MOUNT/FCHDIR) and CAP_SYS_ADMIN-in-userns together close every documented chroot-to-host pivot path, while the PaX memory-safety primitives ensure that a concurrent umount or namespace-teardown cannot turn the pivot critical section into a UAF.
+
 ## Open Questions
 
 (none at this Tier-5 level)

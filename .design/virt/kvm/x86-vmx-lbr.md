@@ -196,6 +196,27 @@ LBR-specific reinforcement:
 - **Live-migrate clears lbr_desc.event** — defense against post-migrate stale host-event.
 - **Per-vCPU LBR data not leaked across vCPU migrate** — defense against cross-vCPU branch-record leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_MSRS for LBR-stack MSRs (LBR_FROM/TO/INFO 0..31) bounded by per-MSR slab; LBR record stack copy through fixed-size kernel buffers.
+- **PAX_KERNEXEC** — `intel_pmu_create_guest_lbr_event`, `vmx_passthrough_lbr_msrs`, `vmx_disable_lbr_msrs_passthrough` resolve through RX-only kernel text.
+- **PAX_RANDKSTACK** — LBR enable/disable WRMSR and KVM_RUN paths inherit RANDKSTACK.
+- **PAX_REFCOUNT** — per-vCPU lbr_desc.event refcount saturating; concurrent LBR-enable + vCPU destroy cannot wrap.
+- **PAX_MEMORY_SANITIZE** — per-vCPU LBR stack shadow (lbr_desc), MSR-bitmap LBR entries zeroed on alloc/free; perf_event freed via perf core's normal cleanup so LBR records cannot leak across vCPU migrate.
+- **PAX_UDEREF** — KVM_SET_MSRS copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `intel_pmu_ops.create_guest_lbr_event`, vendor LBR slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU lbr_desc / LBR-record kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — LBR format-mismatch, perf_event_create-failure warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_PMU_CAPABILITY (LBR-enable bit) gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR passthrough validation** — LBR-MSR-bitmap entries gated by `vmx_get_perf_capabilities` advertisement; unsupported LBR-MSR access intercepted and #GP-injected.
+- **DEBUGCTLMSR.LBR validated** — WRMSR(DEBUGCTLMSR) LBR-bit transitions checked against guest CPUID; enabling LBR without setup rejected.
+- **Per-event PERF_TYPE_RAW config validated** — guest event-attr config validated; cannot fake LBR via crafted perf_event.
+- **Nested-virt strict** — L2 LBR mediated by L1; L0 host LBR records never directly exposed to L2.
+
+Per-doc rationale: LBR records branch history that doubles as a side-channel oracle (Spectre, hardware-stack-attack); the grsec reinforcement gates LBR by KVM_CAP_PMU_CAPABILITY so confidential VMs cannot enable it, validates DEBUGCTLMSR LBR transitions, and SANITIZEs the lbr_desc shadow on vCPU free so a destroyed vCPU's branch records cannot leak to a successor on the same physical CPU.
+
 ## Open Questions
 
 (none at this Tier-3 level)

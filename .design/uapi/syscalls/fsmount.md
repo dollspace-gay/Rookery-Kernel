@@ -265,6 +265,27 @@ fsmount-syscall reinforcement:
 - **Per-mnt detached until move_mount** — defense against per-premature-visibility in mnt_ns.
 - **Per-sb.s_active counter atomic** — defense against per-superblock UAF on fc destruction.
 
+## Grsecurity/PaX-style Reinforcement
+
+This syscall inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `fsmount(2)` argument vector (`fd`, `flags`, `attr_flags`) is fixed-width; no variable-length copy_from_user — attack surface restricted to enum/flag validation.
+- **PAX_KERNEXEC** — `do_fsmount`, `vfs_create_mount`, `mnt_alloc_id`, and `init_mount_idmapped` reside in RX `.text`; per-superblock fs_type vtable resolved via kCFI-signed indirection.
+- **PAX_RANDKSTACK** — kstack-offset randomization on syscall entry; defense against ROP-via-fsmount (REQ-PAX_RANDKSTACK).
+- **PAX_REFCOUNT** — saturating refcount on `struct mount` (`mnt_count`, `mnt_writers`), `super_block.s_active`, and the originating `fs_context`; defense against detached-mount UAF on dup-and-drop.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `struct mount`, `mnt_idmap`, and detached `mount_kattr` scratch on fsmount failure path.
+- **PAX_UDEREF (SMAP/SMEP)** — ASM_CLAC on syscall args copy; `attr_flags` mask validated against canonical `MOUNT_ATTR_*` set; unknown bits rejected with -EINVAL.
+- **PAX_RAP / kCFI** — `fs_context_operations` and `super_operations` callbacks reachable from fsmount dispatched via kCFI-signed indirect calls.
+- **GRKERNSEC_HIDESYM** — `mount_lock`, `mnt_id_ida`, `fs_context` symbols stripped from /proc/kallsyms for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — fsmount failure / superblock-mismatch / attr-validation diagnostics restricted to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** — `fsmount(2)` gated on caller's CAP_SYS_ADMIN in init_user_ns or per-mount-ns equivalent; capable mount only after `fc->users` validation.
+- **MOUNT_ATTR_* mask strict-check** — out-of-range attribute bits rejected before mount-instance materialization; defense against future-flag smuggling.
+- **GRKERNSEC_CHROOT_MOUNT** — chrooted caller blocked from fsmount; defense against chroot-escape via detached-mount synthesis.
+- **Detached-until-move_mount(2)** — fsmount-produced fd refers to a detached mount not in any mnt_ns until `move_mount(2)` attaches it; defense against premature visibility.
+- **`sb.s_active` counter atomic** — defense against superblock UAF on fs_context destruction race.
+
+Per-syscall rationale: `fsmount(2)` materializes the configured `fs_context` into a kernel mount object — the moment of trust where parser-validated state becomes a live mount. A REFCOUNT wrap on `mount` or a stale `fs_context` pointer would let an attacker resurrect a freed superblock. Detached-until-move_mount + saturating refcount + CAP_SYS_ADMIN gate + GRKERNSEC_CHROOT_MOUNT is the layered defense against the mount-API privilege-boundary class.
+
 ## Open Questions
 
 (none at this Tier-5 level)

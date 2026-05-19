@@ -288,6 +288,26 @@ PMU-Intel-specific reinforcement:
 - **Per-vCPU LBR access intercepted unless host-LBR available** — defense against guest reading uninitialized MSR.
 - **Per-vCPU live-migrate pmu state via KVM_GET_MSRS** — defense against post-migrate counter desync.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_MSRS for PERF_GLOBAL_CTRL / PERF_FIXED_CTR / PERF_GLOBAL_STATUS validated against `struct kvm_msrs` slab size; LBR record stack copied via fixed-size kernel buffers.
+- **PAX_KERNEXEC** — Intel-PMU vendor ops (`intel_pmu_ops.refresh`, `pmc_idx_to_pmc`, `set_msr`) resolve through RO `kvm_pmu_ops` vtable; module text RX-only.
+- **PAX_RANDKSTACK** — VM-entry/exit on PMI / counter-overflow inherits per-syscall RANDKSTACK.
+- **PAX_REFCOUNT** — per-vCPU `kvm_pmu` lifetime bound to vCPU refcount saturating; PMI delivery races cannot wrap.
+- **PAX_MEMORY_SANITIZE** — per-vCPU PMC array, LBR stack, fixed-counter state zeroed on vCPU alloc/free so Intel PEBS/LBR residue cannot leak to a successor vCPU.
+- **PAX_UDEREF** — KVM_SET_MSRS copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `kvm_pmu_ops` slots RAP-signed; per-PMC `intel_pmu_handle_event_filter` indirect dispatch CFI-guarded.
+- **GRKERNSEC_HIDESYM** — per-vCPU pmu / LBR-stack kaddrs redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — Intel-PMU version-mismatch, fixed-counter masking, LBR-format warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_SET_PMU_EVENT_FILTER, KVM_CAP_PMU_CAPABILITY, Intel-PMU CPUID 0x0A advertisement gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **MSR passthrough validation** — PERF_GLOBAL_CTRL writes masked through `global_ctrl_mask`; reserved-bit writes intercepted and #GP-injected; unsupported PEBS/LBR MSR writes rejected.
+- **PMU event allowlist** — `KVM_PMU_EVENT_ALLOW/DENY` enforced per-VM; guest cannot select host-leaking event codes (e.g., LLC-miss precision side-channel).
+- **Nested-virt strict** — L1 hypervisor advertising Intel-PMU to L2 propagated through nested CPUID gating; L0 host LBR/PEBS not exposed to L2 without L1 explicit consent.
+
+Per-doc rationale: Intel-PMU's PEBS, LBR, and architectural-performance counters provide microarchitectural state that fuels side-channel attacks (Foreshadow, MDS, Spectre-PMU); the grsec hardening centers on (a) event-filter allowlist that denies side-channel-yielding events to unprivileged tenants, (b) global_ctrl_mask enforcement so guest WRMSR cannot enable phantom counters, and (c) LBR-stack MEMORY_SANITIZE so post-destroy LBR records cannot leak host RIPs to a successor vCPU.
+
 ## Open Questions
 
 (none at this Tier-3 level)

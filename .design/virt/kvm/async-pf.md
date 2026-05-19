@@ -239,6 +239,29 @@ Async-PF-core-specific reinforcement:
 - **Per-async_pf.lock outside per-vCPU run** — defense against per-vmenter blocking on async-PF.
 - **Per-execute uses get_user_pages for proper page-walk** — defense against per-fault-path skip causing repeat faults.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide mitigations relied upon by the KVM async-PF subsystem:
+
+- **PAX_USERCOPY** — bounds-checks any guest-physical → host copy that surfaces async-PF data (token, reason) back to userspace; rejects slab-boundary crossings.
+- **PAX_KERNEXEC** — `kvm_async_pf_ops` and per-arch `kvm_arch_async_page_ready` callbacks live in RX/RO text; the work-item callback cannot be redirected at runtime.
+- **PAX_RANDKSTACK** — per-entry stack-offset randomization on KVM_RUN reentry from an async-PF wake defeats stack-grooming via the async-PF resume path.
+- **PAX_REFCOUNT** — saturating ref on `kvm->users_count`, `vcpu->refcount`, and the task/mm refs captured via `get_task_mm`; wq-vs-vCPU-exit races trap cleanly.
+- **PAX_MEMORY_SANITIZE** — zeroes freed `struct kvm_async_pf` slab entries so a follow-on async-PF allocation cannot reuse residual guest token/data.
+- **PAX_UDEREF** — strict user/kernel pointer separation when delivering page-ready notifications back into guest-accessible shared regions.
+- **PAX_RAP / kCFI** — forward-edge CFI on the work-item callback and `arch_async_page_ready`, blocking JOP via a corrupted async_pf entry.
+- **GRKERNSEC_HIDESYM** — `kvm_async_pf_wakeup_all`, `kvm_arch_async_page_present`, and the per-vCPU queue helpers hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — restricts dmesg so async-PF queue-full/oom traces do not leak per-VM allocation pressure to other tenants.
+
+KVM-async-PF-specific reinforcement:
+
+- **CAP_SYS_ADMIN on the KVM fd** — gates the entire async-PF feature; an unprivileged caller cannot enable async-PF on a foreign VM.
+- **Page-ready injection bounded** — per-vCPU queue depth cap paired with PAX_REFCOUNT prevents async-PF entry-bomb DoS against a target vCPU.
+- **mm pin via mmget + mmput around get_user_pages** — paired with PAX_REFCOUNT keeps the guest mm UAF-safe across the wq deferral.
+- **cancel_work_sync at vCPU teardown** — paired with PAX_MEMORY_SANITIZE so any racing wq item observes zeroed state, not a half-freed entry.
+
+Rationale: async-PF is one of the few KVM code paths that defers work onto a workqueue holding a guest-mm reference; combining PAX_REFCOUNT on the mm/task pin with PAX_MEMORY_SANITIZE on the slab eliminates the UAF and reuse-disclosure classes that have historically plagued this surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

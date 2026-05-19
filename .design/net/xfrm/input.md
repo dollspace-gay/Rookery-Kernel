@@ -202,6 +202,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds any decrypted-payload bytes that ultimately reach userland via `recvmsg`; XFRM-input does not copy to user directly but feeds the L4 socket path.
+- **PAX_KERNEXEC** — keeps `xfrm_type->input` dispatch tables and the input-state machine text W^X.
+- **PAX_RANDKSTACK** — randomises stack per `xfrm_input` entry; mitigates ROP against an attacker who can drive arbitrary ESP/AH SPIs.
+- **PAX_REFCOUNT** — wraps `xfrm_state.refcnt` taken via `xfrm_state_lookup`/`xfrm_state_put` around every input packet so a concurrent `XFRM_MSG_DELSA` cannot UAF the in-flight packet.
+- **PAX_MEMORY_SANITIZE** — zeroes freed decrypted skbs and freed nested-walker scratch so plaintext doesn't bleed back into the slab.
+- **PAX_UDEREF** — relevant on the netlink SA-install path that populates the SAs this code uses.
+- **PAX_RAP / kCFI** — protects indirect dispatch through `xfrm_type->input` and AEAD-completion callbacks invoked at `xfrm_input_resume`.
+- **GRKERNSEC_HIDESYM** — hides `xfrm_input*`, `xfrm_state_*` symbols from unprivileged readers.
+- **GRKERNSEC_DMESG** — restricts dmesg so ICV-failure / replay-detected traces don't leak SPIs / peer addresses.
+- **SA-state PAX_REFCOUNT** — every `xfrm_state` ref acquired on the input fast-path is saturating-refcount; trap-on-overflow under SPI flood.
+- **ICV verification bounded** — input rejects undersized packets and ICV-length mismatch before crypto dispatch; nested-walker depth is SIZE_OVERFLOW-clamped.
+- **IPsec SAD/SPD CAP_NET_ADMIN** — input itself runs in softirq, but the SAs it consumes come only from CAP_NET_ADMIN-gated SADB install at `state.md` / `user.md`.
+- **XFRM key MEMORY_SANITIZE** — input never copies SA keys, but freed AEAD scratch (which contains derived per-packet IV/key) is wiped on free.
+- **Replay-window protected** — `x->replay` / `x->replay_esn` read+update is serialised under `x->lock`; PAX_MEMORY_SANITIZE wipes the window on SA destroy.
+
+Rationale: XFRM input is the hot ingress path for every IPsec datagram with attacker-controlled lengths and SPIs; combining REFCOUNT on per-packet SA refs, PAX_RAP on `xfrm_type->input` dispatch, MEMORY_SANITIZE on decrypted skbs, and bounded ICV / nested-walker arithmetic confines the realistic surface to cryptographic primitives covered elsewhere.
+
 ## Open Questions
 
 (none — RX pipeline semantics are exhaustively specified by upstream + RFCs 4302, 4303, 3173, 3948)

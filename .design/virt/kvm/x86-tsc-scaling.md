@@ -243,6 +243,28 @@ TSC-scaling-specific reinforcement:
 - **Per-vCPU offset i64-typed** — defense against unsigned-wrap on negative offsets.
 - **Per-VM cap KVM_CAP_TSC_CONTROL gated by vendor support** — defense against userspace requesting unsupported feature.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — KVM_GET/SET_TSC_KHZ and KVM_SET_TSC_KHZ_PER_VM bounded by `__u32` payload; no user-pointer copy in the scaling computation.
+- **PAX_KERNEXEC** — `kvm_compute_tsc_offset_l1`, `kvm_scale_tsc`, vendor `write_tsc_multiplier` resolve through RO `kvm_x86_ops` vtable; module text RX-only.
+- **PAX_RANDKSTACK** — WRMSR(TSC) and VMRUN re-entry inherit RANDKSTACK.
+- **PAX_REFCOUNT** — per-VM `max_tsc_khz`, per-vCPU `l1_tsc_scaling_ratio` saturating refcount.
+- **PAX_MEMORY_SANITIZE** — per-vCPU TSC scaling state (tsc_scaling_ratio, l1_tsc_scaling_ratio, virtual_tsc_mult) zeroed on alloc/free.
+- **PAX_UDEREF** — KVM_SET_TSC_KHZ copy_from_user STAC/CLAC bracketed.
+- **PAX_RAP / kCFI** — `kvm_x86_ops.write_tsc_multiplier`, `write_tsc_offset` slots RAP-signed.
+- **GRKERNSEC_HIDESYM** — per-vCPU scaling ratio kaddr redacted unless CAP_SYSLOG + gr-rbac.
+- **GRKERNSEC_DMESG** — TSC unstable / scaling overflow warnings rate-limited and gated by `dmesg_restrict`.
+- **KVM ioctl CAP_SYS_ADMIN strict** — KVM_CAP_TSC_CONTROL / KVM_SET_TSC_KHZ gated to CAP_SYS_ADMIN + gr-rbac VM-create role.
+- **TSC-scaling bounded** — multiplier capped at hardware `kvm_max_tsc_scaling_ratio`; guest WRMSR cannot drive ratio overflow.
+- **VMCS/VMCB tsc_multiplier loaded pre-VMRUN** — `vmcs.tsc_multiplier` / `vmcb.tsc_ratio` populated before VMRUN so post-entry guest sees correct scale.
+- **L1×L2 nested-scaling overflow checked** — nested combined ratio (l1_tsc_scaling × l2_tsc_scaling) checked for overflow before VMCS12 load.
+- **Offset i64-typed** — TSC offset signed 64-bit so negative offsets (live-migration backwards adjustment) do not wrap.
+- **KVM_CAP_TSC_CONTROL gated by vendor support** — userspace requesting scaling on a non-supporting CPU rejected at capability query.
+
+Per-doc rationale: TSC scaling lets KVM make a slow host appear as a faster TSC to the guest; the grsec reinforcement caps the multiplier to prevent kernel-side overflow, validates nested L1×L2 combined ratio, and SANITIZEs per-vCPU scaling state across migrations so a destroyed vCPU's scaling ratio cannot bleed into a successor.
+
 ## Open Questions
 
 (none at this Tier-3 level)

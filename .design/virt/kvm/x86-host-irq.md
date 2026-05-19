@@ -240,6 +240,28 @@ posted-IRQ-specific reinforcement:
 - **IOMMU IRTE.PDA validated against pi_desc allocation** — defense against IOMMU writing to host kernel memory.
 - **Live-migrate pi_desc serialized** — defense against post-migrate stale pending-state.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening (always applied):
+
+- **PAX_USERCOPY** — posted-IRQ ioctl payloads (IRQFD, GSI route) bounded by sizeof.
+- **PAX_KERNEXEC** — posted-IRQ wakeup handler RO after init.
+- **PAX_RANDKSTACK** — randomized kstack per KVM_RUN / wakeup ISR.
+- **PAX_REFCOUNT** — pi_desc refcount across vCPU + IOMMU IRTE saturating.
+- **PAX_MEMORY_SANITIZE** — pi_desc + pi_blocked_vcpus node zeroed on vCPU destroy.
+- **PAX_UDEREF** — IRQFD eventfd struct file validated before pi-binding.
+- **PAX_RAP / kCFI** — posted-IRQ wakeup callbacks type-checked.
+- **GRKERNSEC_HIDESYM** — pi_desc PA / IRTE.PDA redacted in trace.
+- **GRKERNSEC_DMESG** — posted-IRQ misroute warnings rate-limited.
+
+Posted-IRQ-specific:
+
+- **CAP_SYS_ADMIN on KVM_IRQFD with posted-IRQ flag** — defense against unprivileged IOMMU IRTE program.
+- **IRTE.PDA must be inside pi_desc allocation** — IOMMU cannot write outside KVM-owned 64-byte block.
+- **NV vector range [16,255] hard-enforced** — blocks reserved-vector posted-IRQ.
+
+Rationale: posted-IRQ is the host↔IOMMU shared-memory hot path; sanitize + IRTE.PDA bounds-check prevent a misprogrammed IOMMU from writing into freed host memory.
+
 ## Open Questions
 
 (none at this Tier-3 level)
