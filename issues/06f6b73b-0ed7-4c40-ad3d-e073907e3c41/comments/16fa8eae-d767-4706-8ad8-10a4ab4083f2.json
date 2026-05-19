@@ -1,0 +1,10 @@
+{
+  "uuid": "16fa8eae-d767-4706-8ad8-10a4ab4083f2",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Wave-D2: 21 more UAPI Tier-5 docs landed (futex, elf, sched, perf_event, audit, capability, userfaultfd, timerfd, eventfd, wait, time, in, ip, icmp, tcp, udp, netlink, if, poll, ioctl, mount). Total Phase D: 33/~430.",
+  "created_at": "2026-05-19T16:49:10.818968330Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAC1Hc2xm8cHSl89yenvLsBaVsOazpHv5FAAxZMtUtuVf3kxRH9JH00KdJVLNyZxj7i0Bd3aKxxnmxd8QHGmUGCA=="
+}
