@@ -239,6 +239,29 @@ host-core specific reinforcement:
 - **CAP_SYS_RAWIO required for NVME_IOCTL_SUBSYS_RESET** — defense against subsystem-reset (which resets all controllers in subsystem) from unprivileged process.
 - **Multipath path-selection deterministic per ANA-state** — never selects path with ana_state==INACCESSIBLE; head-failover preserves submission tag.
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every `NVME_IOCTL_ADMIN_CMD` / `_IO_CMD` / `_URING_CMD_*` user-buffer; per-cmd `data_len` validated against declared `metadata_len`.
+- **PAX_KERNEXEC** — W^X on FW-image-download payload region; firmware blob never mapped writable + executable simultaneously.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every chardev ioctl entry (`nvme_dev_ioctl`, `nvme_ns_ioctl`).
+- **PAX_REFCOUNT** — saturating refcount on `Ctrl`, `Ns`, `Subsystem`, `NsHead`, per-controller `ctrl_kobj`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for admin/IO SQ/CQ rings, identify-controller buffer, DH-HMAC-CHAP secrets, sanitize/format passthrough buffers.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access for all `nvme_user_cmd` arg copies and PRP-list-from-userland guard on io_uring NVMe passthrough.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `nvme_ctrl_ops`, `block_device_operations`, `pr_ops`, `nvme_ioctl_fops`.
+- **GRKERNSEC_IO** — driver never calls `iopl(2)`/`ioperm(2)`; all MMIO via `request_mem_region` / `ioremap`.
+- **GRKERNSEC_HIDESYM** — kernel pointers in `/sys/class/nvme/nvme<N>/` (state ptr, ops vtable) masked from non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — controller-fatal AEN log lines (NOTICE_SUBSYS_ERR, NOTICE_FW_ACT_STARTING) restricted to CAP_SYSLOG.
+- **GRKERNSEC_TPE** — Trusted Path Execution applies to raw `/dev/nvme<N>` and `/dev/ng<N>n<M>` (admin chardev + io_uring NVMe-generic node).
+- **GRKERNSEC_KMOD** — nvme-core auto-load via PCI alias gated by CAP_SYS_MODULE.
+- **GRKERNSEC_MODHARDEN** — module signature required for `nvme_core`, vendor-quirk shim modules, fabrics auth backends.
+- **CAP_SYS_RAWIO** strict for `NVME_IOCTL_SUBSYS_RESET`, sanitize-overwrite, format-NVM-with-PIL change, NVMe-CLI vendor-specific opcodes; admin-opcode allowlist bypass requires CAP_SYS_ADMIN.
+- **GRKERNSEC_PROC_ADD** — `/sys/.../dhchap_secret`, `dhchap_ctrl_secret`, `hostid`, `hostnqn` masked from unprivileged readers (keyring-backed).
+- **GRKERNSEC_BRUTE** — keep-alive timeout-misuse + repeated Connect-Auth failures on a fabrics controller rate-limited per-host UID.
+
+Per-driver rationale: the NVMe host-core is a uniquely exposed surface because it brokers io_uring passthrough (`NVME_URING_CMD_*`) directly between userspace SQEs and HW admin/IO queues, owns the DH-HMAC-CHAP secret material for fabrics, and dispatches sanitize/format/SED-Opal commands that can irreversibly destroy data on the device; grsec reinforces by gating the destructive-or-passthrough paths behind CAP_SYS_RAWIO + opcode allowlists, sanitizing every key/buffer on free, and refusing to leak kernel pointers via the rich `/sys/class/nvme/` surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -257,6 +257,28 @@ None beyond upstream defaults. Scheduler decisions are statistical; reference wo
 
 (See § Verification above; CFS rbtree invariants are mandatory per `00-overview.md` D4.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers (sched_setattr, sched_setaffinity, util-clamp UAPI).
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code (sched_ext programs that hook fair.c-equivalent callbacks), kprobe/uprobe trampolines on the scheduler tick.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization; obscures CFS rbtree traversal stack frames between picks.
+- **PAX_REFCOUNT** — saturating refcount on task_struct, task_group, cred, mm_struct; prevents wraparound during fast-path autogroup attach/detach.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for task_struct, signal_struct, cred, sched_entity; ensures freed `SchedEntity` cannot resurface as a stale rbtree node.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit; wipes leaked PELT-window arithmetic and load-balance migration stack frames.
+- **PAX_UDEREF** — strict user-pointer access for cpumask + sched_attr UAPI copies.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for `sched_class` vtable (pick_next_task_fair, enqueue_task_fair, task_tick_fair) and schedutil cpufreq governor callbacks.
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses `sched_entity` and `cfs_rq` pointer leaks via /proc/sched_debug.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); blocks attacker from observing victim's vruntime drift.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts; throttles fork-bomb wake-storm probes against CFS pick.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep load-balance recursion across NUMA hierarchies.
+- **GRKERNSEC_DMESG** — restrict syslog so sched-domain rebuild WARN traces leaking topology pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (kernel.sched_*, sched_min_granularity_ns tunables) by default behind admin gesture.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check; verifies CONFIG_FAIR_GROUP_SCHED / SCHED_AUTOGROUP / NUMA_BALANCING match signed config.
+
+Per-doc rationale: CFS/EEVDF owns the rbtree and PELT arithmetic that every task on the system touches, plus the sched_ext BPF callback surface; a corrupted leftmost pointer or a stale `sched_entity` directly translates into kernel ROP via the `sched_class` indirect-call path. PaX RAP/kCFI binds the fair_sched_class vtable, MEMORY_SANITIZE prevents stale `SchedEntity` aliasing, and Grsecurity HIDESYM/DMESG closes the /proc/sched_debug enumeration channel that would otherwise expose runqueue layout to side-channel attackers.
+
 ## Open Questions
 
 (none — CFS / EEVDF semantics are exhaustively specified by upstream Linux + the EEVDF paper)

@@ -242,6 +242,30 @@ Per Axiom 4 of `00-security-principles.md`:
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — every GUP-pinned page used as a user-copy buffer is validated against slab usercopy zones; raw bytes never bypass the check.
+- **PAX_KERNEXEC** — fault handler .text + rodata are RX/RO; vtable dispatch through `vm_operations_struct` is CONSTIFY'd.
+- **PAX_RANDKSTACK** — per-page-fault kernel-stack randomization on every entry from `arch/x86/entry.md`'s `do_page_fault`.
+- **PAX_REFCOUNT** — `mm_struct->mm_count`, `mm_struct->mm_users`, `anon_vma->refcount`, and folio refcounts are saturating `Refcount` types.
+- **PAX_MEMORY_SANITIZE** — VMA cache freed objects zeroed (unless cache marked `SLAB_NO_ZERO_ON_FREE`); anon page contents zeroed on free.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on every fault-return path.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement on `vm_operations_struct->fault`, `->map_pages`, `->huge_fault`, `->mremap`, `->mprotect`, `->find_special_page`.
+- **GRKERNSEC_HIDESYM** — kernel pointers hidden from `/proc/<pid>/maps`, `/proc/<pid>/smaps`, `/proc/<pid>/pagemap`, `/proc/<pid>/numa_maps` for non-CAP_SYSLOG readers; defeats kASLR-bypass via maps leak.
+- **GRKERNSEC_DMESG** — page-fault dmesg lines (segfault details, RIP/RSP/CR2) restricted to CAP_SYSLOG; defeats fingerprinting of executable layout via dmesg-scraping.
+- **PAX_ASLR** — collaborates with `mm/mmap.md` for mmap-base, stack-base, heap-base randomization; per-mm randomization seed.
+- **PAX_RANDMMAP** — mmap base + each VMA placement randomized (cross-ref `mm/mmap.md`); GUP-acquired pinned pages never expose deterministic mappings.
+- **PAX_MPROTECT** — fault handler honors W^X policy per-task `exec_gain_state`; W→X transitions denied at the VMA level by `mm/mmap.md`, enforced here on subsequent fault.
+- **PAX_PAGEEXEC** — non-executable pages enforced via hardware NX; PROT_EXEC absence translates to NX bit set in PTE installed by fault handler.
+- **PAX_NOEXEC** — anon pages default to non-executable unless ELF PT_GNU_STACK or per-task exec_gain explicitly grants exec.
+- **PAX_UDEREF** — every user-pointer access (faulthandler, GUP, /proc/<pid>/maps readers) goes through `UserPtr<T>`; raw user-VA dereferencing forbidden.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection at every recursive fault path (e.g., reclaim-during-fault).
+- **GRKERNSEC_OOM_DENY** — fault path's invocation of OOM consults grsec OOM-deny policy.
+
+Per-doc rationale: virtual memory is the seam between userspace addresses and kernel data; an attacker who can confuse a VMA lookup, race a GUP pin against a truncate, or smuggle an executable mapping through `mprotect` has won by definition. PAX_UDEREF prevents the kernel from ever blindly dereferencing a user VA; PAX_REFCOUNT saturates `mm_count`/`mm_users` so an attacker cannot wrap-to-zero a forked-mm refcount; PAX_RAP/kCFI enforces type signatures on every fault-vtable dispatch to defeat function-pointer hijacks; GRKERNSEC_HIDESYM denies the `/proc/<pid>/maps` leak that has been a perennial source of kASLR breaks. The PAX_MPROTECT + PAX_PAGEEXEC + PAX_NOEXEC trio enforces W^X at every level of the fault-resolution pipeline.
+
 ## Open Questions
 
 (none — virtual memory semantics are exhaustively specified by POSIX + Linux extensions; no architectural ambiguities at this tier)

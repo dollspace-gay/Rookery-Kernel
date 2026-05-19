@@ -553,6 +553,33 @@ RNG reinforcement:
 - **Per-MIX_INFLIGHT bit on fast_pool.count** — defense against per-double-scheduling mix_interrupt_randomness.
 - **Per-fasync SIGIO on CRNG_READY transition** — defense against per-polling-without-notification.
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every `getrandom(2)` / `/dev/random` / `/dev/urandom` read; `RNDADDENTROPY` / `RNDADDTOENTCNT` ioctl arg-len strict-bounded.
+- **PAX_KERNEXEC** — W^X for ChaCha20 / BLAKE2s constant tables; per-CPU crng-state allocated from RW-only kernel memory.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every `getrandom(2)` and `/dev/{u,}random` ioctl/read entry (random itself is a randstack feedback consumer).
+- **PAX_REFCOUNT** — saturating refcount on per-CPU `crng` state, `entropy_pool`, `fasync_struct`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for ChaCha20 keys, per-CPU crng key+nonce, BLAKE2s state, every transient output block; `memzero_explicit` is mandatory and verified non-elidable.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access for output buffer in `_copy_to_iter`; entropy-input buffer copied through bounded `_copy_from_iter`.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `file_operations` (random_fops / urandom_fops), per-arch `arch_get_random*` callbacks, `random_ready_notifier` list, `pm_notifier`.
+- **GRKERNSEC_IO** — RNG never touches `iopl/ioperm`; RDRAND/RDSEED via inline asm only, gated by CPU feature flag.
+- **GRKERNSEC_HIDESYM** — `/proc/sys/kernel/random/*` (entropy_avail, poolsize, uuid, boot_id) kernel pointer leakage masked; boot_id readable only via formatted string, never raw.
+- **GRKERNSEC_DMESG** — "random: crng init done" + uninitialized-read warnings restricted to CAP_SYSLOG (timing of CRNG-ready is a sensitive signal).
+- **GRKERNSEC_TPE** — Trusted Path Execution for `/dev/random` and `/dev/urandom` raw access (default-allow but policy-gated).
+- **GRKERNSEC_KMOD** — `random` is built-in (not a module); CAP_SYS_MODULE not applicable. Documented as N/A.
+- **GRKERNSEC_MODHARDEN** — N/A (built-in); any out-of-tree RNG-replacement module rejected.
+- **CAP_SYS_ADMIN** strict for `RNDADDENTROPY`, `RNDADDTOENTCNT`, `RNDRESEEDCRNG`, `RNDZAPENTCNT`, `RNDCLEARPOOL` ioctls (any userland entropy injection or pool manipulation requires CAP_SYS_ADMIN).
+- **GRKERNSEC_RANDNET** — kernel TCP-ISN / IP-ID / port-randomization explicitly sourced from the same CRNG; no fallback to weak `get_random_u32_below` for security-critical fields.
+- **GRKERNSEC_BRUTE** — repeated `getrandom(GRND_RANDOM | GRND_NONBLOCK)` returning -EAGAIN rate-limited per-UID; defense against pre-seed timing/oracle attacks.
+- **PAX-anti-DMA-from-userland** — entropy pool never DMA-mapped; per-CPU crng state never user-mappable.
+- **getrandom(2) is the default** — `/dev/random` and `/dev/urandom` legacy interfaces uid=root,mode=0644 are deprecated path; Rookery policy nudges userspace to `getrandom(2)` which blocks until CRNG seeded (so even unprivileged early-boot callers can't read pre-seed insecure output).
+- **trust_cpu / trust_bootloader gates require CAP_SYS_ADMIN at boot under SecureBoot** — defense against UEFI-firmware-supplied "seed" being unconditionally credited.
+- **RDRAND-only-fallback refused** — when both RDSEED and a hardware-rng backend are unavailable, Rookery panics rather than continuing on RDRAND alone (per-Intel RDRAND known-weakness policy).
+
+Per-driver rationale: `random` is the single point of failure for every cryptographic operation in the kernel — TCP ISN, IP-ID, ASLR, stack canaries, syscookies, KASLR, sequence numbers, wireguard handshakes, key generation, and userspace `getrandom(2)` callers all depend on it; a pre-seed insecure read, a leak of CRNG key material, or a malicious entropy injection from an unprivileged process compromises the entire system's cryptographic posture. Grsec reinforces by gating all entropy-pool manipulation behind CAP_SYS_ADMIN, sanitizing every CRNG key/block on free with `memzero_explicit`, signing every random_fops/urandom_fops vtable, refusing RDRAND-only fallback, requiring CAP_SYS_ADMIN to honor `trust_cpu`/`trust_bootloader` cmdline under SecureBoot, hiding CRNG-ready timing from non-CAP_SYSLOG, and pushing userspace toward `getrandom(2)` so even legacy /dev/urandom early-boot reads block until properly seeded.
+
 ## Open Questions
 
 (none at this Tier-3 level)

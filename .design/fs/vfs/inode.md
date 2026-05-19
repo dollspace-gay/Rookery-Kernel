@@ -235,6 +235,28 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on all path/dirent/inode buffers (statx out, xattr in/out, setattr in).
+- **PAX_KERNEXEC** — W^X for any binfmt code-page mapping driven from inode i_op vtables.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every entry (stat/chmod/chown/utimes/xattr).
+- **PAX_REFCOUNT** — saturating refcount on `i_count`, `i_writecount`, posix_acl, xattr_handlers; wrap-to-zero UAF closed.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for inode slabs (including FS-private tails), ACL blobs, xattr value buffers, and `i_security` LSM blobs.
+- **PAX_UDEREF** — strict user-pointer access for xattr name/value, ACL, and timestamp arguments.
+- **GRKERNSEC_HIDESYM** — hide inode-address pointers in /proc/<pid>/maps + audit + tracepoints.
+- **GRKERNSEC_LINK** — cross-uid hardlink restriction (`fs.protected_hardlinks`) enforced at `vfs_link` against the inode's `i_uid`.
+- **GRKERNSEC_SYMLINKOWN** — symlink owner-must-match-dir-owner under sticky bit checked against `i_uid`/`d_parent->d_inode->i_uid`.
+- **GRKERNSEC_FIFO** — FIFO/socket-in-sticky-dir creation restrictions at `mknod`/`bind` against the parent inode mode bits.
+- **GRKERNSEC_CHROOT_MKNOD** — block `mknod` of device-special inodes inside chroot.
+- **GRKERNSEC_TRUSTED** — `trusted.*` xattr namespace is CAP_SYS_ADMIN-only, enforced in `xattr_permission`.
+- **GRKERNSEC_SUIDDUMP** — block coredumps of suid-binary inodes; consulted at `i_mode` evaluation in `do_coredump`.
+- **PAX_MEMORY_UDEREF** — user-pointer guards on `setxattr`/`getxattr` value buffers and on `struct iattr` from setattr.
+- **PAX_SIZE_OVERFLOW** — `i_size` / `i_blocks` / xattr-list-len arithmetic uses checked operators.
+
+Per-doc rationale: inodes carry the canonical DAC + MAC + ACL + xattr decisions for every object in the filesystem; the inode lifecycle is also the slab-aging axis that determines UAF risk for credential-bearing metadata. PAX_REFCOUNT + PAX_MEMORY_SANITIZE protect the lifecycle; GRKERNSEC_LINK/SYMLINKOWN/FIFO/CHROOT_MKNOD/TRUSTED + PAX_UDEREF lock down the policy + ABI surface that the inode exports to userspace.
+
 ## Open Questions
 
 (none — inode semantics are exhaustively specified by POSIX + Linux extensions)

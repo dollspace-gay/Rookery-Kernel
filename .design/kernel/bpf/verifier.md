@@ -239,6 +239,31 @@ verifier-specific reinforcement:
 - **Verifier log size cap** — per-prog log buffer max 4MB; defense against verbose-error-flood DoS.
 - **Per-uid + per-program unprivileged limits** — when `kernel.unprivileged_bpf_disabled=0`, additional restrictions (no ptr-to-packet, no certain helpers).
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers; rejects oversized BPF insn-array, license, and verifier-log copies from userspace.
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code (verifier-emitted AND-MASK rewrites are applied before set_memory_ro), kprobe/uprobe trampolines invoked during verification of attach-targets.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization; obscures `bpf_verifier_state` and `RegState` stack frames against verifier-state side-channel probes.
+- **PAX_REFCOUNT** — saturating refcount on task_struct, files_struct, cred, mm_struct, bpf_map (referenced via `RegState::map_ptr`), btf objects.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for task_struct, signal_struct, cred, bpf_verifier_state, RegState; prevents stale verifier state aliasing across BPF_PROG_LOAD calls.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit; wipes large verifier scratch state from kernel stack between loads.
+- **PAX_UDEREF** — strict user-pointer access for verifier insn-array and BTF blob copy_from_user paths.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for per-prog-type `bpf_func_proto` dispatch and per-helper allowlist callback tables.
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses BTF kernel-symbol disclosure to unprivileged BPF loaders.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); blocks attacker reading verifier-log of a privileged loader.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts; throttles verifier-error-oracle probing for kernel-pointer leaks via err messages.
+- **GRKERNSEC_BPF_HARDEN** — require CAP_BPF + CAP_NET_ADMIN for non-trivial BPF; forces `kernel.unprivileged_bpf_disabled=2`; locks down ptr-to-packet, dev_map, and tracing helpers unconditionally for unprivileged.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep recursive verifier branch-stack exploration.
+- **GRKERNSEC_DMESG** — restrict syslog so verifier WARN traces leaking insn pointers / state pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (kernel.unprivileged_bpf_disabled, net.core.bpf_jit_harden) by default-locked at the high-security setting.
+- **GRKERNSEC_TRUSTED_PATH_EXEC** — Trusted Path Execution policy; refuses BPF_PROG_LOAD originating from binaries on user-writable filesystems.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check; verifies CONFIG_BPF_UNPRIV_DEFAULT_OFF / BPF_JIT_ALWAYS_ON / DEBUG_INFO_BTF profile matches signed config.
+- **Verifier-log sanitization** — strip kernel pointers + BTF type IDs from log emitted to unprivileged loaders, even on accept paths.
+
+Per-doc rationale: the verifier is the trust boundary between unprivileged userspace and kernel-level code execution; any soundness gap directly yields kernel-mode arbitrary-code execution. PaX REFCOUNT/MEMORY_SANITIZE close UAF windows on `RegState` and `bpf_map` references that the path-pruning cache holds across grace periods, RAP/kCFI binds the per-prog-type helper-proto dispatch (a prime type-confusion target), and Grsecurity BPF_HARDEN + verifier-log sanitization + TRUSTED_PATH_EXEC enforce a "no unprivileged BPF, even for tracing" stance that complements the verifier's algorithmic soundness with policy-level lockdown.
+
 ## Open Questions
 
 (none at this Tier-3 level)

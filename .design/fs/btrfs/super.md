@@ -309,6 +309,29 @@ btrfs-super reinforcement:
 - **Per-COW write-validation** — defense against per-checksum-fail data-loss.
 - **Per-mount UUID per-fs unique** — defense against per-fsid collision.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on BTRFS_IOC_* ioctl payloads (subvol create / snapshot / send / receive / device add), mount options, statfs out-buffers.
+- **PAX_KERNEXEC** — W^X for btrfs_super_ops / btrfs_iops / btrfs_fops vtables + per-tree b-tree-cursor compiled helper text.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at mount / remount / umount / ioctl entries.
+- **PAX_REFCOUNT** — saturating refcount on `fs_info` references, `btrfs_root` refcounts, transaction handles, extent_buffer refs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `btrfs_fs_info`, `btrfs_root`, `btrfs_inode` slab tails, extent_buffer pages on free, per-tree workqueue scratch.
+- **PAX_UDEREF** — strict user-pointer access for mount option strings + BTRFS_IOC_* in/out structs (especially `btrfs_ioctl_vol_args_v2` and send/receive blobs).
+- **GRKERNSEC_HIDESYM** — hide fs_info / tree-root kernel pointers in /sys/fs/btrfs/<uuid>/* and tracepoints.
+- **GRKERNSEC_LINK** — protected_hardlinks/symlinks enforced at btrfs_link/symlink against the mount's idmap.
+- **GRKERNSEC_SYMLINKOWN** — symlink-owner checks consult per-inode uid for btrfs subvol-aware symlinks.
+- **GRKERNSEC_FIFO** — FIFO-in-sticky-dir restriction at btrfs_mknod terminal.
+- **GRKERNSEC_CHROOT_MOUNT** — block btrfs mount inside chroot regardless of CAP_SYS_ADMIN.
+- **GRKERNSEC_CHROOT_MKNOD** — block btrfs_mknod for device files inside chroot.
+- **GRKERNSEC_TRUSTED** — `trusted.*` xattr handled by `btrfs_xattr_handler_trusted` requires CAP_SYS_ADMIN.
+- **GRKERNSEC_PROC** — `/sys/fs/btrfs/<uuid>/*` writes gated by CAP_SYS_ADMIN (allocation/scrub/balance tunables, raid policies).
+- **PAX_RANDFS** — per-mount randomness seeds tree-search heuristics + transient extent-allocation hint randomness.
+- **PAX_SIZE_OVERFLOW** — bytes_used / total_bytes / per-tree generation arithmetic uses checked operators (64-bit on-disk fields).
+
+Per-doc rationale: btrfs has the largest fuzz-attack surface of any in-tree filesystem because every mount parses many trees off untrusted disk content (multiple historical CVEs: CVE-2022-1199, CVE-2022-3637, CVE-2023-1611); BTRFS_IOC_* ioctls (especially send/receive and dev-add) are the prevailing escalation path. PAX_USERCOPY + PAX_UDEREF + PAX_SIZE_OVERFLOW on ioctl boundaries + PAX_MEMORY_SANITIZE on the extent_buffer freelist + GRKERNSEC_CHROOT_MOUNT close the canonical entry points.
+
 ## Open Questions
 
 (none at this Tier-3 level)

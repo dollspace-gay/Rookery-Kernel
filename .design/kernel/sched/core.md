@@ -216,6 +216,28 @@ sched-core specific reinforcement:
 - **STOP class is privileged** — only used by per-CPU stop_machine; never settable from userspace.
 - **Per-task vtime accounting** — defense against userspace time-stealing observation attacks via gettimeofday + getrusage.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers (sched_setattr/getattr UAPI paths).
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code, kprobe/uprobe trampolines invoked from scheduler tick.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization; obscures `rq`-traversal stack frames across context switches.
+- **PAX_REFCOUNT** — saturating refcount on task_struct, files_struct, cred, mm_struct; prevents wraparound during fast-path `try_to_wake_up` task pinning.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for task_struct, signal_struct, cred; ensures dead-task slab reuse cannot resurrect a stale `rq->curr` pointer.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit; wipes leaked `sched_attr` and balance-state stack frames.
+- **PAX_UDEREF** — strict user-pointer access for all task-pointer ops (sched_setaffinity cpumask copy).
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for `sched_class` vtables (pick_next_task, enqueue_task, dequeue_task dispatch).
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses `rq.curr` and idle-task pointer leaks via /proc/sched_debug.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); blocks attacker from inspecting victim's sched-class state.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts; throttles fork-bomb wake-storm probes against `ttwu_pending`.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep `__schedule` re-entry via scheduling-while-atomic recovery paths.
+- **GRKERNSEC_DMESG** — restrict syslog so scheduling-while-atomic WARN traces leaking task pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (kernel.sched_*) by default; locks scheduler tunables behind explicit admin gesture.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check verifies CONFIG_PREEMPT/HZ profile matches signed config.
+
+Per-doc rationale: the scheduler core sees every task pointer in the system and routes indirect calls through `sched_class` vtables that are prime targets for ROP/JOP gadgetry; PaX RAP/kCFI binds those vtables to their declared signatures, MEMORY_SANITIZE prevents stale `rq->curr` aliasing after exit, and Grsecurity HIDESYM/DMESG closes the /proc/sched_debug and WARN-trace channels that would otherwise enumerate the entire runqueue topology to unprivileged users.
+
 ## Open Questions
 
 (none at this Tier-3 level)

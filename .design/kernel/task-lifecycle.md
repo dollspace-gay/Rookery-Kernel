@@ -272,6 +272,31 @@ Per Axiom 4 of `00-security-principles.md`:
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers (clone3 cl_args, capget/capset, sigaction).
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code, kprobe/uprobe trampolines invoked from fork/exec hooks.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization seeded fresh on every fork/exec; defends against entry-stack layout reuse.
+- **PAX_REFCOUNT** — saturating refcount on task_struct, files_struct, cred, mm_struct, nsproxy, signal_struct, sighand_struct.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for task_struct, signal_struct, cred, sighand, nsproxy, pid; freed credential cannot resurface as effective-cap surprise.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit; wipes leaked signal frames and copy_thread context on every task entry/exit.
+- **PAX_UDEREF** — strict user-pointer access for all task-pointer ops (waitid info, signal info, rseq area).
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for signal restorer trampolines, prctl op handlers, and per-personality exec_domain handlers.
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses task_struct/kstack pointer disclosure via /proc/<pid>/stat fields.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); blocks attacker tracing victim's cred/cap transitions.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts; forks of crashed setuid victim get throttled exponentially.
+- **GRKERNSEC_TRUSTED_PATH_EXEC** — Trusted Path Execution policy enforced inside execve before binfmt dispatch; rejects exec from user-writable directories.
+- **GRKERNSEC_HARDEN_IPC** — restrict cross-uid signal delivery and pidfd_send_signal to same-owner targets.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep clone3 -> copy_process recursion under nested namespaces.
+- **GRKERNSEC_DMESG** — restrict syslog so fork-fail and oom-kill traces leaking task pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (kernel.unprivileged_userns_clone, kernel.kptr_restrict) by default-locked.
+- **GRKERNSEC_CHROOT_*** — chroot escape mitigations (mknod, double-chroot, fchdir, fchmodat AT_SYMLINK_NOFOLLOW) gated at task-lifecycle level.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check; verifies USER_NS / PID_NS / NAMESPACES profile matches signed config.
+
+Per-doc rationale: task-lifecycle owns cred, capability, namespace, and signal state — the entire privilege boundary of the system; every PaX REFCOUNT/MEMORY_SANITIZE rule applies first here because freed task/cred structures are the canonical UAF target for privilege escalation. RAP/kCFI hardens signal-restorer and prctl-handler dispatch where attacker-controlled state can pivot into arbitrary kernel functions, while Grsecurity HARDEN_PTRACE + TRUSTED_PATH_EXEC + CHROOT mitigations close the classic Linux privilege-elevation paths (ptrace-attach, exec-from-tmp, chroot-escape) at the only place that can authoritatively gate them.
+
 ## Open Questions
 
 (none — task-lifecycle syscalls are exhaustively specified by POSIX + Linux extensions; no architectural ambiguities at this tier)

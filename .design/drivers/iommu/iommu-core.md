@@ -184,6 +184,32 @@ iommu-core specific reinforcement:
 - **Default-domain swap on `/sys/kernel/iommu_groups/<N>/type` write** mediated by LSM hook + CAP_SYS_ADMIN (defense against userspace forcing IDENTITY mode on group it doesn't own).
 - **Pgsize_bitmap validated against `pgsize_bitmap` advertised by vendor** — never accept map size unsupported by HW (defense against malformed driver request).
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every `/sys/kernel/iommu_groups/*` sysfs write (default-domain swap, reserved-region add); VFIO-mediated `IOMMUFD_*` ioctl arg-len validated.
+- **PAX_KERNEXEC** — W^X across iommu ops vtables; page-table pages allocated for IO-pgtable are RW from kernel, never executable.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every IOMMU sysfs / iommufd / VFIO ioctl entry.
+- **PAX_REFCOUNT** — saturating refcount on `iommu_group`, `iommu_domain`, `iommu_device`, per-device `iommu_fwspec`, per-domain `iommu_dma_cookie`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for IO-pgtable pages (contain physaddrs of host memory; a leak after free could leak adjacent PT entries to a new domain).
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access on iommufd ioctl args; userspace-supplied IOVA never blindly used as kernel pointer.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `iommu_ops`, `iommu_domain_ops`, `iommu_iotlb_gather` callbacks, per-fault `iopf_handler`, `iommu_device_ops`.
+- **GRKERNSEC_IO** — driver never calls `iopl/ioperm`; IOMMU MMIO via `request_mem_region` + `ioremap` only.
+- **GRKERNSEC_HIDESYM** — `/sys/kernel/iommu_groups/<N>/devices/*` kernel pointers, IOMMU-MMIO base addresses, IO-pgtable roots masked from non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — IOMMU-fault, DMAR-fault, IRQ-remapping-fault, IOPF log lines restricted to CAP_SYSLOG (faults leak guest IOVA and target host phys-addr inference).
+- **GRKERNSEC_TPE** — Trusted Path Execution for `/dev/iommu` (iommufd) and `/dev/vfio/*` (VFIO group/container) — these give a userspace process direct DMA-mapping capability.
+- **GRKERNSEC_KMOD** — iommu driver auto-load (intel-iommu, amd-iommu, arm-smmu, virtio-iommu) gated; CAP_SYS_MODULE required.
+- **GRKERNSEC_MODHARDEN** — module signature required for `iommu`, all vendor IOMMU drivers; defense against rootkit replacing iommu_ops to disable isolation.
+- **CAP_SYS_RAWIO + CAP_SYS_ADMIN** strict for `iommufd` device-bind, VFIO container-attach, default-domain type swap, reserved-region add, `iommu.passthrough=1` cmdline.
+- **GRKERNSEC_BRUTE** — per-device IOMMU-fault storm rate-limited; defense against malicious VF flooding the fault queue to mask a real attack.
+- **PAX-anti-DMA-from-userland** — VFIO/iommufd DMA-map pins user pages with `pin_user_pages` + accounting against `RLIMIT_MEMLOCK`; never permits mapping kernel pages into a userspace-owned domain.
+- **ACS-isolation strict-mode** — Rookery refuses to bind VFIO to a device whose IOMMU group spans multiple non-isolated PCIe functions; defense against peer-DMA-leak between assigned-to-guest and host-owned devices.
+- **iommu.strict=1 default** — IOTLB invalidation done synchronously on unmap; defense against use-after-unmap DMA (queued-invalidation race window).
+- **SecureBoot+IOMMU coupling** — when SecureBoot is enabled, Rookery refuses to honor `iommu=off` / `intel_iommu=off` / `amd_iommu=off` cmdline; defense against firmware-level DMA-attack vector.
+
+Per-driver rationale: the IOMMU core is the linchpin of every DMA-isolation guarantee in the system — VFIO/iommufd-assigned devices, virtio-iommu paravirt, peer-DMA between PCIe devices, and confidential-VM IO trust all depend on it; a single mis-validated map call that places an IOVA over the MSI-X window can hijack interrupts and a default-domain swap to IDENTITY mode disables isolation entirely. Grsec reinforces by gating every isolation-affecting sysfs/ioctl behind CAP_SYS_ADMIN + LSM, signing every iommu_ops vtable, sanitizing IO-pgtable pages on free, hiding fault details from non-CAP_SYSLOG (faults are an information-disclosure channel), enforcing `iommu.strict=1` synchronous invalidation, and tying IOMMU enablement to SecureBoot so a malicious bootloader cannot disable isolation at boot.
+
 ## Open Questions
 
 (none at this Tier-3 level)

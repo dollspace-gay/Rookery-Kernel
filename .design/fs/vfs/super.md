@@ -207,6 +207,28 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on `struct statfs`/`statfs64`/`statvfs` out-buffers and remount-option in-buffers.
+- **PAX_KERNEXEC** — W^X for super_operations vtables and any FS module text mapped via `register_filesystem`.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at statfs / mount / remount / umount entries.
+- **PAX_REFCOUNT** — saturating refcount on `s_active`, `s_count`, `s_writers` per-class counters; wrap-to-zero UAF closed.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for super_block slabs, sb->s_fs_info FS-private tails, sb->s_security LSM blob.
+- **PAX_UDEREF** — strict user-pointer access for fsconfig payloads + mount/remount option strings.
+- **GRKERNSEC_HIDESYM** — hide super_block kernel pointers in /proc/mounts + tracepoints + audit records.
+- **GRKERNSEC_LINK** — `fs.protected_hardlinks` policy plumbed through `s_flags`/SB_I_* iflags so per-mount can override.
+- **GRKERNSEC_SYMLINKOWN** — symlink-owner restrictions evaluated against per-sb idmap.
+- **GRKERNSEC_FIFO** — FIFO-creation restrictions checked against per-sb `s_flags` (SB_NOSUID/NODEV/NOEXEC) before mknod path.
+- **GRKERNSEC_CHROOT_MOUNT** — `mount(2)` blocked inside chroot regardless of CAP_SYS_ADMIN at register_filesystem dispatch.
+- **GRKERNSEC_TRUSTED** — `trusted.*` xattr namespace gated at per-sb `s_xattr` handler dispatch.
+- **GRKERNSEC_PROC** — restrict `/proc/<pid>/mountinfo` to caller's mount namespace and CAP_SYS_ADMIN as policy dictates.
+- **PAX_RANDFS** — per-FS layout-randomization seed stored in sb (consumed by tmpfs/ramfs/proc inode-number assignment).
+- **PAX_SIZE_OVERFLOW** — statfs counter arithmetic + per-sb writer-class arithmetic uses checked operators.
+
+Per-doc rationale: the super_block is the per-mount hub that materializes a mount's security personality (NOSUID/NODEV/NOEXEC/POSIXACL/idmap/LSM-label) and serves as the trust root for every dentry, inode, and file under it. PAX_REFCOUNT + PAX_MEMORY_SANITIZE guard the lifecycle; GRKERNSEC_CHROOT_MOUNT + GRKERNSEC_TRUSTED + PAX_UDEREF lock the configuration + ABI surface where mount-time evasions historically land.
+
 ## Open Questions
 
 (none — sb semantics are exhaustively specified by the VFS contract)

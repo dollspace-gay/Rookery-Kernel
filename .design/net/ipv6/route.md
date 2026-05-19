@@ -190,6 +190,27 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every RTM_*ROUTE / RTM_*NEXTHOP netlink message; per-NLA accessor bound-checks before any deref.
+- **PAX_KERNEXEC** — W^X on `fib6_*_ops`, route-encap dispatch vtables, and BPF programs attached via `fib6_notifier`.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every rtnetlink + sysctl-write entry to the IPv6 routing subsystem.
+- **PAX_REFCOUNT** — saturating refcount on every `fib6_info`, `rt6_info`, per-bucket PMTU/redirect cache entry, ECMP nexthop array, and standalone nexthop-object.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for fib6_info + rt6_info slab objects (carry gateway addresses + metrics that may leak topology).
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — netlink message parse via `nla_*` accessors; never directly deref user pointers from the rtnetlink path.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/proc/net/ipv6_route`, `ip -6 route show`, RTM_GETROUTE dumps, and `fib6_notifier` BPF event records.
+- **GRKERNSEC_BLACKHOLE** — IPv6 unreachable/prohibit route targets audited at rate-limit; silent black-hole mode suppresses ICMPv6 dest-unreachable on policy-routed drops.
+- **GRKERNSEC_RANDNET** — ECMP per-flow hash seed seeded from gr-random (prevents nexthop-prediction attacks); per-flow PMTU cache-key seed randomized.
+- **GRKERNSEC_NETFILTER** — `fib6_rules` selector mutation restricted to CAP_NET_ADMIN-in-init-userns; per-namespace rule mutation gated by GR-RBAC role.
+- **GRKERNSEC_SOCK_PRIV** — RTM_NEWROUTE / RTM_NEWNEXTHOP audited (high-privilege; default-deny outside `routing_admin` role).
+- **PAX_SIZE_OVERFLOW** — prefix-length (0..128) + nexthop-count + multipath-weight arithmetic uses checked operators; trie node-depth saturating.
+- **CAP_NET_ADMIN** strict — every RTM_NEWROUTE / RTM_DELROUTE / RTM_NEWNEXTHOP / sysctl write to `/proc/sys/net/ipv6/route/*` requires CAP_NET_ADMIN in init_user_ns (not the calling userns — prevents userns-faked routing-table mutation).
+- **CAP_NET_RAW** — `RTA_ENCAP`/`RTA_ENCAP_TYPE` (lightweight tunnels, SR-IPv6 encap) gated by CAP_NET_RAW + CAP_NET_ADMIN composite.
+
+Per-doc rationale: IPv6 routing is the configuration anchor for the entire IPv6 packet path. PaX/Grsecurity reinforcement focuses on (a) saturating refs on the FIB6 trie + rt6_info route cache (PMTU/redirect entries can fan out per-flow under attack), (b) GRKERNSEC_RANDNET for ECMP per-flow hash to defeat nexthop-prediction tracking, (c) GRKERNSEC_HIDESYM on `/proc/net/ipv6_route` and rtnetlink dumps to prevent network-topology disclosure, and (d) enforcing CAP_NET_ADMIN in init_user_ns specifically for RTM_*ROUTE writes — route-table mutation from a child userns is a documented privilege-escalation surface that must be sealed.
+
 ## Open Questions
 
 (none — IPv6 routing semantics are exhaustively specified by upstream + RFC 6724 + RFC 4191)

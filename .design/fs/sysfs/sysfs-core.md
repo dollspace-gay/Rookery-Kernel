@@ -280,6 +280,29 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on every per-attribute show/store buffer (PAGE_SIZE clamp via sysfs_emit) + every bin_attribute read/write payload.
+- **PAX_KERNEXEC** — W^X for `static const struct sysfs_ops` + `static const struct attribute_group` + `kobj_type` dispatch tables.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every sysfs read/write/ioctl entry.
+- **PAX_REFCOUNT** — saturating refcount on kernfs_node, attribute_group consumers, kobject backing refs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for seq_file scratch buffers (may carry per-driver sensitive attribute values: keys, addresses, PCI BAR contents via bin_attrs).
+- **PAX_UDEREF** — strict user-pointer access for store callbacks' `const char *buf` and bin_attribute write payloads.
+- **PAX_CONSTIFY** — `struct attribute_group` / `struct kobj_attribute` / `struct bin_attribute` / `struct sysfs_ops` all `static const`; tables placed in .rodata.
+- **GRKERNSEC_HIDESYM** — show callbacks must not leak kernel pointers (e.g., `/sys/kernel/debug/*`, `/sys/class/*/uevent`); enforced by static lint + per-file review.
+- **GRKERNSEC_PROC** — `/sys/kernel/*` writable attributes (livepatch, slub_debug, etc.) gated by CAP_SYS_ADMIN.
+- **GRKERNSEC_CHROOT_SYSCTL** — `/sys/...` writes blocked inside chroot (analogous to /proc/sys writes), even when CAP_SYS_ADMIN.
+- **GRKERNSEC_TRUSTED** — power-management attributes (`/sys/power/state`, `/sys/power/disk`, `/sys/power/wakeup_count`) require CAP_SYS_ADMIN + non-chroot.
+- **GRKERNSEC_NO_RBAC_SYSFS** — RBAC policy can deny per-attribute writes outside policy-marked roles for sensitive paths (`/sys/kernel/livepatch/*`, `/sys/kernel/debug/*`, `/sys/firmware/efi/efivars/*`).
+- **PAX_SIZE_OVERFLOW** — bin_attribute offset + size arithmetic uses checked operators; sysfs_emit position math too.
+- **PAX_USERCOPY** specifically blocks the `cat /sys/.../bin_attr` reading past `bin_attribute.size` via per-attribute bound enforcement.
+- **bin_attribute.private** — must never carry a kernel pointer leaked via show; lint enforces.
+- **per-attribute mode default 0644 (or stricter)** — writable-attribute audit lives in CHANGELOG per attribute add.
+
+Per-doc rationale: sysfs is the kernel's main control-plane export to userspace; sensitive attributes (livepatch enable, suspend trigger, EFI variable write, slub_debug, scheduler tunables) are the prevailing privilege-escalation surface for misconfigured systems. PAX_USERCOPY + PAX_UDEREF on the show/store dispatch + PAX_CONSTIFY on the vtables + GRKERNSEC_CHROOT_SYSCTL + GRKERNSEC_TRUSTED + per-attribute capability gating collectively lock down the surface.
+
 ## Open Questions
 
 (none — sysfs core API exhaustively specified by upstream + driver-developer test corpus)

@@ -360,6 +360,31 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers; rejects oversized cgroup.procs / cgroup.subtree_control writes.
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code (BPF_CGROUP_* programs attached via cgroup_bpf), kprobe/uprobe trampolines on attach/fork/exit hooks.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization; obscures `cgroup_taskset` traversal stack frames during attach.
+- **PAX_REFCOUNT** — saturating refcount on task_struct, files_struct, cred, mm_struct, css_set (refcount_t), css (percpu_ref).
+- **PAX_MEMORY_SANITIZE** — zero-on-free for task_struct, signal_struct, cred, cgroup, css_set; prevents stale css aliasing after css_free.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit; wipes leaked `cgroup_taskset` frames after attach rollback.
+- **PAX_UDEREF** — strict user-pointer access for cgroupfs file read/write (cgroup.procs PID parsing, subtree_control token parsing).
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for `cgroup_subsys` vtable (css_alloc, can_attach, attach, fork, exit, css_free dispatch).
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses css / css_set pointer disclosure via /proc/<pid>/cgroup and cgroupfs debug files.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); blocks attacker tracing victim's cgroup migration state.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts; throttles attach-storm probes against can_attach veto.
+- **GRKERNSEC_BPF_HARDEN** — require CAP_BPF + CAP_NET_ADMIN for non-trivial BPF; gates cgroup_bpf program attach.
+- **GRKERNSEC_HARDEN_IPC** — restrict cgroup.kill recursive SIGKILL to same-owner or CAP_KILL holders.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep cgroup_apply_control recursive tree walks.
+- **GRKERNSEC_DMESG** — restrict syslog so cgroup attach failure / css_offline WARN traces leaking pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (kernel.cgroup_*, /proc/sys/kernel/unprivileged_userns_clone) by default-locked.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check; verifies CGROUP_BPF / CGROUP_V1 enablement matches signed config.
+- **Per-cgroup name length cap** + UTF-8 validation — defense against attacker writing oversized cgroup names to confuse /proc/<pid>/cgroup parsers.
+
+Per-doc rationale: cgroup is the resource-isolation and BPF-attach gateway for containers; a corrupted `cgroup_subsys` vtable or a stale `css` directly subverts resource limits and admits arbitrary BPF programs into kernel context. PaX RAP/kCFI binds the per-controller vtable (the canonical container-escape target), REFCOUNT/MEMORY_SANITIZE close the percpu_ref UAF window across css_offline races, and Grsecurity BPF_HARDEN + HARDEN_IPC + HIDESYM eliminate the unprivileged-BPF-attach and pointer-leak channels that turn cgroup misuse into full container escape.
+
 ## Open Questions
 
 (none — cgroup core framework exhaustively specified by upstream + cgroup-v2 documentation + container-runtime test corpus)

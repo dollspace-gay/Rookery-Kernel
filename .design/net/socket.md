@@ -262,6 +262,27 @@ socket-API-specific reinforcement:
 - **fd_install delayed until fully-allocated** — defense against partial-init fd visible.
 - **kernel_sendmsg validates iov in kernel-mem** — defense against accidental user-mem access.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every msghdr/iovec/sockaddr/optval user-buffer; `move_addr_to_kernel` + `move_addr_to_user` rely on PAX_USERCOPY validation slabs.
+- **PAX_KERNEXEC** — W^X on JIT'd socket filters (`SO_ATTACH_BPF`) and per-AF `proto_ops` vtables that dispatch from syscall entry.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every `__sys_*` entry; the socket-API is the densest syscall cluster in the kernel.
+- **PAX_REFCOUNT** — saturating refcount on every `Socket`, `SocketWq`, and file→sock back-reference; `fget_light`/`fput_light` fast-path retains saturation.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for SCM message buffers (especially `SCM_RIGHTS` fd arrays and `SCM_CREDENTIALS` cred blobs) and temp sockaddr-from-user storage.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access for every syscall arg; `Sys::sockfd_lookup_light` separates kernel pointer space from user pointer space.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/proc/net/*`, `/proc/<pid>/fd`, syslog, and audit records emitted by `audit_sockaddr`.
+- **GRKERNSEC_NO_SIMULT_CONNECT** — prevent same-uid parallel connect to identical dst:port (TCP SYN-flood mitigation; rate-limits per-uid).
+- **GRKERNSEC_BLACKHOLE** — silent drop of probe packets to closed local ports; suppresses ICMP port-unreachable.
+- **GRKERNSEC_RANDNET** — randomize TCP ISN, IP IDs, source ports on every `__sys_connect` / implicit bind.
+- **GRKERNSEC_SOCK_PRIV** — socket-bind audit for privileged ports + raw sockets.
+- **GRKERNSEC_TPE** — Trusted Path Execution for raw socket bind + AF_PACKET creation.
+- **CAP_NET_RAW / CAP_NET_ADMIN / CAP_NET_BIND_SERVICE** strict — enforced in the binding userns, not init_user_ns; SCM_RIGHTS fd-pass cannot launder these.
+- **COMPAT-layer isolation** — 32-bit compat msghdr never aliases the 64-bit field layout; PAX_REFCOUNT applies to both paths.
+
+Per-doc rationale: `net/socket.c` is the universal syscall front door — every BSD socket call funnels through `Sys::sendmsg`/`Sys::recvmsg`/`Sys::sockfd_lookup_light`. PaX/Grsecurity reinforcement here is dense because (a) every user pointer in the system that's not a filename lands here, (b) SCM_RIGHTS can launder file-descriptor capabilities across uid boundaries unless gated, and (c) the COMPAT layer is a historical CVE source. Reinforcement focuses on UDEREF on every entry, saturating refs on fd-table interactions, and audit on every privileged bind/connect.
+
 ## Open Questions
 
 (none at this Tier-3 level)

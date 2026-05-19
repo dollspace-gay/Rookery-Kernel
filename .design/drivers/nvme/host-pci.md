@@ -263,6 +263,30 @@ host-pci specific reinforcement:
 - **NSSR (NVM Subsystem Reset) requires CAP_SYS_RAWIO** — affects all controllers in subsystem (cross-ref `host-core.md`).
 - **Per-vendor quirks-table audited** — every entry has rationale comment + spec or erratum reference.
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every PRP/SGL build path (`Iod::setup_prps` / `_setup_sgls`); per-bio dma_map_page length checked against declared cmd `total_len`.
+- **PAX_KERNEXEC** — W^X for any vendor firmware-blob staging region (CMB-backed firmware-image-download is mapped RO from device side).
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at PCIe-NVMe ioctl entry inherited from host-core.
+- **PAX_REFCOUNT** — saturating refcount on `Dev`, `Queue`, `Cmb`, `Hmb`, `iod_mempool`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for all DMA-coherent SQ/CQ pages, PRP-list pages, HMB descriptor chunks, iod-mempool slabs.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access; CMB userspace-mmap (when permitted) marked `VM_IO | VM_DONTEXPAND | VM_DONTDUMP`.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `nvme_ctrl_ops` (pci variant), per-MSI-X `irq_handler_t`, `pci_error_handlers`, `dev_pm_ops`.
+- **GRKERNSEC_IO** — BAR0 access via `pci_iomap` + `request_mem_region`; no `iopl/ioperm` ever; doorbell writes through validated `q_db` only.
+- **GRKERNSEC_HIDESYM** — `/sys/bus/pci/devices/<bdf>/nvme/...` BAR addresses, CMB/HMB physical addresses, MSI-X vector pointers masked from non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — PCIe AER + controller-fatal CSTS.CFS log lines restricted to CAP_SYSLOG.
+- **GRKERNSEC_TPE** — raw access to `/dev/nvme<N>` requires Trusted Path; SR-IOV VF chardev inherits same TPE policy.
+- **GRKERNSEC_KMOD** — `nvme` PCI driver auto-bind gated by CAP_SYS_MODULE; `force_pci=` cmdline restricted at boot.
+- **GRKERNSEC_MODHARDEN** — module signature required for `nvme`, `nvme_pci`, vendor-quirk overlays.
+- **GRKERNSEC_NO_FBSPLASH** — not applicable; documented as N/A for storage-only PCIe driver.
+- **CAP_SYS_RAWIO** strict for `NVME_IOCTL_SUBSYS_RESET` (resets entire NVM subsystem), CMB-SQE-placement cmdline override, NSSR escalation; SR-IOV `sriov_numvfs` write requires CAP_SYS_ADMIN.
+- **GRKERNSEC_BRUTE** — repeated controller resets from userspace rate-limited (1/sec already enforced; grsec adds per-UID accounting).
+- **PAX-anti-DMA-from-userland** — HMB host buffer pages never user-mappable; CMB-SQE region is read-only from any userspace mmap unless `CAP_SYS_RAWIO` + `mmap_force_cmb_sq=1` (developer-only) is set.
+
+Per-driver rationale: the PCIe NVMe transport gives a device direct DMA access to host memory via PRP/SGL lists and exposes both an in-controller memory window (CMB) and an admin path that can re-flash firmware; grsec reinforces by sanitizing every DMA-coherent buffer on free (PRP-list pages can contain leftover physaddrs of recent IO), refusing to leak BAR/CMB/HMB physical addresses through sysfs, and gating any subsystem-wide destructive operation (NSSR, sanitize, SR-IOV reconfigure) behind CAP_SYS_RAWIO / CAP_SYS_ADMIN with kCFI-signed ops vtables.
+
 ## Open Questions
 
 (none at this Tier-3 level)

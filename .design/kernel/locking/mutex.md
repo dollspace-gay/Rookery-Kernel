@@ -211,6 +211,28 @@ mutex-specific reinforcement:
 - **`mutex_lock_interruptible` signal-delivery** preserves wait_list integrity via `__set_task_state` + signal_pending check before schedule.
 - **HANDOFF flag prevents starvation** — long-waiting first-waiter sets HANDOFF; subsequent unlocker hands directly without spin-steal.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers; rejects user copies that overlap mutex_waiter stack frames.
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code, kprobe/uprobe trampolines invoked while a mutex is held.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization; obscures `mutex_waiter`-on-stack layout against targeted overwrite.
+- **PAX_REFCOUNT** — saturating refcount on task_struct (the owner ptr packed in `owner` field), files_struct, cred, mm_struct.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for task_struct, signal_struct, cred; stale owner pointers cannot be resurrected via slab reuse.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit; wipes leaked `MutexWaiter` after slow-path return.
+- **PAX_UDEREF** — strict user-pointer access for all task-pointer ops invoked under ww_ctx-bearing slow-paths.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for OSQ + lockdep callback vtables; mutex slow-path indirect dispatch validated.
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses owner_ptr leak via /proc/lock_stat.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); blocks attacker from reading the owner field of a victim's mutex via ptrace-peek.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts; throttles timing-channel probes of optimistic-spin window.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep nested ww_mutex retry loops.
+- **GRKERNSEC_DMESG** — restrict syslog so wound-wait WARN traces leaking owner ctx pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (lock_stat, lockup_detector tunables) by default.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check; verifies DEBUG_MUTEXES/LOCKDEP profile matches signed config.
+
+Per-doc rationale: mutexes carry a raw `task_struct *` in their `owner` field and may sleep arbitrarily long, making them prime targets for owner-pointer disclosure and stale-pointer reuse; PaX MEMORY_SANITIZE + REFCOUNT prevent slab-reuse aliasing of stale owners, RAP/kCFI hardens the OSQ + ww-mutex indirect-call surface, and Grsecurity HIDESYM/DMESG closes the information-leak channels that would otherwise expose owner identity through /proc/lock_stat and lockdep WARN output.
+
 ## Open Questions
 
 (none at this Tier-3 level)

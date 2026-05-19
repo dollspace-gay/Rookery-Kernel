@@ -172,6 +172,28 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on all path/dirent/inode buffers.
+- **PAX_KERNEXEC** — W^X for any binfmt code-page mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every entry.
+- **PAX_REFCOUNT** — saturating refcount on dentries, inodes, files, and supers (avoids wrap-to-zero UAF).
+- **PAX_MEMORY_SANITIZE** — zero-on-free for filename slabs, inode blobs, and credential-bearing structs.
+- **PAX_UDEREF** — strict user-pointer access for all path/name copies.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers (dentry/inode addresses) in /proc/<pid>/* and audit output so dcache addresses cannot be used to bypass KASLR.
+- **GRKERNSEC_LINK** — cross-uid hardlink/symlink restrictions (sticky+protected_*) enforced at dcache `d_alloc` + `d_instantiate` time.
+- **GRKERNSEC_SYMLINKOWN** — symlink owner-must-match-dir-owner under sticky bit, checked on negative-dentry resolution.
+- **GRKERNSEC_FIFO** — FIFO/socket-in-sticky-dir creation restrictions, enforced when allocating dentries for `mknod`-class targets.
+- **GRKERNSEC_CHROOT_*** — full chroot containment family; dcache `..`-traversal honors per-task `fs->root` even via RCU-walk.
+- **GRKERNSEC_TRUSTED** — `trusted.*` xattr namespace gated at dcache lookup for cap-aware dispatch.
+- **GRKERNSEC_PROC** — restrict /proc/<pid>/maps/cwd/exe symlink resolution against the dcache when `hidepid` is in force.
+- **PAX_RANDFS** — dcache hash bucket count + per-mount seed randomized to defeat targeted hash-collision DoS.
+- **PAX_MEMORY_UDEREF** — `qstr->name` user-pointer guard at every `getname` interception.
+
+Per-doc rationale: the dcache is the kernel's most attractive UAF + KASLR-leak surface because dentries are short-lived, plentiful, and pointer-rich; PAX_REFCOUNT + PAX_MEMORY_SANITIZE + GRKERNSEC_HIDESYM together close the wrap-to-zero / freelist-spray / pointer-leak trifecta, while GRKERNSEC_LINK/SYMLINKOWN/FIFO/CHROOT enforce the path-policy decisions that the dcache materializes for every namei walker.
+
 ## Open Questions
 
 (none — dcache semantics are exhaustively specified by POSIX path-resolution requirements + Linux's per-mount + RCU-walk extensions)

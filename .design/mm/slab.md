@@ -232,6 +232,30 @@ Per Axiom 4 of `00-security-principles.md`:
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — every slab cache is tagged with a usercopy region (offset + length within object); `copy_to/from_user` against a slab object validates the range falls inside the cache's declared usercopy zone. Unflagged caches reject `copy_*_user` at compile time via the `UserCopyOk` trait.
+- **PAX_KERNEXEC** — slab allocator .text + rodata are RX/RO; runtime self-modification of dispatch tables forbidden.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every entry-point that invokes `kmalloc`/`kfree` (effectively every syscall).
+- **PAX_REFCOUNT** — `kmem_cache->refcount` and per-object refcounts (where present) are saturating `Refcount` types.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for every slab object unless explicitly opt-out via `SLAB_NO_ZERO_ON_FREE`; defeats info-leak via slab spray on freed objects containing creds/keys.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on syscall exit; pairs with slab sanitize to deny end-to-end info-leak chains.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement on `kmem_cache->ctor`, shrinker callbacks, and any function pointer stored in a slab cache.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/proc/slabinfo` and `/sys/kernel/slab/<cache>/*` output to non-CAP_SYSLOG readers; freelist pointers never leaked.
+- **GRKERNSEC_DMESG** — restrict SLUB debug error reports (poison-overwritten, redzone-violated, freepointer-corrupted) to CAP_SYSLOG to deny attacker confirmation of exploit progress.
+- **CONFIG_SLAB_FREELIST_HARDENED** — freelist pointers XOR-obfuscated with per-cache random + the object's own address; detects naive overwrites.
+- **CONFIG_SLAB_FREELIST_RANDOM** — per-slab-page freelist order randomized; defeats deterministic spray and reduces predictability of which object a `kmalloc` returns.
+- **AUTOSLAB** — per-type slab caches via `KmemCache::<T>::new()`; `core::any::type_name::<T>()` provides per-type name; ensures every distinct type allocated has its own slab cache so cross-type UAF spray is impossible.
+- **slab_nomerge** — kernel-cmdline default-on; mergeable caches stay separate (defeats cross-cache UAF spray for size-compatible caches).
+- **GRKERNSEC_LIBC_SANITIZER** — slab-sanitize integration interoperates with userspace allocator hardening; freed slab objects readable as zero from sanitizer-instrumented test runs.
+- **PAX_UDEREF** — slab API never accepts raw user pointers; all user-facing copy operations go through `UserPtr<T>` + PAX_USERCOPY-validated zone.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection at every deep slow-path slab refill (recursion through page allocator).
+- **CONFIG_SLUB_DEBUG** — poison + redzone + user-track functional under `slub_debug=PFZU`; report format matches upstream "BUG: kmalloc-X object @ Y: poison overwritten" for forensic compat.
+
+Per-doc rationale: SLUB is the universal small-object allocator and the prime target for heap-shaping attacks (UAF, OOB, type confusion via cache merging). PaX/Grsecurity hardening here is the difference between an exploit landing reliably and an exploit getting caught at the freelist-pointer overwrite. The combination of CONFIG_SLAB_FREELIST_HARDENED (XOR-obfuscated freepointers), CONFIG_SLAB_FREELIST_RANDOM (non-deterministic alloc order), AUTOSLAB (per-type isolation), slab_nomerge (no cross-cache spray), and PAX_MEMORY_SANITIZE (zero-on-free) collectively render every classical SLUB-spray primitive unreliable. PAX_USERCOPY closes the read-from-arbitrary-slab-object info-leak vector that has historically been worth one exploitation primitive per CVE.
+
 ## Open Questions
 
 (none — slab semantics are fully specified by SLUB design + upstream conventions; no architectural ambiguities at this tier)

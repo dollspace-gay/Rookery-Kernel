@@ -262,6 +262,30 @@ xhci-specific reinforcement:
 - **PM state-machine audited** — D-state + Run/Halt transitions follow xHCI spec; defense against malformed VMM driving controller into invalid state.
 - **Per-port over_current handler rate-limited** — defense against over-current event flood causing scheduler stall.
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every xhci-specific ioctl path (debug-cap chardev `/dev/xhci-dbc*`); per-TRB payload length validated against ring segment size.
+- **PAX_KERNEXEC** — W^X on any xHCI firmware/ROM image staged via Renesas/ASMedia firmware-download; debug-cap RX/TX TRB buffers never marked executable.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every xhci-dbc ioctl entry.
+- **PAX_REFCOUNT** — saturating refcount on `xhci_hcd`, per-slot `xhci_virt_device`, per-endpoint `xhci_virt_ep`, per-ring `xhci_ring`, per-stream `xhci_stream_info`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for DCBAA, ERST, event-ring, command-ring, all device-context pages (input-context contains DMA addrs that must not leak), scratchpad buffers.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access on USBDEVFS-isoc URBs landing in xhci-built isoc TRBs; descriptor pages never user-mappable.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `hc_driver` (xhci variant), per-event-handler dispatch (`handle_cmd_completion`, `handle_port_status`, `handle_tx_event`), `pci_error_handlers`.
+- **GRKERNSEC_IO** — xHCI MMIO via `pci_iomap` only; no `iopl/ioperm`; doorbell/runtime/operational register windows bounds-checked against `cap_regs.hccparams`.
+- **GRKERNSEC_HIDESYM** — DCBAA physaddr, command-ring physaddr, MSI-X vector ptrs hidden from `/sys/bus/pci/devices/*/xhci_hcd/`.
+- **GRKERNSEC_DMESG** — host-system-error (HSE), host-controller-error, port-link-state-error log lines restricted to CAP_SYSLOG.
+- **GRKERNSEC_TPE** — Trusted Path Execution for `/dev/xhci-dbc*` debug-capability chardev (gives direct kernel debug pipe).
+- **GRKERNSEC_KMOD** — `xhci_pci` / `xhci_plat` auto-bind gated by CAP_SYS_MODULE; vendor-quirk overlay modules signature-required.
+- **GRKERNSEC_MODHARDEN** — module signature required for `xhci_hcd`, `xhci_pci`, `xhci_plat_hcd`, `xhci_pci_renesas`.
+- **CAP_SYS_RAWIO** strict for `XHCI_DBC_*` debug-capability ioctls (xhci-dbc is a kernel debug channel — gating prevents userspace establishing a covert ring-0 console), Renesas firmware-download path, any `XHCI_QUIRK_*` runtime override.
+- **GRKERNSEC_BRUTE** — repeated port-link-state-error / over-current events per port rate-limited; defense against USB-killer / port-storm DoS.
+- **PAX-anti-DMA-from-userland** — DCBAA, scratchpad, device-context, and event-ring pages allocated with `dma_alloc_coherent` are not user-mappable; no `mmap()` path exposes them.
+- **xhci-dbc + USB4/Thunderbolt PCIe-tunneling** — when xHCI is reached over USB4 tunnel, `iommu_attach_device` must already have isolated the tunnel; grsec policy refuses xhci probe behind a non-isolating ACS path (cross-ref `drivers/iommu/iommu-core.md`).
+
+Per-driver rationale: xHCI is the highest-bandwidth USB controller and uniquely exposes the xhci Debug Capability — a hardware-level kernel-debug channel that, if accessible to unprivileged userspace via `/dev/xhci-dbc*`, would constitute a ring-0 backdoor; additionally USB4/Thunderbolt PCIe-tunneling makes the host xHCI reachable from a downstream PCIe-tunneled device that the user has not explicitly authorized. Grsec reinforces by gating dbgcap behind TPE+CAP_SYS_RAWIO, signing every xhci ops vtable, sanitizing every DMA-coherent context page on free (input-contexts leak slot/endpoint state otherwise), refusing to leak physaddrs of DCBAA/command-ring/event-ring through sysfs, and rate-limiting per-port over-current/PLS-error storms.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -229,6 +229,28 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every `sockaddr_in6` + `in6_pktinfo` cmsg + SOL_IPV6 setsockopt/getsockopt user-buffer.
+- **PAX_KERNEXEC** — W^X on `inet6_family_ops`, per-protocol `inet6_protosw` arrays, and the SOL_IPV6 option-dispatch table.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every AF_INET6 socket-family entry (`inet6_create`, `inet6_bind`, `inet6_connect`, `inet6_release`).
+- **PAX_REFCOUNT** — saturating refcount on `ipv6_pinfo`, per-bind-bucket, ehash/bhash bucket entries, per-flowlabel object, and dual-stack IPv4-mapped redirection records.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for ipv6_pinfo (especially `pktoptions` skb, `cgroup_bpf` refs, and `mcast_oif`/`ucast_oif` cached state).
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — sockaddr_in6 + setsockopt buffers via `UserPtr<...>`; per-cmsg parsing bound-checked.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/proc/net/tcp6`, `/proc/net/udp6`, `/proc/net/raw6`, `ss -6`, and `inet_diag` IPv6 dumps.
+- **GRKERNSEC_NO_SIMULT_CONNECT** — rate-limit same-uid IPv6 parallel `connect()` to identical (dst, dport); applies symmetrically with IPv4 path.
+- **GRKERNSEC_BLACKHOLE** — silent drop of IPv6 probe packets to closed local ports; suppresses ICMPv6 port-unreachable.
+- **GRKERNSEC_RANDNET** — randomize IPv6 flow label (per RFC 6437) when `IPV6_AUTOFLOWLABEL` set, ephemeral source port, and IPv6 fragment ID.
+- **GRKERNSEC_NETFILTER** — netfilter ip6_tables/nft-ipv6 mutation restricted to CAP_NET_ADMIN-in-init-userns.
+- **GRKERNSEC_SOCK_PRIV** — AF_INET6 SOCK_RAW + ICMPv6 ping-socket creation audited; per-uid rate-limited.
+- **GRKERNSEC_TPE** — Trusted Path Execution gate for SOCK_RAW IPv6 + AF_INET6 + `IPPROTO_RAW`.
+- **PAX_SIZE_OVERFLOW** — cmsg-length + extension-header chain length + scope_id arithmetic checked.
+- **CAP_NET_RAW / CAP_NET_ADMIN / CAP_NET_BIND_SERVICE** strict — SOCK_RAW requires CAP_NET_RAW in the binding userns; `IPV6_TRANSPARENT`/`IPV6_FREEBIND` require CAP_NET_ADMIN in init_user_ns; privileged-port bind (< 1024) requires CAP_NET_BIND_SERVICE.
+
+Per-doc rationale: AF_INET6 is the "front door" of the IPv6 stack. PaX/Grsecurity reinforcement here is critical because (a) dual-stack IPv4-mapped IPv6 means every IPv6 syscall path can transparently redirect to IPv4 — must keep refcount + memory-sanitize symmetric, (b) `IPV6_TRANSPARENT` and `IPV6_FREEBIND` are documented capability-bypass vectors that must enforce CAP_NET_ADMIN in init_user_ns, (c) SOCK_RAW on AF_INET6 with `IPPROTO_RAW` allows arbitrary IPv6 header forgery and requires both CAP_NET_RAW and Trusted Path Execution, and (d) the `IPV6_AUTOFLOWLABEL`/flow-label-mgr surface needs GRKERNSEC_RANDNET to prevent flow-label-prediction tracking.
+
 ## Open Questions
 
 (none — AF_INET6 ABI is exhaustively specified by upstream + RFCs)

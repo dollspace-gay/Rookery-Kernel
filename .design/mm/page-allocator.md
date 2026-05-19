@@ -227,6 +227,29 @@ Both are documented in the user manual; system administrators can disable for pe
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user with slab-size validation on this subsystem's user-facing allocations (`/proc/buddyinfo`, `/proc/zoneinfo`, `/proc/<pid>/pagemap` readers route through PAX_USERCOPY-checked zones).
+- **PAX_KERNEXEC** — W^X enforcement for any executable-mapped pages this subsystem touches; the buddy allocator's own .text + rodata are RX/RO.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every entry-point this subsystem owns (mainly `madvise`/`mlock`/page-fault re-entry through buddy slowpath).
+- **PAX_REFCOUNT** — saturating refcount on `struct page->_refcount` and `struct folio->_refcount` (defeats wrap-to-zero UAF on shared pages).
+- **PAX_MEMORY_SANITIZE** — zero-on-free for every freed page (`init_on_free=1` + `vm.zero_on_free=1` default); inherited and enforced at the buddy free path.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on syscall exit; applies to every buddy fast/slow-path returning to userspace.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement for `page_reporting_ops`, `migrate_pages` callbacks, and any GFP-policy function-pointer dispatch in the allocator.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/proc/buddyinfo`, `/proc/pagetypeinfo`, `/proc/<pid>/pagemap` output to non-CAP_SYSLOG readers; `/sys/kernel/page_owner/` access gated on capability.
+- **GRKERNSEC_DMESG** — restrict OOM/watermark-warning dmesg lines to CAP_SYSLOG; defeats fingerprinting of memory layout by unprivileged tasks.
+- **PAX_ASLR** — buddy honors per-NUMA-node randomization of starting PFNs handed to early-boot mappers; defeats deterministic-PFN spray.
+- **PAX_RANDMMAP** — coordinates with mmap base randomization (cross-ref `mm/mmap.md`); allocator never returns predictable PFN sequences across boots.
+- **PAX_PAGEEXEC** — every page returned to a user-space mapping defaults to NX unless caller explicitly requests PROT_EXEC (cross-ref `mm/mmap.md`).
+- **PAX_UDEREF** — page-allocator pagemap readers consume `UserPtr<T>` for caller-supplied addresses; raw user-VA dereferencing forbidden.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection at every recursive buddy split/coalesce on deep slow-path reclaim.
+- **GRKERNSEC_OOM_DENY** — allocator's OOM-trigger path consults grsec OOM-deny policy before invoking `out_of_memory()`; protected tasks excluded from victim list.
+- **DELAY_FREE_ONE_PAGE** — page quarantine on free (`vm.delay_free_pages=1` default); freed pages enter a brief delay queue before re-entry to free lists.
+
+Per-doc rationale: the buddy allocator is the universal source of physical pages for every other subsystem; any UAF, double-allocation, or refcount-wrap here propagates to every page-consuming kernel path. PaX/Grsecurity features here are foundational — PAX_MEMORY_SANITIZE + DELAY_FREE_ONE_PAGE jointly defeat naive heap-spray; PAX_REFCOUNT on `_refcount` defeats overflow attacks on shared pages; GRKERNSEC_HIDESYM denies attackers the PFN-to-VA mapping data that would otherwise leak via pagemap; PAX_RANDKSTACK randomizes every syscall entry that touches the slow-path; and GRKERNSEC_OOM_DENY ensures an attacker cannot OOM-kill a target by manufacturing memory pressure.
+
 ## Open Questions
 
 (none — buddy allocator semantics are well-defined; no architectural ambiguities at this tier)

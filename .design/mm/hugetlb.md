@@ -263,6 +263,30 @@ Hugetlb-specific reinforcement:
 - **Per-MAP_HUGETLB with non-2MB-aligned size: rejected** — defense against per-config invalid.
 - **Per-cgroup hugetlb.max enforces** — defense against per-cgroup unbounded.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — copy_to/from_user across a huge folio validated against slab usercopy zones; 2MB/1GB folios honor the same bounds as 4KB folios.
+- **PAX_KERNEXEC** — hugetlb .text + rodata RX/RO; per-hstate ops + freelist heads CONSTIFY'd where possible.
+- **PAX_RANDKSTACK** — per-fault kernel-stack randomization on `hugetlb_fault`; per-syscall on `mmap(MAP_HUGETLB)`.
+- **PAX_REFCOUNT** — `ResvMap->refs`, `hstate->free_huge_pages` accounting, folio refcount on huge folios all saturating.
+- **PAX_MEMORY_SANITIZE** — huge folios cleared via `clear_huge_page` on alloc; freed huge folios zeroed when returned to hstate freelist (2MB/1GB of zeroing — non-trivial cost, but necessary to defeat info-leak via huge-page spray).
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on syscall exit + fault-return path.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement on huge `vm_operations_struct` + hugetlb_cgroup notifier chain.
+- **GRKERNSEC_HIDESYM** — kernel pointers hidden from `/sys/kernel/mm/hugepages/*`, `/proc/meminfo HugePages_*` for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — huge-alloc-fail, vmemmap-optimization error dmesg lines restricted to CAP_SYSLOG.
+- **CAP_SYS_ADMIN gating for `nr_hugepages` writes** — `/proc/sys/vm/nr_hugepages` write requires CAP_SYS_ADMIN; GR-RBAC can further restrict.
+- **Per-cgroup hugetlb.max enforcement** — defeats one tenant exhausting huge-page pool to deny another tenant.
+- **PAX_PAGEEXEC** — huge folio PMD installations honor NX bit; PROT_EXEC absence yields NX-set huge PMD.
+- **PAX_MPROTECT** — W→X transitions on huge VMA force split + per-PTE reevaluation (cross-ref `mm/mmap.md`).
+- **PAX_UDEREF** — `mmap(MAP_HUGETLB, addr, ...)` reads addr via `UserPtr<...>`; raw VA dereference forbidden.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection on hugetlb-cgroup recursion + huge_pmd_share lock recursion.
+- **Per-fault `hugetlb_fault_mutex_table[hash]`** — defeats per-page concurrent-fault race that would otherwise install the same huge folio twice.
+- **`vm.hugetlb_optimize_vmemmap`** — opt-in vmemmap reduction; default-off until per-huge-page-metadata-collapse soak-tested for race-freedom.
+
+Per-doc rationale: hugetlb pages are 2MB or 1GB — a single huge-page info-leak is 500x to 250000x more impactful than a 4KB-page leak. PAX_MEMORY_SANITIZE on hugetlb free is mandatory (not optional) for any system where huge pages may hold sensitive data (database buffers, language-runtime heaps). The pre-reservation model also makes hugetlb a high-value target for DoS: an attacker with `mmap(MAP_HUGETLB)` access can lock out the entire huge-page reserve. CAP_SYS_ADMIN gating on `nr_hugepages` writes + per-cgroup hugetlb.max enforcement defeat both pool-exhaustion DoS and cross-tenant denial. PAX_PAGEEXEC + PAX_MPROTECT on huge VMA ensure W^X is enforced at the 2MB granularity — a single RWX huge PMD would be a 2MB grant of W^X-violation territory. The per-fault mutex (hashed) defeats the classic huge-page concurrent-fault double-install race.
+
 ## Open Questions
 
 (none at this Tier-3 level)

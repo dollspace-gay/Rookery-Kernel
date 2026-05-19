@@ -226,6 +226,29 @@ spinlock-specific reinforcement:
 - **Lockstat overhead gated by CONFIG_LOCK_STAT** — defense against per-acquire stat overhead in production.
 - **lock_torture as default boot-time test option** — early detect spinlock breakage in CI.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers.
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code, kprobe/uprobe trampolines.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization (critical for raw_spinlock paths invoked from syscall entry).
+- **PAX_REFCOUNT** — saturating refcount on task_struct, files_struct, cred, mm_struct.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for task_struct, signal_struct, cred.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit; clears spinlock-debug owner stack frames leaked into reusable stack regions.
+- **PAX_UDEREF** — strict user-pointer access for all task-pointer ops.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for arch_spin_lock function pointers and lockdep callbacks.
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses spinlock owner pointers in /proc/lock_stat.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); prevents attacker-controlled task inspecting in-flight spinlock state.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts (slows spin_lock_irqsave timing-channel probes).
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep nested raw_spin_lock recursion.
+- **GRKERNSEC_DMESG** — restrict syslog so lockdep splats leaking kernel pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (e.g. /proc/sys/kernel/lock_stat) by default.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check; verifies LOCKDEP/LOCK_STAT match expected production profile.
+- **spin_dump panic-on-corrupt mode** — when GRKERNSEC_PANIC_ON_CORRUPTION is set, magic mismatch escalates to oops rather than warning.
+
+Per-doc rationale: spinlocks are the lowest-level mutual-exclusion primitive and run in atomic/IRQ context where compromised state corrupts arbitrary task accounting; PaX REFCOUNT + KERNEXEC + RAP harden the lockdep/owner metadata and arch dispatch pointers, while Grsecurity HIDESYM/DMESG eliminates the unprivileged information leak channels that vanilla lockdep would otherwise expose.
+
 ## Open Questions
 
 (none at this Tier-3 level)

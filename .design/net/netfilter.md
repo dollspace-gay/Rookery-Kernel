@@ -211,6 +211,27 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every netlink-message buffer (nftables, ctnetlink, ipset, nfqueue) and every setsockopt-based iptables-legacy ruleset blob.
+- **PAX_KERNEXEC** — W^X on nftables JIT and `cls_bpf` programs invoked from netfilter hooks; per-expression evaluators are `static const` arrays.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on every nfnetlink + setsockopt-based rule mutation.
+- **PAX_REFCOUNT** — saturating refcount on every conntrack-entry, nft-table, nft-chain, nft-set, ipset, and flowtable; overflow trips audit + halts the offending writer.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for conntrack expectations + helpers (carries NAT translation state), ipset bucket entries, and nft `meta` blobs that may store user data.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — netlink message parse via `nla_*` accessors that bound-check; rule blobs from iptables-legacy never directly deref user pointers.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/proc/net/nf_conntrack`, `/proc/net/ip_tables_*`, nft netlink dumps, audit records, and packet traces.
+- **GRKERNSEC_NO_SIMULT_CONNECT** — feeds conntrack: throttles per-uid simultaneous NEW connections to identical 5-tuples (mitigates SYN-flood + conntrack-table-exhaustion DoS).
+- **GRKERNSEC_BLACKHOLE** — netfilter DROP target audited at default-rate; silent black-hole mode suppresses audit when target chain is the explicit blackhole sink.
+- **GRKERNSEC_RANDNET** — conntrack hash uses SipHash24 with per-boot random key (already upstream); reinforced by gr-random seeding.
+- **GRKERNSEC_NETFILTER** — `nfnetlink` writer ops + iptables setsockopt restricted to CAP_NET_ADMIN-in-init-userns (default-on); per-namespace netfilter mutation gated by GR-RBAC subject role.
+- **GRKERNSEC_SOCK_PRIV** — AF_NETLINK NFNL bind audited; per-uid rate-limited.
+- **PAX_SIZE_OVERFLOW** — rule-byte + offset + per-bucket count arithmetic uses checked operators; ipset hash chain length saturating.
+- **CAP_NET_ADMIN** strict — every nfnetlink writer + setsockopt-based mutation enforces CAP_NET_ADMIN in init_user_ns (not just current userns), preventing unprivileged-userns rule manipulation that escapes via parent-ns visible state.
+
+Per-doc rationale: netfilter is itself a kernel-side firewall — it is the defense-in-depth above LSM and below TCP. PaX/Grsecurity reinforcement is especially critical because (a) iptables-legacy still passes raw rule blobs via setsockopt (historical CVE source), (b) conntrack tables are a known DoS amplification surface and require per-bucket saturation, (c) the nfnetlink + nftables JIT pair are JIT engines that PAX_KERNEXEC must keep W^X, and (d) per-namespace netfilter state can be mutated by unprivileged-userns processes unless `CAP_NET_ADMIN` is enforced in init_user_ns.
+
 ## Open Questions
 
 (none — netfilter semantics are exhaustively specified by upstream + RFC + IETF documents)

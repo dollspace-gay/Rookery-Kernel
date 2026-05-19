@@ -234,6 +234,27 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every SIOC*IFREQ ioctl `struct ifreq` user-buffer and every rtnetlink RTM_*LINK message; ethtool ioctl payloads go through PAX_USERCOPY slabs.
+- **PAX_KERNEXEC** — W^X on per-driver `net_device_ops` vtables and XDP-attached BPF programs; per-driver `ethtool_ops` are `static const`.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on rtnetlink + ioctl + sysfs-write entry to netdev mutations.
+- **PAX_REFCOUNT** — saturating refcount on `net_device`, NAPI struct, per-queue, address-list entries (mc/uc/VLAN), and devmem dmabuf bindings.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for net_device objects (especially HW-key state in `tlsdev_ops`/`xfrmdev_ops`, NIC firmware buffers, and devmem dmabuf descriptors).
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — ioctl args from userspace via typed `UserPtr<ifreq>`; rtnetlink NLA accessors bound-check before deref.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/sys/class/net/<dev>/*`, `ip link show`, ethtool output, and rtnetlink dumps.
+- **GRKERNSEC_BLACKHOLE** — TX-path drop on uninstrumented `ndo_start_xmit` failure paths audited at default rate; silent drop mode for promiscuous-mode probes.
+- **GRKERNSEC_RANDNET** — `dev->dev_addr` randomization on VLAN/macvtap/veth creation (when `addr_assign_type` is `NET_ADDR_RANDOM`); MAC randomization seeded from gr-random.
+- **GRKERNSEC_NETFILTER** — netfilter integration; per-netdev egress/ingress hook registration restricted to CAP_NET_ADMIN-in-init-userns.
+- **GRKERNSEC_SOCK_PRIV** — AF_PACKET socket bind to a netdev audited; per-netdev promisc mode toggle audited.
+- **GRKERNSEC_TPE** — Trusted Path Execution gate for raw socket bind to a physical netdev.
+- **PAX_SIZE_OVERFLOW** — queue-index + buffer-size + frag-count + ring-position arithmetic uses checked operators; TX descriptor ring head/tail saturating.
+- **CAP_NET_ADMIN / CAP_NET_RAW** strict — netdev mutation (register, unregister, set flags, set MAC, change MTU, attach XDP) requires CAP_NET_ADMIN in init_user_ns; raw-socket bind to a real netdev requires CAP_NET_RAW.
+
+Per-doc rationale: the netdev layer owns every NIC abstraction the kernel knows about. PaX/Grsecurity reinforcement is critical because (a) `net_device_ops` is a 150-function vtable filled by out-of-tree drivers that PAX_KERNEXEC must keep RO, (b) XDP BPF programs attached via `ndo_bpf` are JIT'd and must be W^X-mediated, (c) devmem-tcp binds DMA-buf handles directly into the RX path and requires saturating refs on the dmabuf descriptor, and (d) physical interface bring-up via rtnetlink is high-privilege and must be CAP_NET_ADMIN-in-init-userns, not userns-faked.
+
 ## Open Questions
 
 (none — netdev abstraction is exhaustively specified)

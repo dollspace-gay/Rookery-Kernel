@@ -281,6 +281,30 @@ futex-specific reinforcement:
 - **futex(2) flags FUTEX_PRIVATE_FLAG honored** — defense against shared-futex-key-leak across mm.
 - **wake_up_q outside bucket-lock** — defense against waiter scheduling-in racing with waker exit; reduces lock-hold time.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers; rejects oversized robust_list_head copies and abs_time timespec copies.
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code, kprobe/uprobe trampolines that may fire under bucket-lock.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization; obscures `FutexQ`-on-stack layout against targeted overwrite by a racing exit handler.
+- **PAX_REFCOUNT** — saturating refcount on task_struct (waiter), pi_state, cred, mm_struct, files_struct.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for FutexPiState, task_struct; prevents stale pi-state aliasing after rt_mutex release.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit; wipes leaked `FutexQ` and `FutexKey` stack frames between futex(2) calls.
+- **PAX_UDEREF** — strict user-pointer access for cmpxchg_futex_value_locked and copy_from_user on robust_list_head; refuses kernel-pointer uaddr.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for rt_mutex wake-callback and futex_q->lock_ptr back-reference dispatch.
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses futex_q / pi_state pointer disclosure via /proc/<pid>/wchan.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); blocks attacker from inspecting a victim's futex robust_list registration.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts; throttles bucket-collision flooding probes.
+- **GRKERNSEC_HARDEN_IPC** — restrict cross-uid FUTEX_WAKE on shared-mapping futexes to same-owner mappings.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep PI-chain boost walks.
+- **GRKERNSEC_DMESG** — restrict syslog so robust-list cleanup WARN/oops traces leaking pi_state pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (kernel.futex_hashsize tunable) by default-locked.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check; verifies FUTEX/FUTEX_PI/ROBUST_LIST profile matches signed config.
+- **Per-mm-uaddr key salt** — defense against cross-process futex-key prediction; salt seeded at boot from RDRAND.
+
+Per-doc rationale: futex backs every userspace lock in the system, so a corrupted `pi_state` or stale `FutexQ` pointer is a direct kernel-level UAF/EoP primitive; the robust-list cleanup path operates on attacker-controllable userspace structures during exit. PaX UDEREF + USERCOPY prevent kernel-pointer poisoning of uaddr, REFCOUNT/MEMORY_SANITIZE close the pi_state UAF window across requeue races, RAP/kCFI hardens the rt_mutex wake-callback dispatch, and Grsecurity HIDESYM/HARDEN_PTRACE/HARDEN_IPC eliminate the cross-process futex-key disclosure channels that vanilla Linux exposes through /proc/<pid>/wchan.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -220,6 +220,31 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on every `getname` path-string buffer + readlink output + d_path output.
+- **PAX_KERNEXEC** — W^X for inode_operations and dentry_operations vtables traversed during walk.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every namei-entered syscall (open/stat/openat2/etc.).
+- **PAX_REFCOUNT** — saturating refcount on dentry/mnt references taken during ref-walk fallback.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `struct nameidata`, `qstr` name slabs, and `getname` cached pathnames.
+- **PAX_UDEREF** — strict user-pointer access for all path strings + readlinkat result buffers.
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in `/proc/<pid>/exe`/`cwd`/`root`/`fd/N` symlink resolution + namei tracepoints.
+- **GRKERNSEC_LINK** — `protected_hardlinks` / `protected_symlinks` (sticky+world-writable+not-owner) enforced at every component lookup.
+- **GRKERNSEC_SYMLINKOWN** — symlink owner must match dir owner under sticky bit, checked during symlink-follow.
+- **GRKERNSEC_FIFO** — FIFO-in-sticky-dir restriction at terminal-component create.
+- **GRKERNSEC_CHROOT_FINDTASK** — task-introspection (`/proc/<pid>`) blocked when chroot-confined per upstream chroot policy.
+- **GRKERNSEC_CHROOT_FCHDIR** — block `fchdir` to a dirfd captured outside the chroot.
+- **GRKERNSEC_CHROOT_DOUBLE** — block re-chroot within a chroot.
+- **GRKERNSEC_CHROOT_UNIX** — block AF_UNIX abstract-socket access via path resolution across chroot.
+- **GRKERNSEC_TPE** — Trusted Path Execution: deny `exec`-class lookup unless the resolved path lives under a trusted-uid + non-world-writable chain.
+- **GRKERNSEC_PROC** — `/proc/<pid>/fd/N` magic-link resolution gated by hidepid policy.
+- **PAX_MEMORY_UDEREF** — user-pointer guards at `strncpy_from_user` boundary in getname.
+- **LOOKUP_NO_SYMLINKS / NO_MAGICLINKS / NO_XDEV / BENEATH / IN_ROOT default-encouraged** — openat2 hardening flags preserved + documented as the default for new container-runtime integrations.
+
+Per-doc rationale: path resolution is THE primary attack surface for sandbox escape — every TOCTOU, symlink-race, chroot-bypass, and `/proc/<pid>/fd` magic-link evasion lives here. PAX_REFCOUNT + GRKERNSEC_LINK/SYMLINKOWN/FIFO + GRKERNSEC_TPE + the openat2 LOOKUP_NO_* flags collectively close the classical races; PAX_USERCOPY + PAX_UDEREF + GRKERNSEC_HIDESYM seal the userspace-facing buffers.
+
 ## Open Questions
 
 (none — path-resolution semantics are exhaustively specified by POSIX + Linux extensions)

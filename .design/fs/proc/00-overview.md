@@ -206,6 +206,31 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on every per-file seq_file output buffer (stat/status/maps/smaps/numa_maps/pagemap/etc.).
+- **PAX_KERNEXEC** — W^X for proc_ops vtables and per-file dispatch tables.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at read/write/lseek/getdents entries to procfs files.
+- **PAX_REFCOUNT** — saturating refcount on `proc_dir_entry`, per-pid task refs taken by proc lookup, `proc_inode`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for proc_inode slabs, per-task formatted-output scratch (auxv/environ/maps carry process-credential-bearing data).
+- **PAX_UDEREF** — strict user-pointer access for `/proc/<pid>/mem` read/write, `clear_refs` writes, sysctl writes through `/proc/sys/*`.
+- **GRKERNSEC_HIDESYM** — `/proc/kallsyms` redacts all kernel addresses for non-CAP_SYSLOG; `/proc/<pid>/maps` redacts vsyscall/vdso addresses; `wchan` returns 0 not symbol.
+- **GRKERNSEC_PROC** — restrict /proc/<pid>/ visibility (`hidepid=2` default) so non-root users only see their own pids.
+- **GRKERNSEC_PROC_USERGROUP** — bypass-group for hidepid (admin/monitor uid) gated by gid= mount-option.
+- **GRKERNSEC_PROC_ADD** — additional CAP_SYS_ADMIN restrictions on `/proc/<pid>/{auxv,environ,io,stat,status,wchan,syscall}` for cross-uid reads.
+- **GRKERNSEC_PROC_IPADDR** — sanitize IP addresses in /proc/net/tcp{,6}/udp{,6}/unix entries for non-CAP_NET_ADMIN readers.
+- **GRKERNSEC_DMESG** — /proc/kmsg + dmesg gated by CAP_SYSLOG (dmesg_restrict default-on).
+- **GRKERNSEC_LINK** — `/proc/<pid>/exe`/`cwd`/`root` magic-symlink resolution honors per-task LSM context + chroot bounds.
+- **GRKERNSEC_CHROOT_FINDTASK** — /proc/<pid>/* inaccessible across chroot boundary (cross-uid + cross-chroot task visibility blocked).
+- **GRKERNSEC_SUIDDUMP** — `/proc/<pid>/coredump_filter` reset on suid-exec; `/proc/<pid>/mem` writes blocked into suid-exec'd tasks.
+- **GRKERNSEC_TRUSTED** — `trusted.*` xattr writes via /proc/<pid>/attr/* gated by CAP_SYS_ADMIN.
+- **PAX_SIZE_OVERFLOW** — per-file offset arithmetic uses checked operators (seq_file position math).
+- **kptr_restrict=1 default + dmesg_restrict=1 default + hidepid=2 default** — three sysctl knobs in /proc/sys/kernel pre-locked to security-favoring values (configurable).
+
+Per-doc rationale: procfs is THE highest-bandwidth info-disclosure surface in the kernel — every KASLR/heap-layout/credential leak in the public CVE record either originates in or is reachable via /proc/<pid>/* or /proc/kallsyms or /proc/kcore. GRKERNSEC_HIDESYM + GRKERNSEC_PROC + GRKERNSEC_DMESG (with the three kptr/dmesg/hidepid defaults) collectively reduce the readable kernel-pointer surface by ~99% for unprivileged tasks; PAX_USERCOPY + PAX_MEMORY_SANITIZE close the data-side leaks.
+
 ## Open Questions
 
 (none at Tier-2 — defer to per-Tier-3)

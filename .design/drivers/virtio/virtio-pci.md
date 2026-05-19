@@ -531,6 +531,29 @@ VirtIO-PCI transport reinforcement:
 - **Per-config_vector(NO_VECTOR) before pci_free_irq_vectors** — defense against per-device-MSI-X-write-to-freed-vector.
 - **Per-force_legacy bool-param-only (CONFIG_VIRTIO_PCI_LEGACY)** — defense against per-modern-only build accidentally falling to legacy.
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every per-config-space access from userland (virtio-vsock-passthrough, vhost-net ioctl) flowing through this transport.
+- **PAX_KERNEXEC** — W^X across all transport-supplied function pointers (`setup_vq`, `del_vq`, `config_vector`, `avq_index`); table mapped RO post-probe.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every `vp_*` ioctl/sysfs entry.
+- **PAX_REFCOUNT** — saturating refcount on `VirtioPciDevice`, `VirtioPciVqInfo`, embedded `vdev`, `admin_vq.info`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for vp_dev, vqs[] array, msix_names[], msix_affinity_masks[], per-VQ info; ISR-byte mmap region cleared on remove.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access on vhost-VQ descriptors when consumed by host (vhost guarded; vp_notify never dereferences guest-supplied pointers directly).
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `virtio_config_ops`, `pci_driver`, `pci_error_handlers`, `dev_pm_ops`, MSI-X `irq_handler_t`, `vp_dev.setup_vq` / `del_vq` / `config_vector`.
+- **GRKERNSEC_IO** — legacy BAR0 I/O port access via `request_region` only; `force_legacy` cmdline rejected without CAP_SYS_ADMIN at boot.
+- **GRKERNSEC_HIDESYM** — `/sys/bus/pci/devices/<bdf>/virtio*/...` BAR addresses, ISR-byte iomem ptr, MSI-X vector ptrs masked from non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — VirtIO `DEVICE_NEEDS_RESET` + PCI AER lines restricted to CAP_SYSLOG.
+- **GRKERNSEC_TPE** — Trusted Path Execution applied to vhost/vdpa user nodes that ride on this transport (`/dev/vhost-*`, `/dev/vfio/*`).
+- **GRKERNSEC_KMOD** — `virtio_pci` PCI driver auto-bind gated by CAP_SYS_MODULE; `force_legacy=1` writes to `/sys/module/virtio_pci/parameters/` require CAP_SYS_ADMIN.
+- **GRKERNSEC_MODHARDEN** — module signature required for `virtio_pci`, `virtio_pci_legacy`, `virtio_pci_modern`.
+- **CAP_SYS_ADMIN** strict for `sriov_configure` (writes to `/sys/bus/pci/.../sriov_numvfs`), vhost backend bring-up, vDPA management VQ access.
+- **GRKERNSEC_BRUTE** — repeated `pci_enable_sriov` failures or `DRIVER_OK` violations rate-limited per-UID.
+- **PAX-anti-DMA-from-userland** — admin-VQ descriptors never user-mappable; SR-IOV VF config-space writes from guest mediated by VFIO + IOMMU group isolation (cross-ref `drivers/iommu/iommu-core.md`).
+
+Per-driver rationale: virtio-pci is the canonical paravirt transport — every cloud VM's network, disk, GPU, console, and balloon flows through this driver, and a malicious or buggy hypervisor backend can advertise arbitrary BAR layouts, capability chains, MSI-X vector counts, and admin-VQ commands; grsec reinforces by validating every cap-walk length (already in the design), refusing to leak iomem pointers via sysfs, gating SR-IOV reconfiguration behind CAP_SYS_ADMIN+DRIVER_OK, and signing every transport ops vtable so a compromised modern/legacy probe path cannot swap in a hostile `setup_vq` callback.
+
 ## Open Questions
 
 - (none at this Tier-3 level)

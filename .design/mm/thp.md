@@ -248,6 +248,29 @@ THP-specific reinforcement:
 - **Per-page-fault fallback to 4KB** — defense against per-OOM hard-failure.
 - **Per-shmem THP gated by tmpfs mount-options** — defense against per-FS unwanted promotion.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — copy_to/from_user across a huge folio validated against slab usercopy zones; PMD-mapped large folios honor the same bounds.
+- **PAX_KERNEXEC** — THP path .text + rodata RX/RO; khugepaged thread's stack + ops table CONSTIFY'd.
+- **PAX_RANDKSTACK** — per-fault kernel-stack randomization on `do_huge_pmd_anonymous_page` and `do_huge_pmd_wp_page`.
+- **PAX_REFCOUNT** — folio order-9 refcount + mapcount saturating; defeats wrap-to-zero UAF on a shared huge page.
+- **PAX_MEMORY_SANITIZE** — huge folios zeroed before installation (`clear_huge_page`); freed huge folios go through page-allocator sanitize path.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on syscall exit; fault-return path clears stack residue.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement on khugepaged's per-mm callback + THP `vm_operations_struct` entries.
+- **GRKERNSEC_HIDESYM** — kernel pointers hidden from `/sys/kernel/mm/transparent_hugepage/*` for non-CAP_SYSLOG; `/proc/<pid>/smaps THPeligible` shown but no kernel addresses leak.
+- **GRKERNSEC_DMESG** — khugepaged debug messages, split-failed messages restricted to CAP_SYSLOG.
+- **PAX_PAGEEXEC** — huge PMD installations honor NX bit; PROT_EXEC absence yields NX-set PMD.
+- **PAX_MPROTECT** — W→X transitions on a huge VMA force split + per-PTE reevaluation under exec_gain_state policy (cross-ref `mm/mmap.md`).
+- **PAX_ASLR** — THP doesn't reduce ASLR entropy; huge pages still placed within randomized mmap base.
+- **PAX_UDEREF** — huge-fold helpers consume `UserPtr<T>` for caller-supplied addresses.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection on khugepaged collapse recursion + split-during-fault paths.
+- **MADV_NOHUGEPAGE honored under MMF_DISABLE_THP** — per-mm opt-out respected; security-conscious processes can disable THP to deny side-channel timing-attack surface from THP-induced TLB events.
+- **Per-collapse refcount + lock** — defeats collapse-vs-fault UAF race.
+
+Per-doc rationale: THP gives userspace 2MB-aligned huge mappings transparently — convenient, but the huge-folio split + collapse paths are notoriously race-prone (split_huge_pmd, khugepaged_collapse). A successful race here yields either a UAF on the original huge folio (PAX_REFCOUNT saturates to defeat) or a torn-write across a PMD boundary (Layer-3 invariants enforce atomicity). Huge pages also expose larger info-leak surface per leak event: a single PMD-mapped folio with stale contents is 2MB of data — PAX_MEMORY_SANITIZE on free (via page-allocator) and `clear_huge_page` on install close both ends. PAX_PAGEEXEC + PAX_MPROTECT prevent THP from accidentally creating an RWX PMD (which would be a 2MB grant of W^X-violation territory).
+
 ## Open Questions
 
 (none at this Tier-3 level)

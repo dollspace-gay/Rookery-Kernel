@@ -600,6 +600,32 @@ PCI core reinforcement:
 - **Per-`resource_alignment_param` parser** — defense against per-malformed-cmdline DoS.
 - **Per-`pci_dev_lock` mandatory pre-reset** — defense against per-reset-races-driver-detach.
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every `/sys/bus/pci/devices/*/config` and `/proc/bus/pci/*` read/write; pwrite/pread bounded to 4 KiB (std) / 4 KiB (ext-cfg).
+- **PAX_KERNEXEC** — W^X across pci ops vtables, `pci_error_handlers`, `pci_driver` ops; option-ROM BAR shadows mapped RO.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every `/sys/bus/pci/devices/*` ioctl/sysfs entry, FLR/SBR reset writes, sriov_numvfs writes.
+- **PAX_REFCOUNT** — saturating refcount on `pci_dev`, `pci_bus`, `pci_host_bridge`, `pci_driver`, per-cap-walk descriptor.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for saved config-space (`pci_save_state` buffer — contains BAR addresses, MSI/MSI-X tables), option-ROM shadow, ATS context cache.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access on `/sys/bus/pci/devices/*/resource*` userspace mmap (BAR mmap from userland gated by CAP_SYS_RAWIO + PCI_MMAP_PROCFS policy).
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `pci_driver`, `pci_error_handlers`, `pci_ops` (config-space read/write), `dev_pm_ops`, `pcie_port_service_driver`.
+- **GRKERNSEC_IO** — `iopl(2)` and `ioperm(2)` blocked entirely; legacy `/dev/port` access gated by CAP_SYS_RAWIO; PCI driver must request port via `pci_request_regions` / `request_region`.
+- **GRKERNSEC_HIDESYM** — `/sys/bus/pci/devices/*/` kernel pointers (`pci_dev`, `pci_bus`, `driver_data`), BAR physaddrs, MSI/MSI-X table addresses masked from non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — PCIe AER (correctable + uncorrectable), DPC, fatal-error log lines restricted to CAP_SYSLOG (leak topology + addr).
+- **GRKERNSEC_TPE** — Trusted Path Execution for `/sys/bus/pci/devices/*/config`, `/sys/bus/pci/devices/*/resource*`, `/dev/mem`, `/dev/kmem` (latter usually disabled).
+- **GRKERNSEC_KMOD** — PCI device auto-bind (driver loaded on `pci_dev` alias match) gated by CAP_SYS_MODULE; defense against malicious PCI device forcing load of a vulnerable driver.
+- **GRKERNSEC_MODHARDEN** — module signature required for PCI core and all PCI drivers; firmware blobs gated through IMA.
+- **CAP_SYS_RAWIO** strict for direct config-space writes via sysfs (any offset beyond standard cap-walk), FLR/SBR reset via `/sys/.../reset` and `/sys/.../reset_method`, `remove` / `rescan` sysfs entries, `sriov_numvfs` writes.
+- **CAP_SYS_ADMIN** strict for `pci=` cmdline parsing (`nomsi`, `noaer`, `noats`, `noacs`, `resource_alignment=`) only at boot from CAP_SYS_ADMIN-owned cmdline source under SecureBoot.
+- **GRKERNSEC_BRUTE** — repeated AER / DPC errors per-BDF rate-limited; defense against malicious device generating error storms to wedge the kernel error-recovery worker.
+- **PAX-anti-DMA-from-userland** — userspace BAR mmap requires `O_SYNC | CAP_SYS_RAWIO`; `enable` write to `/sys/.../enable` requires CAP_SYS_RAWIO (turning on bus-mastering on a previously-disabled device is a privilege escalation primitive for VFIO).
+- **ACS strict-mode enforced** — `pci_acs_path_enabled` must return TRUE for the full path before VFIO bind; defense against peer-DMA-leak across IOMMU group boundaries.
+- **OptionROM untrusted** — when SecureBoot enabled, expansion-ROM execution (PCI BIOS, EFI driver) refused unless ROM is signed; defense against malicious PCIe-attached-device ROM injecting boot code.
+
+Per-driver rationale: the PCI core is the lowest-level enumeration and config-space-arbitration layer in the kernel — every PCIe device's BAR layout, capability chain, MSI/MSI-X programming, reset method, ACS isolation, and SR-IOV reconfiguration flows through this code, and a single mis-validated config write or BAR mmap from userspace can compromise interrupt routing, DMA isolation, or trigger a system-wide reset. Grsec reinforces by gating all destructive sysfs entries (reset, remove, rescan, enable, sriov_numvfs) behind CAP_SYS_RAWIO/CAP_SYS_ADMIN, signing every pci ops vtable (kCFI), refusing to leak BAR/MSI-X physaddrs or `pci_dev` kernel pointers through `/sys`, sanitizing saved config-state on free, blocking `iopl/ioperm` entirely, and refusing OptionROM execution under SecureBoot without a signature.
+
 ## Open Questions
 
 (none at this Tier-3 level)

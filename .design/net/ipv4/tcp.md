@@ -224,6 +224,27 @@ None beyond upstream defaults.
 
 (See § Verification above; Layer 4 RFC 9293 conformance is the keystone proof.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every sendmsg iovec, recvmsg user-buffer, and TCP_INFO/TCP_AO_INFO/TCP_CC_INFO getsockopt blob; tcp_zerocopy_receive validated.
+- **PAX_KERNEXEC** — W^X on every congestion-control algorithm vtable (CUBIC/BBR/DCTCP/...), TCP-ULP hooks (kTLS, MPTCP), and JIT'd `sk_filter`/sockmap BPF programs.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every TCP recv/send/setsockopt entry; densest hot-path in the kernel.
+- **PAX_REFCOUNT** — saturating refcount on `tcp_sock`, per-listener req-sock queue, tcp_metrics entries, and tcp-ao/md5 sigpool buffers.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for tcp_sock cache (especially `sk_user_data`, TCP-AO key material, TCP-MD5 key material, tcp_save_syn buffer, kTLS keys in `sk_ulp_data`).
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — sendmsg/recvmsg via iov_iter; setsockopt optval via typed `UserPtr<...>`.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/proc/net/tcp{,6}`, `ss -i` output, `inet_diag` netlink dumps, and tracepoint emissions.
+- **GRKERNSEC_NO_SIMULT_CONNECT** — prevent same-uid parallel `connect()` to identical dst:port; complements `tcp_syncookies` against SYN-flood + connection-amplification.
+- **GRKERNSEC_BLACKHOLE** — silent drop of probe packets (RST suppression on closed ports); `tcp_invalid_ratelimit` extended for gr-blackhole mode.
+- **GRKERNSEC_RANDNET** — randomize TCP ISN per RFC 6528, IP IDs, ephemeral source port allocation, TCP timestamp offset, and TCP-AO sndid/rcvid; all seeded from gr-random.
+- **GRKERNSEC_NETFILTER** — TCP conntrack interaction restricts `sk->sk_mark` mutation to CAP_NET_ADMIN-in-init-userns.
+- **GRKERNSEC_SOCK_PRIV** — `TCP_REPAIR` mode (capability-bearing socket state forgery) audited + restricted to CAP_NET_ADMIN.
+- **PAX_SIZE_OVERFLOW** — TCP-seq arithmetic explicit `wrapping_*` (32-bit seq); cwnd + ssthresh + buffer-size arithmetic checked.
+- **CAP_NET_ADMIN / CAP_NET_BIND_SERVICE** strict — privileged-port bind (< 1024) gated by `CAP_NET_BIND_SERVICE` in the binding userns; `TCP_REPAIR`/`TCP_MD5SIG`/`TCP_AO_*` gated by CAP_NET_ADMIN in init_user_ns.
+
+Per-doc rationale: TCP is the most-attacked transport in the kernel — RFC 9293 state machine plus pluggable congestion control plus TCP-AO/MD5 authentication plus TFO cookies make it both the densest CVE source and the most-instrumented protocol. PaX/Grsecurity reinforcement focuses on (a) saturating refs on the per-listener req-sock queue (SYN-flood amplification vector), (b) zero-on-free for TCP-AO/MD5 key material that lives in `sk_ulp_data` for the lifetime of long-lived BGP sessions, (c) GRKERNSEC_RANDNET for ISN/timestamp randomization per RFC 6528, and (d) hiding TCP_REPAIR state which can otherwise be used to forge connections across uid/netns boundaries.
+
 ## Open Questions
 
 (none — TCP semantics are exhaustively specified by RFC 9293 + Linux extensions)

@@ -202,6 +202,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `/proc/meminfo`, `/proc/vmstat`, `/proc/<pid>/oom_score*` readers validate buffer ranges via slab usercopy zones.
+- **PAX_KERNEXEC** — reclaim core .text + rodata RX/RO; shrinker dispatch table CONSTIFY'd.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization for any syscall that triggers reclaim (most syscalls); kswapd thread stack randomized per-wakeup.
+- **PAX_REFCOUNT** — lruvec counters, shrinker registration refcount, OOM-victim refcount saturating.
+- **PAX_MEMORY_SANITIZE** — reclaimed folios pass through page-allocator's free path (zero-on-free inherited); freed shrinker objects zeroed.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on every syscall exit that touched reclaim.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement on shrinker `count_objects`/`scan_objects` callbacks, OOM-notifier chain, NUMA-balancing migration callbacks.
+- **GRKERNSEC_HIDESYM** — kernel pointers hidden from `/proc/meminfo`, `/proc/vmstat`, `/proc/<pid>/oom_score*`, `/sys/kernel/mm/lru_gen/*` for non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — OOM-kill messages, kswapd-throttling, vmscan-priority-bump dmesg lines restricted to CAP_SYSLOG to deny fingerprinting of pressure events for side-channel attacks.
+- **GRKERNSEC_OOM_DENY** — **owned by this subsystem**: OOM victim selection consults grsec OOM-deny policy before invoking `out_of_memory()`; protected tasks (e.g., gradm admin shell, audit daemon) excluded from candidate list; defeats attacker manufacturing memory pressure to OOM-kill privileged process.
+- **`/proc/sys/vm/panic_on_oom`** — admin policy knob for OOM-panic-mode systems.
+- **`oom_score_adj=-1000` immune** — preserved as classical OOM-immunity mechanism; grsec adds defense-in-depth above this.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection on reclaim recursion (alloc → reclaim → shrinker → alloc) and oom_reaper recursion.
+- **`security_task_kill(victim, SIGKILL)` LSM hook** — OOM-kill is LSM-relevant; GR-RBAC policy can deny SIGKILL to protected processes beyond what existing LSMs enforce.
+- **MGLRU min_ttl_ms** — eviction-protection window prevents adversarial workloads from evicting critical pages immediately.
+- **Per-memcg OOM serialization** — `memory.max` triggers in-memcg OOM before global OOM; defeats cross-tenant OOM-kill via memcg manipulation.
+- **PAX_UDEREF** — sysctl readers for `vm.*` knobs go through `UserPtr<T>`.
+
+Per-doc rationale: reclaim is the kernel's last line of defense against memory exhaustion, and OOM-kill is the kernel's last line of defense against system hang. An attacker who can manipulate either has powerful exploitation primitives: (1) OOM-kill a privileged process by manufacturing memory pressure (defeated by GRKERNSEC_OOM_DENY policy + LSM hook); (2) side-channel timing-analysis of reclaim events to fingerprint other tenants (defeated by GRKERNSEC_DMESG restriction); (3) force kswapd into livelock via a crafted page-aging pattern (Layer-2 TLA+ `kswapd_balance.tla` proves freedom from this). The grsec OOM-deny policy is the highest-value reinforcement here — it converts the OOM victim selection from a vulnerability (anyone with enough memory can pick the victim) into a privileged operation governed by RBAC policy.
+
 ## Open Questions
 
 (none — reclaim semantics fully specified by upstream's vmscan + MGLRU + OOM-killer design)

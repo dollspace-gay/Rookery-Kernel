@@ -563,6 +563,31 @@ Hub-driver reinforcement:
 - **Per-CONFIG_USB_OTG_DISABLE_EXTERNAL_HUB kill-switch** — defense against per-policy external-hub attach on OTG-only platforms.
 - **Per-`kcov_remote_start_usb` for fuzzing coverage** — defense against per-hidden-path fuzzer blind spots.
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every USBDEVFS / `/dev/bus/usb/*` ioctl arg copy; descriptor parsing in `hub_configure` rejects oversize `wTotalLength`.
+- **PAX_KERNEXEC** — W^X for any HCD firmware blob staged through hub enumeration (no executable mapping of device-supplied descriptor data).
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every USB chardev/sysfs ioctl entry.
+- **PAX_REFCOUNT** — saturating refcount on `usb_hub`, `usb_port`, `usb_device`, `usb_tt`, per-port `kobject`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `hub.event_bits[]`, descriptor cache (`hub_descriptor`), per-port status buffers, control-URB transfer buffers.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access for USBDEVFS bulk/ctrl/iso transfer descriptors; guard against guest-supplied DMA targets from `usbip` userspace.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `usb_driver`, `hc_driver`, `usb_device_driver`, hub `urb->complete` callback, `dev_pm_ops`.
+- **GRKERNSEC_IO** — driver never calls `iopl/ioperm`; HCD MMIO via `request_mem_region` only.
+- **GRKERNSEC_HIDESYM** — `/sys/bus/usb/devices/*/` and `/proc/bus/usb` kernel pointers (`urb`, `hcd`, `udev`) masked from non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — over-current, port-reset-storm, and HCD-fatal log lines restricted to CAP_SYSLOG.
+- **GRKERNSEC_TPE** — Trusted Path Execution for `/dev/bus/usb/*` raw chardev (USBDEVFS), `/dev/usbmon*`, `/dev/usb/hiddev*`.
+- **GRKERNSEC_KMOD** — USB class-driver auto-load (mass-storage, HID, CDC-ACM, etc.) gated by CAP_SYS_MODULE; defense against BadUSB / USB-Rubber-Ducky class-binding attacks.
+- **GRKERNSEC_MODHARDEN** — module signature required for `usbcore`, `xhci_hcd`, `ehci_hcd`, all class drivers.
+- **GRKERNSEC_NO_FBSPLASH** — applies to USB-display devices (DisplayLink) — raw framebuffer access gated.
+- **CAP_SYS_RAWIO** strict for USBDEVFS_RESET, USBDEVFS_RESETEP, USBDEVFS_CLEAR_HALT, USBDEVFS_CONNECT, USBDEVFS_DISCONNECT, USBDEVFS_SUBMITURB on isoc/interrupt endpoints.
+- **GRKERNSEC_BRUTE** — repeated enumeration failures from a single port (`PORT_INIT_TRIES` exhausted) trigger per-port quarantine + audit log.
+- **USBGUARD-integration hook** — `hub_port_init` calls into LSM hook to consult userspace USBGuard policy before completing `usb_new_device`; defense against BadUSB attaching unauthorized class.
+- **OTG-external-hub kill-switch** — `CONFIG_USB_OTG_DISABLE_EXTERNAL_HUB` enforced at runtime via grsec policy on locked-down devices.
+
+Per-driver rationale: the USB hub driver is the primary attack surface for physical-USB threats (BadUSB, malicious HID injection, USB-killer-style power events, malformed-descriptor stack-smashing) and for USBIP / VFIO-USB remote-attached devices that effectively let an attacker present arbitrary descriptors to the kernel; grsec reinforces by sanitizing descriptor buffers on free, signing every hub/HCD/class-driver ops vtable (kCFI), gating raw USBDEVFS access behind TPE+CAP_SYS_RAWIO, gating class-driver auto-load (so a plugged-in device cannot force `cdc_acm` / `usb_storage` to load on a locked-down kiosk), and integrating with USBGuard so per-port authorization is enforced before any class driver sees the device.
+
 ## Open Questions
 
 (none at this Tier-3 level)

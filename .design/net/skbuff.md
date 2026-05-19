@@ -205,6 +205,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every cmsg/msghdr/sockaddr user-buffer routed through datagram-helpers (`skb_copy_datagram_iter`, `skb_copy_and_csum_datagram_iter`).
+- **PAX_KERNEXEC** — W^X on JIT'd network packet classifiers (cls_bpf, nftables JIT) that read skb fields; per-protocol cb accessors are `static const`.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on every recv/send entry that touches an skb.
+- **PAX_REFCOUNT** — saturating refcount on `sk_buff->users`, `skb_shared_info->dataref`, and per-frag page references; overflow trips audit + kill.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sk_buff payload + the head buffer + `secmark` and credential-bearing skb-extensions (especially `xfrm`/`tls`/`devmem` extensions).
+- **PAX_UDEREF** — strict user-pointer access for sockaddr/iovec/msghdr; zerocopy paths use typed `UserPtr<...>` and never deref raw user pointers.
+- **PAX_MEMORY_UDEREF** — packet-buffer copy hardening — skb head + frags never accept naked user addresses.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers (head, data, frag pages) in `/proc/net/*`, syslog, packet traces, and `skb_dump`.
+- **GRKERNSEC_RANDNET** — skb-carried TCP ISN, IP IDs, and ephemeral source ports randomized; influences GSO segment composition.
+- **GRKERNSEC_BLACKHOLE** — drop-reason routes silent-probe packets through `kfree_skb_reason(SKB_DROP_REASON_NO_SOCKET)` with audit suppression.
+- **GRKERNSEC_NETFILTER** — netfilter audit; skb `mark` + `secmark` mutation restricted to CAP_NET_ADMIN-in-init-userns.
+- **PAX_SIZE_OVERFLOW** — `len` + `truesize` + frag-size arithmetic uses checked operators; saturating clamps on tail/end pointers.
+- **CAP_NET_RAW / CAP_NET_ADMIN** strict — raw-skb fabrication (AF_PACKET TX, `SOCK_RAW` build_skb) requires CAP_NET_RAW in the binding userns.
+
+Per-doc rationale: sk_buff is the most-touched data structure in the network stack — every received packet and every transmitted packet lives in one. PaX/Grsecurity reinforcement focuses on (a) saturating refcounts for shared-info + frag pages (clones can fan out to thousands of consumers), (b) zero-on-free for credential-bearing extensions (TLS keys, devmem dmabuf handles), and (c) hiding kernel pointers in user-visible drop-reason traces so probe-and-leak attacks against the skb cache layout fail.
+
 ## Open Questions
 
 (none — skb semantics are exhaustively specified by upstream conventions)

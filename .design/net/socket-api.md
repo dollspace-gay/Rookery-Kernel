@@ -181,6 +181,28 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every cmsg/msghdr/sockaddr/optval user-buffer; per-cmsg length validated against `msg_controllen` before any kernel access.
+- **PAX_KERNEXEC** — W^X on JIT'd socket filters (`SO_ATTACH_FILTER`/`SO_ATTACH_BPF`) and on every per-AF `proto_ops` vtable.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on every member of the socket-syscall family (socket/bind/connect/accept/send/recv/...).
+- **PAX_REFCOUNT** — saturating refcount on sock + socket + per-AF proto_ops + per-SCM_RIGHTS-passed file; overflow trips fatal audit.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for SCM_RIGHTS fd arrays, SCM_CREDENTIALS pid/uid/gid blobs, and per-AF sockaddr temp storage.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — every user pointer (sockaddr, msghdr, cmsghdr, optval, iovec base) passed via typed `UserPtr<...>`.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/proc/net/*`, `/proc/sys/net/*`, syslog, and audit emissions from `security_socket_*` hooks.
+- **GRKERNSEC_NO_SIMULT_CONNECT** — rate-limit identical-uid parallel `connect()` calls to identical dst:port (SYN-flood + connection-amplification mitigation).
+- **GRKERNSEC_BLACKHOLE** — silent drop of inbound probes to closed local ports (suppresses ICMP/RST replies).
+- **GRKERNSEC_RANDNET** — randomize TCP ISN, IP IDs, ephemeral source port allocation on implicit + explicit bind.
+- **GRKERNSEC_NETFILTER** — netfilter rule mutation restricted to CAP_NET_ADMIN-in-init-userns.
+- **GRKERNSEC_SOCK_PRIV** — socket-bind audit + per-AF gate (raw sockets, AF_PACKET, AF_NETLINK NFNL).
+- **GRKERNSEC_TPE** — Trusted Path Execution gate for raw socket bind (CAP_NET_RAW) + AF_PACKET creation.
+- **CAP_NET_RAW / CAP_NET_ADMIN / CAP_NET_BIND_SERVICE** strict — enforced in the userns owning the bound interface; SCM_RIGHTS cannot pass these as fd-borne capabilities.
+- **SCM_RIGHTS fd-pass capability check** — receiving task's GR-RBAC policy reviewed against each passed fd's class; denied fds rejected before `fd_install`.
+
+Per-doc rationale: the BSD socket-API layer is the system-wide network entry-point exposed to every userspace process. PaX/Grsecurity reinforcement here is mandatory because (a) every user pointer in the networking subsystem first enters via these syscalls, (b) SCM_RIGHTS is a documented capability-laundering vector that crosses uid/userns boundaries, (c) AF_PACKET/AF_NETLINK/AF_ALG/AF_BLUETOOTH each independently bypass routing and require dedicated bind audit, and (d) `LSM_HOOK_*` integration must remain authoritative regardless of FUSE/network-namespace tricks.
+
 ## Open Questions
 
 (none — BSD socket API semantics are exhaustively specified by POSIX + RFC + Linux extensions)

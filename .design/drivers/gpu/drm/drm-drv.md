@@ -448,6 +448,31 @@ DRM driver-core reinforcement:
 - **Per-`WARN_ON(!xa_empty)` at core_exit** — defense against per-orphan-minor module-unload bug.
 - **Per-`device_is_registered` check before device_del** — defense against per-double-`device_del` on a never-published minor.
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every DRM ioctl (`drm_ioctl` arg-len computed from per-ioctl table); GEM/PRIME ioctl buffer-handle arrays bounds-checked.
+- **PAX_KERNEXEC** — W^X for GPU command-stream buffers and any driver-loaded GPU microcode/firmware blob; userspace-submitted IBs validated/parsed before HW fetch.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every `/dev/dri/card*` and `/dev/dri/renderD*` ioctl entry.
+- **PAX_REFCOUNT** — saturating refcount on `drm_device`, `drm_minor`, `drm_file`, `drm_gem_object`, `drm_framebuffer`, `dma_fence`, per-driver private device.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for VRAM-eviction shmem pages, GEM scratch buffers, command-stream staging buffers, indirect-buffer (IB) shadow buffers.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access on GEM `userptr` mappings; pin-page accounting via `mmu_notifier`; userptr buffers never blindly DMA'd.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `drm_driver`, `drm_ioctl_desc`, `file_operations` (drm_fops), `dma_fence_ops`, `drm_gem_object_funcs`, `drm_framebuffer_funcs`, `drm_mode_config_funcs`.
+- **GRKERNSEC_IO** — DRM driver MMIO via `pci_iomap` / `devm_ioremap`; no `iopl/ioperm`; VGA-arbiter access gated.
+- **GRKERNSEC_HIDESYM** — `/sys/class/drm/card*/device/` kernel pointers (`drm_dev`, `drm_minor`, GPU MMIO base) masked from non-CAP_SYSLOG; debugfs `/sys/kernel/debug/dri/*` restricted to CAP_SYS_ADMIN.
+- **GRKERNSEC_DMESG** — GPU-reset, GPU-hang, page-fault, MMU-fault log lines restricted to CAP_SYSLOG.
+- **GRKERNSEC_TPE** — Trusted Path Execution for `/dev/dri/card*` (full-mode-setting + display ownership) and `/dev/dri/renderD*` (compute/render-node).
+- **GRKERNSEC_KMOD** — DRM driver auto-bind (amdgpu, i915, nouveau, radeon, xe) gated by CAP_SYS_MODULE.
+- **GRKERNSEC_MODHARDEN** — module signature required for `drm`, `drm_kms_helper`, all per-vendor DRM drivers; firmware blobs (`amdgpu/*`, `i915/*`, `nvidia/*`) verified via `request_firmware_into_buf` + IMA appraisal.
+- **GRKERNSEC_NO_FBSPLASH** — raw framebuffer access via fbdev compat layer (`/dev/fb*`) gated; `drm_fbdev_generic_setup` policy-controlled.
+- **CAP_SYS_RAWIO** strict for legacy mode-setting ioctls (`DRM_IOCTL_MODE_*` on `/dev/dri/card*` from non-DRM-master), GPU-debugging ioctls (umr, amdgpu-debug, i915-gem-context-setparam-priority elevation), debugfs writes.
+- **Render-node CAP_SYS_RAWIO bypass policy** — `/dev/dri/renderD*` is intentionally accessible to unprivileged users for compute; grsec policy enforces that *only* render-only ioctls (GEM/exec/syncobj) reach those nodes and any mode-setting ioctl returns -EACCES even for the GPU's render-node minor.
+- **GRKERNSEC_BRUTE** — per-uid GPU-hang / VM-fault rate-limit; defense against compute-shader-DoS that wedges the scheduler.
+- **PAX-anti-DMA-from-userland** — GEM `userptr` requires `CAP_SYS_RAWIO` for kernel-allocated pages mode; PRIME-import from foreign DMA-buf verified against IOMMU group of the importing device.
+
+Per-driver rationale: DRM exposes two distinct chardev classes — primary nodes (`card*`, full display ownership including mode-setting and DMA-buf import) and render nodes (`renderD*`, intentionally world-accessible for compute and rendering); a compromised userspace process can submit arbitrary GPU command streams that read/write any GPU-visible memory if the driver fails to parse/validate IBs, and userptr GEM lets userspace pin its own pages into the GPU's IOMMU domain. Grsec reinforces by signing every DRM ops vtable (kCFI), gating legacy mode-setting + debugfs behind CAP_SYS_RAWIO even on the primary node, enforcing the render-node "no mode-setting" boundary, sanitizing VRAM-evict pages on free (cross-tenant data leak vector), and verifying firmware blobs through IMA before `request_firmware`.
+
 ## Open Questions
 
 (none at this Tier-3 level)

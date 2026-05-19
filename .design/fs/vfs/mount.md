@@ -236,6 +236,30 @@ Per Axiom 4 of `00-security-principles.md`:
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on mount option strings, `struct mount_attr`, and per-mount `userns_fd` payloads.
+- **PAX_KERNEXEC** — W^X for any binfmt code-page mapping triggered after mount installs an executable backing.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every mount/umount/pivot_root/move_mount entry.
+- **PAX_REFCOUNT** — saturating refcount on `mnt_count`, `mnt_writers`, `mnt_ns->count`, idmap refcount, fs_struct->users; wrap-to-zero UAF closed.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `struct mount`, `struct mnt_idmap`, fs_struct, mountpoint slabs.
+- **PAX_UDEREF** — strict user-pointer access for path/options strings, `fsconfig` payloads, mount_attr blobs.
+- **GRKERNSEC_HIDESYM** — hide `struct mount` kernel pointers in /proc/<pid>/mountinfo (only ID + dev:ino exposed).
+- **GRKERNSEC_LINK** — symlink/hardlink restrictions are checked against the mount's idmap so a privileged mount can't bypass via a containerized fd.
+- **GRKERNSEC_CHROOT_MOUNT** — block `mount(2)` inside chroot regardless of capabilities.
+- **GRKERNSEC_CHROOT_FCHDIR** — block `fchdir(2)` from escaping a chroot via a dirfd captured outside.
+- **GRKERNSEC_CHROOT_PIVOT** — block `pivot_root(2)` inside chroot.
+- **GRKERNSEC_CHROOT_DOUBLE** — block re-chrooting inside an existing chroot.
+- **GRKERNSEC_CHROOT_UNIX** — block AF_UNIX abstract socket access across chroot.
+- **GRKERNSEC_CHROOT_CAPS** — drop dangerous capabilities at chroot entry.
+- **GRKERNSEC_NO_RBAC_MOUNT** — RBAC-policy disallows mount/umount outside policy-marked roles.
+- **MOUNT_ATTR_NOSYMFOLLOW default-on** — when MS_NOSUID|MS_NODEV|MS_NOEXEC is selected, NOSYMFOLLOW is also added (Axiom 4).
+- **PAX_SIZE_OVERFLOW** — refcount + propagation-list arithmetic uses checked operators.
+
+Per-doc rationale: the mount subsystem is the substrate for container escape and chroot bypass; every historical privilege-escalation against namespaces (CVE-2022-0185, CVE-2023-0386, CVE-2022-0492) hinges on either propagation-rule confusion, idmap miscount, or chroot-evasion via `mount`/`pivot_root`/`fchdir`. The GRKERNSEC_CHROOT_* family + PAX_REFCOUNT + PAX_UDEREF + MOUNT_ATTR_NOSYMFOLLOW collectively neutralize this class.
+
 ## Open Questions
 
 (none — mount semantics are exhaustively specified by upstream + container-runtime conventions)

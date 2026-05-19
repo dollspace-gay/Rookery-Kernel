@@ -193,6 +193,29 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `swapon`/`swapoff` syscall argument copies validated; `/proc/swaps` reader output routes through PAX_USERCOPY-checked zones.
+- **PAX_KERNEXEC** — swap subsystem .text + rodata RX/RO; zswap compressor vtable CONSTIFY'd.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on `swapon`/`swapoff` entry; per-page-fault randomization on swap-in path.
+- **PAX_REFCOUNT** — `swap_info_struct->users`, swap-cluster refcount, zswap pool refcount saturating.
+- **PAX_MEMORY_SANITIZE** — swapped-out anon page contents zeroed from RAM after write completes (the in-RAM copy zeroed; the on-disk copy encrypted per Q1); swap-cache folio freed objects zeroed.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on syscall exit + page-fault exit.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement on zswap compressor vtable, swap address_space_operations.
+- **GRKERNSEC_HIDESYM** — kernel pointers hidden from `/proc/swaps` for non-CAP_SYSLOG; defeats fingerprinting of swap-device layout.
+- **GRKERNSEC_DMESG** — swap I/O error dmesg lines (EIO, ENOSPC on swap) restricted to CAP_SYSLOG.
+- **Swap-page encryption** (Q1: default-on under consideration) — per-boot random key, AES-XTS-equivalent for every anon page written to swap; defeats cold-boot/forensic recovery of swap contents.
+- **`vm.swap_only`** — sysctl restricts swap to swap devices (no zswap, no zram); admin policy knob for swap-discipline systems.
+- **swapon CAP_SYS_ADMIN gating** — `swapon`/`swapoff` require CAP_SYS_ADMIN; GR-RBAC can further restrict.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection on swap-in recursion (alloc → reclaim → swap → alloc).
+- **GRKERNSEC_OOM_DENY** — swap-exhausted path's OOM-kill consults grsec OOM-deny policy.
+- **Per-memcg swap accounting** — `memory.swap.max` enforced before global OOM; defeats one tenant exhausting swap to OOM another.
+- **PAX_USERCOPY on swap-cache reads** — swap-cache folios read into userspace go through `iov_iter` + PAX_USERCOPY validation.
+
+Per-doc rationale: swap is the destination for evicted anonymous pages — every secret a process ever held in heap or stack memory may end up on swap. Without swap-page encryption (Q1 recommends default-on), a cold-boot attack or forensic image of swap device reveals every password, key, and credential the system has ever paged out. PAX_MEMORY_SANITIZE on the in-RAM copy ensures the page is zeroed in RAM after swap-out (so a subsequent slab-spray cannot recover it from RAM). PAX_USERCOPY on swap-in protects against an attacker reading swap-cache folios as user data. The grsec OOM-deny policy prevents an attacker from OOM-killing a privileged process by exhausting swap. Cross-ref Q1 in this doc for the encryption-default escalation.
+
 ## Open Questions
 
 <!-- OPEN: Q1 -->

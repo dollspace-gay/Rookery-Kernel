@@ -153,6 +153,30 @@ bpf-core specific reinforcement:
 - **CO-RE relocations applied at load time only** — no runtime self-modifying code.
 - **kallsyms entries** for JIT'd code labeled with prog name + tag; helps attribution in perf + crash dump.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers; rejects oversized BPF_PROG_LOAD insn-array copies and license-string copies.
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code (RX-only after `set_memory_ro` + `set_memory_x`), kprobe/uprobe trampolines that wrap BPF dispatch.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization; obscures interpreter 512-byte BPF stack frame layout against JIT-spray.
+- **PAX_REFCOUNT** — saturating refcount on task_struct, files_struct, cred, mm_struct, bpf_prog->refcount (Refcount), bpf_map->refcnt.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for task_struct, signal_struct, cred, bpf_prog, bpf_prog_array; prevents stale prog pointer aliasing after RCU grace.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit; wipes leaked BPF interpreter register state from kernel stack.
+- **PAX_UDEREF** — strict user-pointer access for all task-pointer ops including BPF_PROG_LOAD insn-array copy_from_user.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for bpf_func dispatch (every JIT'd entry tagged with kCFI prologue; rejects type-confused indirect calls).
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses JIT'd image addresses from /proc/kallsyms for non-root callers.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); blocks attacker reading BPF prog state via ptrace-peek of in-kernel runtime.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts; throttles JIT-spray probing of constant-blinding window.
+- **GRKERNSEC_BPF_HARDEN** — require CAP_BPF + CAP_NET_ADMIN for non-trivial BPF; force bpf_jit_harden=2 (always blind constants); locks bpf_jit_enable behind admin gesture.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep tail-call chains escaping MAX_TAIL_CALL_CNT.
+- **GRKERNSEC_DMESG** — restrict syslog so JIT failure / verifier WARN traces leaking kernel pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (net.core.bpf_jit_enable, bpf_jit_harden, bpf_jit_kallsyms) by default-locked.
+- **GRKERNSEC_TRUSTED_PATH_EXEC** — Trusted Path Execution policy; refuses BPF_PROG_LOAD from unprivileged executables on user-writable filesystems.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check; verifies CONFIG_BPF_JIT_ALWAYS_ON / BPF_UNPRIV_DEFAULT_OFF match signed config.
+
+Per-doc rationale: BPF core is the single largest legitimate code-injection surface in the kernel; a JIT page that drifts out of W^X, a stale prog refcount, or an unblinded constant turns BPF into an arbitrary-code-execution primitive. PaX KERNEXEC + RAP/kCFI enforce W^X and indirect-call typing across the entire JIT pipeline, MEMORY_SANITIZE closes the RCU-grace stale-prog window that dispatcher patching is designed to handle, and Grsecurity BPF_HARDEN + TRUSTED_PATH_EXEC + HIDESYM together implement the "unprivileged BPF is disabled, privileged BPF is observed but not enumerable" posture that the upstream defaults stop short of.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -193,6 +193,27 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every SOL_SOCKET sockopt user-buffer + every SCM helper marshaling; per-protocol slabs annotated with usercopy regions.
+- **PAX_KERNEXEC** — W^X on per-protocol `struct proto` vtables (TCP/UDP/SCTP/UNIX) and on JIT'd `sk_filter` BPF programs.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every `lock_sock`/`release_sock` entry from process context.
+- **PAX_REFCOUNT** — saturating refcount on `sk_refcount`, `sk_wmem_alloc`, `sk_rmem_alloc`, `sk_omem_alloc`; per-cgroup memcg charging uses checked arithmetic.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sock cache (especially `sk_security`, `sk_filter` prog refs, `sk_peer_cred`, `sk_peer_pid`, kTLS keys in `sk_ulp_data`).
+- **PAX_UDEREF** — SOL_SOCKET sockopt values from userspace via typed `UserPtr<...>`; no naked `copy_from_user` on optval.
+- **GRKERNSEC_HIDESYM** — hide `struct sock` pointers in `/proc/net/sockstat`, `ss` netlink output, drop-reason traces, and `inet_diag` dumps.
+- **GRKERNSEC_NO_SIMULT_CONNECT** — `sk_clone_lock` (accept path) audited per-uid to throttle parallel-accept-amplification.
+- **GRKERNSEC_BLACKHOLE** — `sk_drops` increments without audit when peer is probing; configurable rate-limit before audit fires.
+- **GRKERNSEC_RANDNET** — `sk->sk_hash`, secret cookies for TCP-MD5/AO, and per-sock 4-tuple hash seed all from gr-random pool.
+- **GRKERNSEC_NETFILTER** — netfilter integration restricts `sk->sk_mark`/`sk->sk_priority` mutation to CAP_NET_ADMIN-in-init-userns.
+- **GRKERNSEC_SOCK_PRIV** — `sk_alloc` audit for privileged protocols (RAW, PACKET, NETLINK NFNL).
+- **PAX_SIZE_OVERFLOW** — per-sock memory-accounting arithmetic (`sk_rmem_alloc + skb->truesize`) uses checked operators; overflow halts allocation.
+- **CAP_NET_RAW / CAP_NET_ADMIN** strict — enforced in `current->nsproxy->net_ns->user_ns`.
+
+Per-doc rationale: `struct sock` is the protocol-agnostic kernel-side socket state shared by every L4 protocol — TCP, UDP, SCTP, UNIX, NETLINK all inherit. PaX/Grsecurity reinforcement here propagates into every protocol-specific subclass automatically. Critical because (a) `sk_filter` carries attacker-controllable BPF programs that read sk fields, (b) `sk_security` is the LSM anchor for the entire flow, (c) `sk_clone_lock` is invoked from softirq under heavy SYN load, and (d) per-sock cgroup memcg charging is a known overflow CVE-class.
+
 ## Open Questions
 
 (none — sock semantics are exhaustively specified by upstream conventions)

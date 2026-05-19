@@ -254,6 +254,28 @@ rwsem-specific reinforcement:
 - **Per-wake limits** — defense against per-mass-wake stampede.
 - **Per-down_read_trylock atomic** — defense against per-CPU race.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on task/cred/sched_attr buffers carried under mmap_lock (the largest rwsem consumer).
+- **PAX_KERNEXEC** — W^X for BPF JIT'd code, kprobe/uprobe trampolines invoked under rwsem read-side.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization; obscures `RwsemWaiter`-on-stack layout.
+- **PAX_REFCOUNT** — saturating refcount on task_struct (the writer-owner ptr), files_struct, cred, mm_struct.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for task_struct; prevents reader-owner stale-pointer aliasing across slab reuse.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack zeroing on syscall exit clears leaked `RwsemWaiter` stack frames after slow-path return.
+- **PAX_UDEREF** — strict user-pointer access for all task-pointer ops, including mmap_lock-held copy_from_user paths.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement for OSQ + wake-callback vtables.
+- **GRKERNSEC_HIDESYM** — hide kernel addresses in /proc/<pid>/* + kallsyms; suppresses writer-owner ptr disclosure via /proc/lock_stat.
+- **GRKERNSEC_HARDEN_PTRACE** — restrict ptrace cross-uid (Yama scope ≥ 1); blocks reading mmap_lock owner during a victim's page-fault.
+- **GRKERNSEC_BRUTE** — exponential delay on consecutive brute attempts; throttles reader-flood writer-starvation probes.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel-stack overflow guard against deep rwsem-held recursion (e.g. nested mmap_lock under fault path).
+- **GRKERNSEC_DMESG** — restrict syslog so rwsem deadlock WARN traces leaking owner pointers are unreadable to unprivileged users.
+- **GRKERNSEC_SYSCTL_DISABLE** — disable dangerous sysctls (e.g. /proc/sys/kernel/lock_stat) by default.
+- **GRKERNSEC_CONFIG_AUDIT** — boot-time runtime-config integrity check; verifies RWSEM_SPIN_ON_OWNER setting matches signed profile.
+
+Per-doc rationale: rwsem is the backbone of mmap_lock and i_rwsem, which gate page-fault and filesystem paths; a stale writer-owner pointer or reader-count corruption directly translates into UAF in the address-space or inode layer. PaX MEMORY_SANITIZE + REFCOUNT close the slab-reuse aliasing, RAP/kCFI hardens the OSQ + wake-callback dispatch, and Grsecurity HIDESYM/DMESG suppresses the owner-ptr leak surface that lock_stat would otherwise expose to attackers fingerprinting writer identity.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -765,6 +765,30 @@ sd reinforcement:
 - **Per-PERSISTENT-RESERVE-IN/OUT routed through scsi_execute_cmd with sshdr** — defense against per-PR-error-misinterpretation.
 - **Per-Opal init_opal_dev only on sdkp->security from VPD-0x86** — defense against per-spurious-TCG-init on non-security devices.
 
+## Grsecurity/PaX-style Reinforcement
+
+This driver inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every SG_IO / `BLKREPORTZONE` / `BLKRESETZONE` / SCSI-pr / Opal ioctl arg; CDB length validated against per-opcode max.
+- **PAX_KERNEXEC** — W^X across sd ops vtable; firmware passthrough (WRITE_BUFFER) buffer never mapped executable.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every block-device ioctl entry.
+- **PAX_REFCOUNT** — saturating refcount on `scsi_disk`, `scsi_device`, `gendisk`, per-disk `sdkp.disk_dev`, `sd_index_ida` allocations.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for VPD pages (contain serial / WWN / unit-attention data), zone-report buffers, persistent-reservation key buffers, Opal command buffers.
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — strict user-pointer access for SG_IO `sgv4` descriptors; iov-iter validates every userspace bvec before sd builds the CDB.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `block_device_operations`, `pr_ops`, `dev_pm_ops`, `scsi_driver`.
+- **GRKERNSEC_IO** — sd never touches `iopl/ioperm`; all transport via LLD's SG list.
+- **GRKERNSEC_HIDESYM** — `/sys/class/scsi_disk/*/` and `/sys/block/sd*/device/` kernel pointers (sdkp, sdev, req_queue) hidden from non-CAP_SYSLOG; raw WWN/serial limited to CAP_SYS_ADMIN per policy.
+- **GRKERNSEC_DMESG** — medium-access-timeout, SCSI-fatal-error, EH-recovery log lines restricted to CAP_SYSLOG.
+- **GRKERNSEC_TPE** — Trusted Path Execution for `/dev/sd*` raw block-device access (raw SCSI command via SG_IO bypasses filesystem ACLs).
+- **GRKERNSEC_KMOD** — `sd_mod` auto-load via SCSI device alias gated by CAP_SYS_MODULE.
+- **GRKERNSEC_MODHARDEN** — module signature required for `sd_mod`, `scsi_mod`, `sg`, LLDs (ahci, megaraid_sas, mpt3sas, etc.).
+- **CAP_SYS_RAWIO** strict for SG_IO with non-allowlisted CDBs (firmware-download WRITE_BUFFER, FORMAT_UNIT, SANITIZE, MODE_SELECT), `BLKRESETZONE` on ZBC drives, PERSISTENT_RESERVE_OUT.
+- **GRKERNSEC_BRUTE** — repeated medium-access-timeout escalations per disk rate-limited; defense against firmware-fuzz DoS via SG_IO.
+- **PAX-anti-DMA-from-userland** — SG_IO transfer buffers go through `bio_map_user_iov` with strict pin-page accounting; no zero-copy passthrough of user pages to LLD without `CAP_SYS_RAWIO`.
+- **Opal/TCG password buffer keyring-shielded** — Opal SED passwords sourced from kernel keyring (cross-ref `security/keys/`), never directly from userspace ioctl arg; sanitized on free.
+
+Per-driver rationale: `sd` is the gateway between every block-device ioctl/SG_IO from userspace and arbitrary SCSI CDBs landing on the storage device — a hostile or buggy CDB through SG_IO can issue FORMAT_UNIT, WRITE_BUFFER (firmware), SANITIZE-OVERWRITE, or unaligned LBAs that wrap to expose other tenants' data; ZBC zone management and Opal-SED key handling add irreversible/sensitive surfaces. Grsec reinforces by gating destructive/passthrough CDBs behind CAP_SYS_RAWIO + opcode allowlists, signing every block/pr/scsi ops vtable, sanitizing VPD/zone/PR/Opal buffers on free, refusing to leak `sdkp` pointers via sysfs, and shielding Opal passwords in the kernel keyring.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -274,6 +274,29 @@ UFFD-specific reinforcement:
 - **Per-msg pagefault.address aligned per-EXACT_ADDRESS feature** — defense against per-feature ABI confusion.
 - **Per-fault retry-fault model** — defense against per-fault sync-block in arch handler.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — UFFDIO_COPY src buffer validated against slab usercopy zones; UFFDIO_REGISTER args copied via PAX_USERCOPY-checked path; uffd_msg copied to userspace through validated zone.
+- **PAX_KERNEXEC** — userfaultfd_fops vtable, ctx-ops CONSTIFY'd; runtime self-modification forbidden.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on `userfaultfd(2)` entry + every UFFDIO_* ioctl.
+- **PAX_REFCOUNT** — `userfaultfd_ctx->refcount`, per-VMA-ref-to-ctx, per-fd-ref-to-ctx saturating.
+- **PAX_MEMORY_SANITIZE** — uffd_msg buffers zeroed on free; ctx-allocator memory zero-on-free.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on every userfaultfd ioctl exit + fault-return path.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement on `userfaultfd_fops` (read, poll, ioctl, release) + VMA fault-handler dispatch.
+- **GRKERNSEC_HIDESYM** — uffd_msg arg fields (pagefault.address, pagefault.feat.ptid) presented as-is but no kernel pointers leak through msg; `/proc/<pid>/fdinfo/<uffd>` shows file flags but no kernel addresses for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — UFFD register-fail / mfill-fail dmesg lines restricted to CAP_SYSLOG.
+- **UFFD_USER_MODE_ONLY mandatory in v0** — defeats kernel-mode-range UFFD attacks (a per-process exemption could be added later, but default-on).
+- **`/proc/sys/vm/unprivileged_userfaultfd=0` default-on** — unprivileged userfaultfd creation requires CAP_SYS_PTRACE; defeats unprivileged-task-uses-UFFD-to-stall-other-tasks DoS and slow-down-kernel side-channels.
+- **PAX_UDEREF** — UFFDIO_COPY validates dst is a user-VA via `UserPtr<u8>`; raw VA dereference forbidden.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection on UFFD wait-recursion paths (fault → wait → wake → re-fault).
+- **GRKERNSEC_PROC** — per-uffd-ctx `/proc/<pid>/fdinfo` visibility restricted; defeats info-leak about UFFD-using sandboxes (e.g., postcopy live-migrations, language runtimes).
+- **EVENT_FORK child-ctx isolation** — defeats per-fork shared-ctx confusion in cross-process attacks.
+- **WP_ASYNC opt-in** — sync WP defaults to off; opt-in only; defeats default sync-WP-induced fault stalls.
+
+Per-doc rationale: userfaultfd is the most powerful userspace-controllable kernel synchronization primitive in the kernel — an unprivileged task with a UFFD on a registered range can pause arbitrary other tasks indefinitely (until UFFDIO_COPY responds), making it the perfect tool for race-window-widening in exploits (e.g., the 2016 dirty COW + UFFD exploit, the 2021 sequoia exploit). `vm.unprivileged_userfaultfd=0` default-on (requires CAP_SYS_PTRACE) and `UFFD_USER_MODE_ONLY` default-on jointly close the unprivileged-UFFD-as-race-amplifier surface. PAX_USERCOPY + PAX_UDEREF on UFFDIO_COPY ensure the copy-from-src and copy-to-dst paths never bypass bounds checks. PAX_RAP/kCFI on the userfaultfd_fops vtable defeats function-pointer hijack via UFFD ctx corruption. GRKERNSEC_PROC restriction on `/proc/<pid>/fdinfo/<uffd>` denies fingerprinting of sandboxed runtimes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

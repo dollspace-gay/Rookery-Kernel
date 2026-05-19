@@ -233,6 +233,29 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on `struct flock`, fown_struct, owner-ex, and fdinfo-emit buffers.
+- **PAX_KERNEXEC** — W^X for file_operations vtables (open/read/write/ioctl/mmap dispatch tables).
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every fd-touching syscall (open/dup/close/close_range/fcntl).
+- **PAX_REFCOUNT** — saturating refcount on `file->f_count`, `files_struct->count`; wrap-to-zero UAF closed (this was the CVE-class refcount-overflow surface).
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `struct file` slabs, `files_struct` slabs, fdtable arrays + cloexec/open_fds bitmaps.
+- **PAX_UDEREF** — strict user-pointer access for fcntl arg, flock structs, owner-set payloads.
+- **GRKERNSEC_HIDESYM** — hide file/files_struct addresses in `/proc/<pid>/fd/*` symlinks + tracepoints + lsof output.
+- **GRKERNSEC_LINK** — `linkat(AT_EMPTY_PATH)` from an O_TMPFILE fd consults protected_hardlinks against the fd's `f_cred`.
+- **GRKERNSEC_CHROOT_FCHDIR** — block `fchdir(2)` to a dirfd captured outside the calling task's chroot.
+- **GRKERNSEC_CHROOT_FINDTASK** — block `pidfd_getfd(2)` across chroot boundary.
+- **GRKERNSEC_FIFO** — pipe(2)/pipe2(2) honor FIFO-in-sticky-dir if a named pipe is materialized.
+- **GRKERNSEC_TRUSTED** — F_SETLEASE / F_SETOWN_EX gated against per-fd `f_cred` capabilities.
+- **GRKERNSEC_PROC** — `/proc/<pid>/fd/*` enumeration honors hidepid + restricts cross-uid visibility.
+- **GRKERNSEC_SUIDDUMP** — coredumps blocked for suid-exec'd tasks; consulted during fd-table inheritance across exec.
+- **O_CLOEXEC default-on** — per Open Question Q1, modern Rookery default closes legacy-syscall inheritance window (knob `kernel.legacy_fd_inherit=1` reverts).
+- **PAX_SIZE_OVERFLOW** — fd-count + alloc-bitmap arithmetic uses checked operators (fdtable resize math).
+
+Per-doc rationale: the file-table is the credential-bearing handle layer that survives fork/clone/exec; historical exploits (CVE-2016-4557, CVE-2021-4083) have all targeted refcount races or close-race UAFs on `struct file`. PAX_REFCOUNT + PAX_MEMORY_SANITIZE close those classes; GRKERNSEC_CHROOT_FCHDIR + GRKERNSEC_CHROOT_FINDTASK + O_CLOEXEC-default + GRKERNSEC_SUIDDUMP eliminate the fd-inheritance / pidfd-getfd cross-trust-domain leaks.
+
 ## Open Questions
 
 <!-- OPEN: Q1 -->

@@ -180,6 +180,27 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy on every sendmsg iovec, recvmsg user-buffer, and SOL_UDP getsockopt/setsockopt blob; UDP-Lite CSCOV-bounded copies validated.
+- **PAX_KERNEXEC** — W^X on JIT'd sockmap/sk_msg BPF programs, per-encap `udp_sk->encap_rcv` callbacks (VxLAN, GENEVE, FoU), and udp_tunnel offload vtables.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every UDP recvmsg/sendmsg entry; UDP is the densest stateless syscall path (DNS, QUIC, NTP).
+- **PAX_REFCOUNT** — saturating refcount on `udp_sock`, per-port hash bucket, encap binding entries, and udp_tunnel sock references.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for udp_sock cache (especially encap private state in `udp_sk->encap_*` for VxLAN/GENEVE/FoU/GUE).
+- **PAX_UDEREF / PAX_MEMORY_UDEREF** — sendmsg/recvmsg via iov_iter; setsockopt optval (especially `UDP_LITE_*_CSCOV`, `UDP_SEGMENT`, `UDP_GRO`) via typed `UserPtr<...>`.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers in `/proc/net/udp{,6}`, `ss -u -i` output, `inet_diag` netlink dumps.
+- **GRKERNSEC_NO_SIMULT_CONNECT** — rate-limit same-uid UDP-connected sockets to identical dst:port (mitigates UDP-reflection amplification).
+- **GRKERNSEC_BLACKHOLE** — silent drop of probe packets (ICMP port-unreachable suppression on closed UDP ports); rate-limited per-source.
+- **GRKERNSEC_RANDNET** — randomize UDP ephemeral source port allocation, UDP-tunnel VNI/encap source ports, and per-flow GRO/GSO hash seeds.
+- **GRKERNSEC_NETFILTER** — UDP conntrack interaction; `sk->sk_mark`/`sk->sk_priority` mutation restricted to CAP_NET_ADMIN.
+- **GRKERNSEC_SOCK_PRIV** — udp_tunnel encap-sock registration audited; privileged-port bind (< 1024) gated.
+- **PAX_SIZE_OVERFLOW** — UDP-len + cmsg-length + per-flow offset arithmetic uses checked operators; UDP-GSO segment-count saturating.
+- **CAP_NET_RAW / CAP_NET_BIND_SERVICE** strict — UDP-Lite raw-mode requires CAP_NET_RAW in the binding userns; port < 1024 requires CAP_NET_BIND_SERVICE.
+
+Per-doc rationale: UDP is stateless but bridges to QUIC, DNS, NTP, DHCP, VxLAN, GENEVE, FoU, GUE — every container-overlay and every video conference rides UDP. PaX/Grsecurity reinforcement focuses on (a) saturating refs on udp_tunnel encap sockets (long-lived; shared across many flows), (b) zero-on-free for encap private state which may carry tunnel-key material, (c) GRKERNSEC_BLACKHOLE for the well-known UDP-reflection amplification class (NTP monlist, DNS open-resolver, memcached), and (d) GRKERNSEC_RANDNET for ephemeral port allocation since QUIC connection identifiers ride alongside.
+
 ## Open Questions
 
 (none — UDP semantics are exhaustively specified by RFC + Linux extensions)

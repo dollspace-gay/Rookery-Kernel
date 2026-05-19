@@ -231,6 +231,31 @@ Per Axiom 4 of `00-security-principles.md`:
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `pkey_alloc`/`pkey_free`/`mincore` return buffers validated against slab usercopy zones.
+- **PAX_KERNEXEC** — syscall .text + rodata are RX/RO; mmap handler dispatch tables are CONSTIFY'd.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at every entry-point this subsystem owns (mmap, mprotect, mremap, munmap, madvise, mlock, mincore, pkey_*).
+- **PAX_REFCOUNT** — VMA refcount, anon_vma refcount, file refcount on file-backed mmap are saturating `Refcount` types.
+- **PAX_MEMORY_SANITIZE** — VMA cache freed objects zeroed; anon mappings zero-on-free.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on syscall exit from every mmap-family syscall.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement on file-backed `vm_operations_struct` vtables and LSM hooks (`security_mmap_addr`, `security_mmap_file`, `security_file_mprotect`).
+- **GRKERNSEC_HIDESYM** — `/proc/<pid>/maps` permission column visible but pointers hidden from non-CAP_SYSLOG; kASLR-leak via maps-scraping defeated.
+- **GRKERNSEC_DMESG** — mprotect-deny / mmap-deny dmesg lines restricted to CAP_SYSLOG; defeats fingerprinting exec-gain policy by an attacker.
+- **PAX_ASLR** — full ASLR: text, data, brk, mmap base, stack base each independently randomized; `kernel.randomize_va_space=2` default-on.
+- **PAX_RANDMMAP** — mmap base + each new VMA placement randomized via `arch_mmap_rnd()`; `mmap(NULL, ...)` placement non-deterministic.
+- **PAX_MPROTECT** — **owned by this subsystem**: mprotect rejects W→X transitions on a VMA unless `task->exec_gain_state` lacks NEEDS_EXEC_GAIN; returns EACCES per `00-security-principles.md`.
+- **PAX_PAGEEXEC** — PROT_EXEC bit propagates to PTE NX-bit clear; absence yields NX set; no page is executable without explicit PROT_EXEC.
+- **PAX_NOEXEC** — **owned**: mmap with PROT_EXEC|PROT_WRITE on anon mapping rejected unless task has NEEDS_RWX_ANON; returns EACCES (NOEXEC-strict).
+- **PAX_SEGMEXEC** — x86-32 segmented protection; x86_64-irrelevant (cross-ref `arch/x86/00-overview.md` D1).
+- **PAX_UDEREF** — every syscall reads `UserPtr<...>` for caller-supplied addresses; raw user-VA dereferencing forbidden.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection at every recursive mmap/mprotect path (e.g., LSM-hook recursion).
+- **mmap_min_addr** — sysctl-enforced lower bound on mmap; defeats NULL-pointer-dereference exploits that rely on mapping at low addresses.
+
+Per-doc rationale: the mmap family is the userspace's primary handle on virtual memory; an attacker who can mprotect W→X, mmap RWX-anon, mremap a sensitive mapping, or mmap at NULL has won every memory-corruption exploit primitive. This Tier-3 **owns** PaX's two flagship features — PAX_MPROTECT (W→X-block) and the NOEXEC-strict mmap policy — and enforces them at the syscall entry, returning EACCES rather than installing the dangerous mapping. PAX_ASLR + PAX_RANDMMAP randomize the address space so no exploit can rely on predictable VA placement; mmap_min_addr blocks the NULL-deref classic; PAX_USERCOPY + PAX_UDEREF deny direct user-pointer abuse from the syscall handlers. GRKERNSEC_HIDESYM ensures that even a debugger-grade `/proc/<pid>/maps` scrape cannot leak kernel pointers to break randomization.
+
 ## Open Questions
 
 (none — mmap-family syscalls are exhaustively specified by POSIX + Linux extensions; no architectural ambiguities at this tier)

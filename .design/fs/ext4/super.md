@@ -290,6 +290,29 @@ ext4-super reinforcement:
 - **Per-sysfs CAP_SYS_ADMIN** — defense against unprivileged tweak.
 - **Per-superblock-checksum integrity** — defense against per-mount-time corruption attack.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded copy_to/from_user on `statfs` out-buffers, remount option strings, FS_IOC_* ioctl payloads.
+- **PAX_KERNEXEC** — W^X for ext4_sops / ext4_iops / ext4_fops vtables and any compiled-in journaling helper text.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization at mount / remount / umount / statfs / ioctl entries.
+- **PAX_REFCOUNT** — saturating refcount on `s_active`, `s_count`, jbd2 journal handle refs, ext4_sb_info embedded counters.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for ext4_sb_info, ext4_inode_info slab tails, group-descriptor buffer_heads, and `s_es` superblock buffer when invalidated.
+- **PAX_UDEREF** — strict user-pointer access for mount option strings, ioctl arguments, and statfs out-buffers.
+- **GRKERNSEC_HIDESYM** — hide kernel pointers (s_es / journal / sb_info) in /proc/fs/ext4/* and audit messages.
+- **GRKERNSEC_LINK** — protected_hardlinks/symlinks enforced at ext4-level `link`/`symlink` against the mount's idmap.
+- **GRKERNSEC_SYMLINKOWN** — symlink-owner checks consult ext4's per-inode uid before ext4_get_link.
+- **GRKERNSEC_FIFO** — FIFO-in-sticky-dir restriction at ext4_mknod terminal.
+- **GRKERNSEC_CHROOT_MOUNT** — block mount(2) of ext4 inside chroot regardless of CAP_SYS_ADMIN.
+- **GRKERNSEC_CHROOT_MKNOD** — block ext4_mknod for char/block devices inside chroot.
+- **GRKERNSEC_TRUSTED** — `trusted.*` xattr handled by `ext4_xattr_trusted_handler` requires CAP_SYS_ADMIN.
+- **GRKERNSEC_PROC** — `/proc/fs/ext4/<dev>/*` + `/sys/fs/ext4/<dev>/*` gated by CAP_SYS_ADMIN for sensitive sysctls (mb_*, max_writeback_pages).
+- **PAX_RANDFS** — per-mount randomness seed feeds inode-allocation hashing to defeat targeted ext4_inode collision.
+- **PAX_SIZE_OVERFLOW** — block/inode/free-counter arithmetic uses checked operators (especially `ext4_blocks_count`/`ext4_free_blocks_count` 64bit composition).
+
+Per-doc rationale: ext4 is the default root-fs on most distros and has been the target of multiple superblock-parsing CVEs (CVE-2018-1093, CVE-2019-19447, CVE-2022-1184) — every entry is via a crafted on-disk superblock or malformed mount option. PAX_USERCOPY + PAX_UDEREF + PAX_SIZE_OVERFLOW + the GRKERNSEC_CHROOT_MOUNT/MKNOD pair + PAX_MEMORY_SANITIZE on sb_info close the canonical mount-time and steady-state exploitation paths.
+
 ## Open Questions
 
 (none at this Tier-3 level)

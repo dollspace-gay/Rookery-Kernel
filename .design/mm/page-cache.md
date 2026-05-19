@@ -206,6 +206,29 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `read`/`write`/`pread`/`pwrite`/`splice`/`sendfile` against page-cache folios validate buffer ranges via slab usercopy zones (page-cache itself routes through `iov_iter`).
+- **PAX_KERNEXEC** — page-cache .text + rodata are RX/RO; `address_space_operations` vtables CONSTIFY'd.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on every read/write entering the page cache.
+- **PAX_REFCOUNT** — folio `_refcount` + `_mapcount` + per-address_space refcounts saturating.
+- **PAX_MEMORY_SANITIZE** — folios freed from page cache (truncate/invalidate) zeroed before re-entry to page allocator (cross-ref `mm/page-allocator.md`); defeats file-content leak via slab spray.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack residual zeroing on every read/write syscall exit; pairs with sanitize to deny end-to-end info-leak.
+- **PAX_RAP / kCFI** — indirect-call type-signature enforcement on every `address_space_operations` callback (`read_folio`, `writepage`, `dirty_folio`, `release_folio`, `invalidate_folio`, `migrate_folio`).
+- **GRKERNSEC_HIDESYM** — kernel pointers hidden from `/proc/<pid>/pagemap`, `/proc/meminfo`, `/sys/kernel/debug/*` page-cache views for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — page-cache I/O error dmesg lines (EIO from `read_folio`, dirty-throttling warnings) restricted to CAP_SYSLOG.
+- **PAX_REFCOUNT (folio + address_space)** — saturating on the canonical refcount chains that an attacker would race to wrap.
+- **GRKERNSEC_KSTACKOVERFLOW** — kernel stack overflow detection at every readahead-recursion or write-throttling-blocked path.
+- **CONSTIFY** — `address_space_operations` vtables filesystem-provided are `static const`; runtime patching forbidden.
+- **DAX-bypass-honored** — for DAX-backed mappings, page-cache bypass is explicit; defeats unintentional caching of pmem contents (cross-ref `fs/00-overview.md` § direct-io-dax.md).
+- **mlock + page-cache interaction** — pinned folios via `mlock` honor `RLIMIT_MEMLOCK`; defeats unbounded-pin DoS.
+- **PAX_UDEREF** — page-cache never accepts raw user pointers; all user-data crossings go through `iov_iter` (cross-ref `lib/usercopy.md`).
+- **GRKERNSEC_LIBC_SANITIZER** — page-cache freed folios contain zero bytes when sanitizer-instrumented readers race to read the unmapped range.
+
+Per-doc rationale: the page cache holds the contents of every file ever read into memory — credentials, keys, executable text, sensitive configuration. A folio that escapes truncation, races a reader, or leaks via slab spray after free is an immediate information-disclosure primitive. PAX_MEMORY_SANITIZE on folio free defeats slab-spray-after-truncate; PAX_USERCOPY ensures `iov_iter`-routed reads cannot escape the validated buffer zone; PAX_RAP/kCFI on `address_space_operations` callbacks defeats function-pointer hijacks (a classic privilege-escalation primitive on file-backed mappings); GRKERNSEC_HIDESYM denies the `/proc/<pid>/pagemap` PFN-leak that would otherwise let an attacker correlate file offsets to physical-page locations. The page cache is the second-largest single user of kernel memory; its hardening is leveraged by every read/write/mmap of a file.
+
 ## Open Questions
 
 (none — page-cache semantics are exhaustively specified by VFS contract + Linux folio extensions)
