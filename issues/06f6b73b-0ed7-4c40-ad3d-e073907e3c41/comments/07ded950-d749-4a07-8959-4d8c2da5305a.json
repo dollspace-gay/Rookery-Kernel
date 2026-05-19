@@ -1,0 +1,10 @@
+{
+  "uuid": "07ded950-d749-4a07-8959-4d8c2da5305a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Wave-D6 dispatched 47 more per-syscall docs. Phase D: 221/~430 (~51%). Continuing toward ~430 + driver-tail + grsec annotation pass.",
+  "created_at": "2026-05-19T19:51:22.397348997Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAK9ElcyiAyUKXwtqGwwTgNI4P0QjeegLg5X8Z49cIFi3uREOm4sggqlDVLUtnMLAMQagKaKCehZL2lcqgHgudBw=="
+}
