@@ -1,0 +1,10 @@
+{
+  "uuid": "ed154976-d719-4110-bb4b-39c8e16fe736",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 178 (489 docs, +12 wave-23): io_uring/openclose+statx+xattr+uring-cmd+waitid, drivers/scsi/sd-zbc, arch/x86/traps+cpu-common, kernel/locking/lockdep+lockref, fs/proc/proc-misc, lib/maple-tree. 23 waves, 232 new docs. ~98%.",
+  "created_at": "2026-05-19T15:28:31.329627450Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAJXmte1XwFWQszzzNJKAzoUu91GUNWJgRBhoCMEOQxEhUXa4pURGj7zoKaZyAO31CyyaIhMDLKm0w+1E2QUTICA=="
+}
