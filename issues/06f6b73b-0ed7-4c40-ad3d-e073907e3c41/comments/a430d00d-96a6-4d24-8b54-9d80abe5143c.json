@@ -1,0 +1,10 @@
+{
+  "uuid": "a430d00d-96a6-4d24-8b54-9d80abe5143c",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Wave-D9 dispatched 50 syscall docs (numa, swap, ldt, x86-arch, futex2, lsm, process-vm, deprecated stubs). Phase D: 371/~430 (~86%).",
+  "created_at": "2026-05-19T20:44:55.752721430Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA5isRPqlxeYs50mr8PVN8SKqCMbBasxqfessri14RoAtca0Bk1Ne6O+KQGb04omWMl0DwVrr77f+3Yly0c6LaCg=="
+}
