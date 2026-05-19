@@ -275,6 +275,22 @@ raid10-specific reinforcement:
 - **Per-discard propagation atomicity** — defense against partial-discard leaving ghost-data.
 - **mdmon userspace integration via sysfs events** — defense against silent failure detection.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — write-intent bitmap pages and `r10conf->mirrors` accessors live in a slab whitelisted for IO; sysfs `near_copies` / `far_copies` / `offset_copies` writes go through `kstrtoul` against bounded `PAGE_SIZE` scratch.
+- **PAX_KERNEXEC** — `raid10_personality` (`.make_request`, `.run`, `.sync_request`, `.hot_add_disk`, `.hot_remove_disk`, `.takeover`, `.error_handler`, `.start_reshape`, `.finish_reshape`) is `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — `raid10_make_request` and the daemon `raid10d` / per-stripe sync worker cross the per-syscall random kstack offset on entry.
+- **PAX_REFCOUNT** — `r10bio->remaining`, `r10conf->nr_pending`, and per-`md_rdev->nr_pending` are refcount_t / atomic_t with saturating overflow; a forged reshape-restart loop saturates rather than wraps.
+- **PAX_MEMORY_SANITIZE** — the per-bio mempool slab is allocated with sanitizing-on-free so released `r10bio` objects do not leak prior near/far/offset placement decisions.
+- **PAX_UDEREF** — `/sys/block/mdX/md/*` writes and `MD_*` ioctl reshape parameters are read via `copy_from_user` into kernel scratch and validated against existing layout before commit.
+- **PAX_RAP / kCFI** — `mdk_personality` callbacks and bitmap-storage ops are typed indirect-call edges.
+- **Per-disk REFCOUNT** — `rdev_dec_pending` is the only sanctioned drop; hot-remove waits for nr_pending drain before freeing the rdev.
+- **Bitmap PAX_USERCOPY** — bitmap file IO is sliced through `bio_add_page` against a slab-whitelisted page cache.
+- **RAP on raid_ops** — `raid10_personality` registered via the typed `register_md_personality` indirect-call edge; `personality_list` is `__ro_after_init`.
+- **GRKERNSEC_HIDESYM / GRKERNSEC_DMESG** — `r10conf` and `r10bio` pointers are scrubbed under `kptr_restrict ≥ 2`; mirror-fail and reshape events log at `KERN_WARNING` with `__ratelimit`.
+- **CAP gating** — `MD_IOCTL` and `STOP_ARRAY` for a raid10 array require `CAP_SYS_ADMIN` in the array's owning userns.
+- **Reshape-progress signed checkpoint** — `recovery_cp` is journaled to the array superblock; on restart the kernel rejects an in-progress reshape whose superblock fails sb-csum, preventing a forged-reshape attack from replaying stale geometry.
+
 ## Open Questions
 
 (none at this Tier-3 level)

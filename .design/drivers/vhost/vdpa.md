@@ -531,6 +531,26 @@ vhost-vdpa reinforcement:
 - **Per-`vhost_dev_check_owner` gate on IOTLB messages** — defense against per-non-owner DMA programming.
 - **Per-backend-feature bit dependency checks (`F_DESC_ASID ⟹ F_IOTLB_ASID`; `F_SUSPEND ⟹ can_suspend`; ...)** — defense against per-inconsistent-negotiation.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `drivers/vhost/vdpa.c`:
+
+- **PAX_USERCOPY** — bounds-checks every `copy_from_user`/`copy_to_user` against `vhost_iotlb_msg`, `vhost_vdpa_config`, and IOTLB-update payloads so a malicious userspace cannot overrun the IOTLB descriptor buffer or leak adjacent slab data through a short structure read.
+- **PAX_KERNEXEC** — keeps the vhost-vdpa ioctl dispatch table and `vdpa_config_ops` vtables in read-only kernel memory; a write-what-where bug in a vendor driver cannot rewrite `set_vq_address` or `dma_map` to a userspace gadget.
+- **PAX_RANDKSTACK** — randomizes the per-syscall kernel stack offset on entry to `vhost_vdpa_unlocked_ioctl`, defeating deterministic stack-spray probes against the long IOTLB-message decode path.
+- **PAX_REFCOUNT** — wraps `irq_bypass_producer` and `vhost_vdpa_as` reference counts so a saturating increment from a malicious sequence of `SET_GROUP_ASID`/`irq_bypass_register_producer` cannot wrap to zero and trigger early free.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `vhost_vdpa_as`, IOTLB entries, and pinned-page descriptors so residual host PFNs / mapping cookies cannot be recovered from the freelist by a later allocation.
+- **PAX_UDEREF** — enforces strict user/kernel pointer separation across the long ioctl handler so a confused-deputy bug cannot dereference a userspace pointer with kernel privilege.
+- **PAX_RAP / kCFI** — forward-edge CFI on the `vdpa_config_ops` vtable and the `irq_bypass_consumer` callback set, so a corrupted function pointer cannot be redirected to an arbitrary kernel function.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from `/dev/vhost-vdpa-N`-adjacent diagnostics (e.g. `vdpa_dev->dev` printk traces) so unprivileged tracepoints cannot leak the kASLR base.
+- **GRKERNSEC_DMESG** — gates dmesg readability on `CAP_SYSLOG` so vDPA bring-up errors that include device addresses cannot be harvested by an unprivileged attacker.
+- **CAP_SYS_ADMIN on `/dev/vhost-vdpa-N`** — the open path is hard-gated; even with permissive udev rules an unprivileged user cannot pin host pages or program device DMA without the full capability, blocking memlock-DoS and DMA-aliasing primitives.
+- **PAX_USERCOPY on IOTLB messages** — `vhost_chr_write_iter` payloads (`vhost_iotlb_msg`/`v2`) are size-validated and copied via the hardened usercopy path so a malformed `size`/`iova` cannot drive a slab overflow inside the message decoder.
+- **PAX_REFCOUNT on `irq_bypass_producer`** — register/unregister pairs across `DRIVER_OK` transitions are protected so a fast SET_STATUS toggle cannot underflow the producer refcount and leave a stale IRQ injector behind.
+- **GRKERNSEC_HIDESYM on vDPA error paths** — `vdpa_get_config`/`set_config` error logs are sanitized so device-specific pointer values do not bleed into syslog.
+
+Rationale: vhost-vdpa is a userspace-facing DMA programming interface that pins arbitrary host memory and forwards IRQs into KVM; combined with the long ioctl surface this is one of the highest-leverage privileged paths in the kernel, so layered PaX/grsec controls (usercopy + refcount + RAP + capability gating) are warranted in addition to the upstream defenses.
+
 ## Open Questions
 
 - Per-VA-mode (`use_va = true`) is currently exercised by vduse and a few SVA-capable smartNIC vendor drivers — Rookery should ensure the `vdpa_map_file` opaque cookie lifetime matches mainline exactly (notably `get_file` is taken at map time and released at unmap time; vDPA vendor driver may dereference between).

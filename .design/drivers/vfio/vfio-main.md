@@ -443,6 +443,21 @@ VFIO core reinforcement:
 - **Per-vfio_pin_pages mdev-only gate** — defense against per-direct-DMA bypass on IOMMU-backed devices.
 - **Per-DMA_RW kthread-flag auto-detect** — defense against per-current.mm NULL pointer deref when called from kthreads.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `VFIO_IOMMU_MAP_DMA`, `VFIO_IOMMU_UNMAP_DMA`, and dirty-bitmap copy-out routed through bounded `copy_*_user`; size validated against `argsz` and `flags`.
+- **PAX_KERNEXEC** — `vfio_main_ops`, `vfio_container_ops`, and `iommufd_object` op tables placed in `__ro_after_init`.
+- **PAX_RANDKSTACK** — entropy added on every `vfio_fops_unl_ioctl` / `vfio_group_fops_open` entry; neutralises stack-shape probing during group-attach races.
+- **PAX_REFCOUNT** — `vfio_container.refcnt`, `vfio_group.users`, `vfio_iommu.lock`'d kref, and per-device file refcounts use saturating counters.
+- **PAX_MEMORY_SANITIZE** — DMA-mapping scratch (`vfio_dma`), dirty-bitmap pages, and group/device fd metadata zero-on-free.
+- **PAX_UDEREF** — every vfio main ioctl dereferences user pointers only via user-AS-annotated copy helpers; bitmap pointer in `VFIO_IOMMU_DIRTY_PAGES` validated as user-AS.
+- **PAX_RAP / kCFI** — `vfio_device_ops.open_device`, `close_device`, `bind_iommufd`, and `attach_ioas` callbacks type-tagged.
+- **GRKERNSEC_HIDESYM** — `/dev/vfio/vfio` and `/dev/vfio/<groupid>` paths strip kernel pointers from dmesg.
+- **GRKERNSEC_DMESG** — IOMMU map/unmap-fault prints gated behind `CAP_SYSLOG`.
+- **/dev/vfio CAP_SYS_ADMIN** — `open("/dev/vfio/vfio")` and group-fd open require `CAP_SYS_ADMIN` (or per-group ACL via vfio-noiommu denied for non-admin); defends against unprivileged DMA container creation.
+- **Group-fd lifecycle PAX_REFCOUNT** — `vfio_group.users` and `vfio_group.container_users` are saturating refcounts; group cannot be torn down while a device fd or container reference is outstanding, defending against UAF on container teardown.
+- **Rationale** — vfio-main is the dispatch arbiter for raw DMA assignment; CAP_SYS_ADMIN gating on /dev/vfio + saturating refcounts on group/container lifecycle prevent the historic "vfio-group teardown UAF" LPE class.
+
 ## Open Questions
 
 (none at this Tier-3 level)

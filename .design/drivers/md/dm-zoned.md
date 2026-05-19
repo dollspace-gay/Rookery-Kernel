@@ -265,6 +265,22 @@ dm-zoned-specific reinforcement:
 - **BLKRESETZONE wait-for-quiesce** — defense against reset-during-active-write.
 - **Per-mblock LRU bounded** — defense against unbounded metadata-cache growth.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — zone-mapping metadata blocks are paged through dm-bufio whitelisted slabs; the per-IO `dmz_bioctx` is allocated from a fixed-size mempool so userspace IO never observes neighboring zone-state bytes.
+- **PAX_KERNEXEC** — `dmz_target_type`, the metadata-block validator (`dmz_mblk_validator`), and the reclaim/flush workqueue ops live in `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — `dmz_map`, the reclaim worker `dmz_reclaim_work`, and the flush worker `dmz_flush_work` cross the random kstack offset on each entry before touching zone-state arrays.
+- **PAX_REFCOUNT** — `dmz_zone->refcount` (used by reclaim and active IO arbitration), `dmz_dev->refcount`, and `dmz_mblock->ref_count` are refcount_t with saturation so a forged reclaim-during-IO race cannot wrap to zero and free a live zone.
+- **PAX_MEMORY_SANITIZE** — reclaimed zones are RESET via `blkdev_zone_mgmt(BLKDEV_ZONE_RESET)` before being recycled, which clears the host's view; freed `dmz_mblock` slabs are zeroed before reuse.
+- **PAX_UDEREF** — `dmz_ctr` table-line parsing copies the underlying device path and parameters into kernel buffers; no `__user` pointer is dereferenced after segment switch.
+- **PAX_RAP / kCFI** — `dm_target_type` callbacks and the metadata-block validator are typed indirect calls; the reclaim work_struct callback is registered via `INIT_WORK` with a typed function pointer.
+- **CAP_SYS_RAWIO on ZBC pass-through** — when userspace issues SG_IO / `ioctl(BLKREPORTZONE, BLKRESETZONE, BLKOPENZONE, BLKCLOSEZONE, BLKFINISHZONE)` against the underlying ZBC device, the block-layer requires `CAP_SYS_RAWIO`; dmz only exposes a conventional block face, so unprivileged users see emulation-only semantics and cannot weaponize raw ZBC commands to bypass the zone-translation layer.
+- **GRKERNSEC_HIDESYM** — metadata-block pointers and zone-array base addresses are scrubbed from sysfs and `dmsetup status` under `kptr_restrict ≥ 2`.
+- **GRKERNSEC_DMESG** — zone-reset failures and metadata-checksum mismatches log at `KERN_ERR` with `__ratelimit` so a faulty drive cannot DoS the ring buffer.
+- **CAP_SYS_ADMIN on dm-zoned ctr** — table-load for a dm-zoned target requires `CAP_SYS_ADMIN` in the dm userns; container roots cannot graft a malicious zoned device onto a host conventional namespace.
+- **Sequential-write enforcement on backing device** — the chunk-mapping layer hashes write LBAs to sequential-write-required zones; any attempt to bypass the mapping (e.g., direct ZBC write at a wrong WP) is rejected by the backing device with `BLK_STS_IOERR`, preserving the SMR / NVMe-ZNS append discipline.
+- **Per-flush epoch ID** — `dmz_flush_metadata` increments an epoch monotonic counter so a malicious userspace cannot reuse stale metadata blocks after a power-loss recovery cycle.
+
 ## Open Questions
 
 (none at this Tier-3 level)

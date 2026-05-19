@@ -230,6 +230,24 @@ scsi-mid-core specific reinforcement:
 - **Per-cmd buffer size validated against per-LLD `sg_tablesize`** — defense against single cmd consuming all SG entries.
 - **Per-host `host_busy` int32 saturating** — defense against integer wraparound under sustained load.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /sys/class/scsi_host/hostN/* and /sys/class/scsi_device/H:C:T:L/* attr buffers (proc_name, host_busy, can_queue, sg_tablesize, state, vendor, model, rev) whitelisted; defense against per-oversized-sysfs-read leaking adjacent slab.
+- **PAX_KERNEXEC** — scsi_host_alloc, scsi_add_host, scsi_remove_host, scsi_scan_host, scsi_register / scsi_unregister, scsi_eh_scmd_add run W^X.
+- **PAX_RANDKSTACK** — per-/sys/class/scsi_host-write and per-EH-thread entry randomize kernel-stack offset.
+- **PAX_REFCOUNT** — struct Scsi_Host, struct scsi_target, struct scsi_device refs saturating refcount_t; defense against per-rescan-storm or per-hot-remove-race refcount overflow.
+- **PAX_MEMORY_SANITIZE** — Scsi_Host, scsi_target, scsi_device, scsi_host_template-mirror slabs poison-on-free; defense against per-prior-host-state leak across HBA-driver re-bind.
+- **PAX_UDEREF** — /sys/class/scsi_host/hostN/scan, /sys/class/scsi_device/H:C:T:L/delete, /sys/class/scsi_device/H:C:T:L/queue_depth writers enforce split user/kernel on the integer / triple parse.
+- **PAX_RAP/kCFI (hostt)** — struct scsi_host_template vtable (queuecommand, eh_abort_handler, eh_device_reset_handler, eh_target_reset_handler, eh_bus_reset_handler, eh_host_reset_handler, slave_alloc, slave_configure, slave_destroy, change_queue_depth, this_id) CFI-protected via PAX_RAP / kCFI; defense against per-forged-hostt via HBA-module-load race or out-of-tree shim.
+- **GRKERNSEC_HIDESYM** — shost_class, sdev_class, scsi_host_template, per-HBA hostt addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "scsi host%d: ", "scsi_eh_%d: ", "Adding scsi target", "Removing scsi target" prints restricted; defense against per-SCSI-topology-fingerprinting of attached HBA + LUN set.
+- **Error-recovery audit** — every entry into scsi_eh thread, every transition through eh_abort_handler -> eh_device_reset -> eh_target_reset -> eh_bus_reset -> eh_host_reset audited (LSM hook + ratelimited dev_info); defense against per-EH-storm being weaponized for log-flood DoS and per-rogue-LLD repeatedly bouncing the host through EH to mask data corruption.
+- **/sys/class/scsi_host scan CAP_SYS_ADMIN** — /sys/class/scsi_host/hostN/scan, /sys/class/scsi_device/H:C:T:L/delete, /sys/class/scsi_device/H:C:T:L/rescan, queue_depth writers require CAP_SYS_ADMIN.
+- **Per-cmd buffer size validated against per-LLD sg_tablesize** — defense against single cmd consuming all SG entries.
+- **Per-host host_busy int32 saturating** — defense against integer wraparound under sustained load.
+- **Per-hostt this_id collision check** — defense against per-HBA-driver claiming a LUN id used by another host.
+- Rationale: scsi-mid-core is the host-template + EH backbone that every SCSI HBA module plugs into; grsec posture combines CAP_SYS_ADMIN at /sys/class/scsi_host scan/delete/queue_depth, audit on every EH transition, PAX_RAP/kCFI on hostt (the critical out-of-tree-loaded vtable), usercopy-whitelisting on sysfs reflection, and sanitize-on-free of Scsi_Host/scsi_device slabs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

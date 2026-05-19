@@ -275,6 +275,31 @@ dm-cache-specific reinforcement:
 - **Per-policy hint persistence** — defense against SMQ resetting per-block hit-count on every reboot.
 - **Per-bio_prison cell ref-count** — defense against double-release on requeue.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-cache promotes hot blocks from slow origin storage to fast SSD cache via a pluggable policy (SMQ default). The policy callbacks are invoked under hot-path mapping locks for every bio, and a corrupted policy vtable or persistent-superblock replay lets an attacker direct origin reads to attacker-controlled cache blocks — bypassing the underlying integrity / dm-crypt layer that may sit above. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-cache-target.c` (+ `dm-cache-policy*.c`) plus dm-cache-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: dm-cache `status` and `message` output via dm-core's whitelisted slab buffer (PAGE-sized DM_BUFFER); ctr/dtr params parsed via `dm_split_args` whitelisted.
+- **PAX_KERNEXEC**: per-cache `dm_cache_policy_type` vtable + `dm_target_type` placed `__ro_after_init`; never repointed post-`dm_register_target`.
+- **PAX_RANDKSTACK**: per-bio entry to `cache_map` re-randomises kernel stack offset.
+- **PAX_REFCOUNT**: per-cache `cache.refcount`, per-policy `policy.refcount`, per-bio_prison cell refcount saturating.
+- **PAX_MEMORY_SANITIZE**: per-cache `mblock_array` and `policy_hint_array` zero-filled on free; defends against stale policy-hint disclosure if a freed cache device is later reused as origin.
+- **PAX_UDEREF**: no user pointers; ioctl path uses dm-core's already-guarded copy_from_user.
+- **PAX_RAP / kCFI**: `policy.map`, `policy.lookup`, `policy.set_dirty`, `policy.clear_dirty`, `policy.tick`, `policy.invalidate_mapping`, `policy.allocate_migration`, `migrate_to_cache_callback`, `commit_complete_callback` all kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-cache addr, per-policy addr, per-bio addr never rendered into status; `%pK` only.
+- **GRKERNSEC_DMESG**: cache-error warnings ratelimited; CAP_SYSLOG to read.
+
+dm-cache-specific reinforcement:
+- **Cache policy PAX_RAP** — `dm_cache_policy_type.map` / `.lookup` / `.set_dirty` / `.tick` signatures kCFI-tagged with strict arg/ret fingerprints; a mis-built out-of-tree policy module loads but cannot dispatch (BUG() on first call) rather than corrupt mapping state.
+- **Persistent superblock signature verify** — magic `DM_CACHE_SUPERBLOCK_MAGIC` + version + per-superblock SHA256 over `policy_name` / `policy_version` / `data_block_size` / `cache_blocks` / `migration_threshold` validated on activate; refuses to load a tampered cache superblock that would redirect origin reads.
+- **Migration in-flight cap** — `migration_threshold` clamped to `cache_size / 4`; defends migration-storm DoS.
+- **Per-bio_prison cell PAX_REFCOUNT saturating** — already in row-2 hardening; extended with debug-build double-release trap.
+- **`policy_load_mappings` btree-replay sanity-checks** — per-mapping origin-block < origin_blocks, cache-block < cache_blocks, status ∈ {VALID, DIRTY, INVALID}; refuses replay on out-of-range entries (defends crafted-superblock attack).
+- **`commit_complete_callback` invoked under cache.lock** — guarantees no policy-state observation between block-commit and metadata-commit (defends torn-state read via concurrent dmsetup status).
+- **Discard-bitmap bounded** — sized once at activate; defends realloc-attack via repeated table-reload.
+- **`policy_destroy` zeroes hint array** — already in row-2; extended with PAX_MEMORY_SANITIZE flag so even a power-cycled cache device cannot leak hot-block locality to a successor.
+
 ## Open Questions
 
 (none at this Tier-3 level)

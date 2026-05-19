@@ -722,6 +722,21 @@ USB-driver-framework reinforcement:
 - **Per-`pm_runtime_set_active` + `pm_suspend_ignore_children(false)` at claim/probe** — defense against per-runtime-PM-deadlock with hub.
 - **Per-bus `need_parent_lock = true` (usb_bus_type)** — defense against per-hub-vs-child race during probe/suspend.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `/sys/bus/usb/drivers/<drv>/new_id` and `remove_id` writes copy through bounded `kstrtouint`/`sscanf` whose input length is `PAGE_SIZE` capped; defends against per-sysfs-store overflow.
+- **PAX_KERNEXEC** — `usb_driver`, `usb_device_driver`, and `usb_dynids` op tables placed in `__ro_after_init`; defends driver-match against vtable rewrite.
+- **PAX_RANDKSTACK** — entropy added on every `usb_probe_device` / `usb_probe_interface` entry to neutralise stack-shape probing during enumerate races.
+- **PAX_REFCOUNT** — `usb_driver.dynids.lock`'d refcounts, `usb_device.refcnt`, and per-interface `pm_usage_cnt` use saturating counters.
+- **PAX_MEMORY_SANITIZE** — `usb_dynid` and `usb_device_id` scratch allocations zero-on-free.
+- **PAX_UDEREF** — `new_id` / `remove_id` / `match_busid` sysfs store callbacks dereference user pointers only via user-AS-annotated helpers.
+- **PAX_RAP / kCFI** — `usb_driver.probe`, `disconnect`, `suspend`, `resume`, `pre_reset`, `post_reset`, `unlocked_ioctl` callbacks type-tagged; defends against ROP via a corrupted driver pointer.
+- **GRKERNSEC_HIDESYM** — `/sys/bus/usb/drivers/*` entries do not disclose kernel pointers.
+- **GRKERNSEC_DMESG** — driver bind/unbind / `usb_match_device` failure prints gated behind `CAP_SYSLOG`.
+- **USB driver match table** — every `id_table` entry validated at registration: `idVendor`/`idProduct`/`bDeviceClass` ranges, `match_flags` consistency; defends against malformed module-pack id-tables.
+- **dynamic_id /sys/bus/usb/drivers CAP_SYS_ADMIN** — `new_id`, `remove_id`, and `match_busid` writes gated behind `CAP_SYS_ADMIN`; defends against unprivileged driver-binding (e.g. force-binding a HID driver to an attacker's gadget masquerading as a keyboard).
+- **Rationale** — driver-match is the choke point for "BadUSB-class" attacks; CAP_SYS_ADMIN on dynamic_id, id-table validation, and RAP on probe/disconnect callbacks together prevent unprivileged binding of attacker-supplied modules.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -703,6 +703,24 @@ regulator core reinforcement:
 - **Per-`open_count` WARN at unregister** — defense against per-driver-removal with live consumers.
 - **Per-error-flag latched in `cached_err` + sysfs error attrs read-once** — defense against per-event-loss between userspace polls.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /sys/class/regulator/regulator.N/* attrs (microvolts, microamps, num_users, state, status, type) and regulator_consumer slab whitelisted; defense against per-oversized-sysfs-read leaking adjacent slab.
+- **PAX_KERNEXEC** — regulator_enable, regulator_disable, regulator_set_voltage, regulator_register run W^X.
+- **PAX_RANDKSTACK** — per-/sys/class/regulator-write and per-regulator-IRQ (under-voltage / over-current notify) entry randomize kernel-stack offset.
+- **PAX_REFCOUNT** — struct regulator_dev, struct regulator (consumer handle), regulator_supply refs saturating refcount_t; defense against per-consumer-leak refcount overflow.
+- **PAX_MEMORY_SANITIZE** — regulator_dev, regulator (consumer), regulator_init_data slabs poison-on-free; defense against per-prior-rail-config leak across re-register.
+- **PAX_UDEREF** — sysfs writers (min_microvolts, max_microvolts is read-only; user-set surfaces are limited) enforce split user/kernel on the integer parse path.
+- **PAX_RAP/kCFI (regulator-ops)** — struct regulator_ops vtable (enable, disable, is_enabled, set_voltage, get_voltage, set_current_limit, get_status, set_load, get_error_flags, suspend_enable, etc.) CFI-protected via PAX_RAP / kCFI; defense against per-forged-regulator_ops via driver-load race or out-of-tree shim.
+- **GRKERNSEC_HIDESYM** — regulator_list, of_regulator_match, per-driver regulator_ops addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "regulator-N: under-voltage", "regulator-N: over-current", "regulator_register failed" prints restricted; defense against per-rail-topology-disclosure.
+- **/sys/class/regulator regulator_consumer PAX_USERCOPY** — consumer handle (struct regulator) and its sysfs reflection (consumer counts, debugfs regulator/<name>/consumers) usercopy-whitelisted; defense against per-oversized-consumer-list copy leaking heap.
+- **Per-open_count WARN at unregister** — defense against per-driver-removal with live consumers, which would leave dangling regulator handles in foreign drivers.
+- **Per-error-flag latched read-once** — cached_err + sysfs error attrs read-once-and-clear; defense against per-event-loss between userspace polls.
+- **Per-set_voltage envelope bounded** — regulator_set_voltage_unlocked checks min_uV/max_uV against constraints->min_uV/max_uV; defense against per-out-of-envelope voltage damaging downstream hardware (CPU, memory, RF PA, battery charger).
+- **Per-suspend ordering enforced** — regulator_suspend / regulator_resume ordering follows of-supply tree topology so a child rail is never powered before its parent.
+- Rationale: regulator core mediates physical power rails on SoC platforms; grsec posture combines CAP_SYS_ADMIN (inherited from sysfs class default), CFI on regulator_ops dispatch (PAX_RAP critical: regulator_ops is loaded at probe by untrusted modules), usercopy-whitelisting on consumer reflection, sanitize-on-free of regulator_dev/init_data, and envelope bounds inside regulator_set_voltage.
+
 ## Open Questions
 
 (none at this Tier-3 level)

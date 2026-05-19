@@ -262,6 +262,24 @@ mlx5-en specific reinforcement:
 - **Per-VF FLR (Function Level Reset)** isolates faulty VF without affecting siblings.
 - **Per-channel XDP-SQ wraparound bounded** — defense against XDP-TX-flood causing DoS.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — mlx5e Rx WQE fragment slabs (mlx5e_rq_frag_info, mlx5e_mpw_info) and DEVLINK param blobs flagged whitelist-only; skb headroom sized so usercopy bound-checks the actual XDP_PACKET_HEADROOM + NET_IP_ALIGN.
+- **PAX_KERNEXEC** — mlx5e NAPI poll, mlx5e_handle_rx_cqe, mlx5e_xmit, and the mlx5_core EQ ISR run W^X; no FW-loaded blob is mapped writable+executable into kernel text.
+- **PAX_RANDKSTACK** — per-MSI-X-completion entry randomizes kernel stack so a hostile peer cannot pivot ROP off a stable offset in the mlx5e Rx path.
+- **PAX_REFCOUNT** — mlx5e_priv, mlx5_core_dev, page_pool refs all use saturating refcount_t; defense against refcount overflow from devlink reload storm or RDMA QP teardown race.
+- **PAX_MEMORY_SANITIZE** — Rx fragment / WQE / CQE-pool slabs poison-on-free; defense against per-VF re-use of a freed fragment leaking peer-VF traffic.
+- **PAX_UDEREF** — mlx5 netlink, devlink, and ethtool ioctl entry points enforce SMAP-equivalent split address spaces on copy_from/to_user of mlx5_ifc_* layout structures.
+- **PAX_RAP/kCFI** — mlx5e_profile->init/cleanup/update_rx, mlx5e_rx_handlers, mlx5_core cmd_ops vtables CFI-protected; defense against forged function pointer in profile struct after FW reset.
+- **GRKERNSEC_HIDESYM** — mlx5_ifc_* layout symbols and mlx5e_* helper addresses hidden from /proc/kallsyms to unprivileged readers.
+- **GRKERNSEC_DMESG** — dmesg restricted; mlx5e link-event, FW-health, and "FW error syndrome" prints do not leak HCA layout to non-CAP_SYSLOG readers.
+- **mlx5_core CAP_NET_ADMIN** — mlx5e netdev configuration (ethtool, devlink port, ring resize, channel count) gated on CAP_NET_ADMIN on the netdev's netns.
+- **MLX5 firmware-blob signature** — FW image (mlxfw / fw_reset) verified against Mellanox signing key before MFRL/MIRC load; defense against per-rogue-firmware persistent rootkit in HCA.
+- **DEVLINK PAX_USERCOPY** — devlink param get/set / health-reporter dump buffers usercopy-whitelisted so an oversized devlink reply cannot leak adjacent slab.
+- **Per-flow-steering rule CAP_NET_ADMIN** — TC offload / ct-offload / mirroring rule install gated; defense against per-unprivileged-tap of foreign VF traffic.
+- **Per-SR-IOV VF spawn CAP_SYS_ADMIN on PF netns** — defense against unprivileged enabling of VFs against a PF assigned to a different netns.
+- Rationale: mlx5_core/mlx5e expose a large devlink + ethtool + RDMA + flow-steering UAPI fed by a vendor-signed firmware blob; grsec posture combines CAP_NET_ADMIN/CAP_SYS_ADMIN gates with FW-signature enforcement, CFI on the profile/handler vtables, and usercopy-whitelisting on devlink dumps.
+
 ## Open Questions
 
 (none at this Tier-3 level)

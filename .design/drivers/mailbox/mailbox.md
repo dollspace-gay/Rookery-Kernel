@@ -460,6 +460,32 @@ Mailbox-framework reinforcement:
 - **Per-knows_txdone client coerces method without re-validating last_tx_done absence** — assumes ACK path strictly; defense against silent-poll-failure with knows_txdone.
 - **Per-flush() fallback path tx_tick(ret) on failure** — defense against per-flush-failure stuck active_req.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: mailbox channels carry control-plane messages between the host kernel and security-relevant co-processors (PSCI, SCMI, TF-A, modem, NPU). A corrupted `mbox_chan_ops` vtable, mis-dispatched txdone callback, or message pointer aliasing here yields direct control of remote-firmware ABI requests — including reset, power-domain, and SCMI clock/voltage commands. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/mailbox/mailbox.c` plus mailbox-framework-specific reinforcement.
+
+Baseline (cross-ref `drivers/mailbox/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: mailbox framework has no direct user surface in-kernel; debugfs/sysfs counters (if exposed by controller drivers) go through whitelisted slab caches.
+- **PAX_KERNEXEC**: per-`mbox_chan_ops` and per-`mbox_controller.of_xlate`/`fw_xlate` vtables installed at register time and placed `__ro_after_init` per controller; never repointed.
+- **PAX_RANDKSTACK**: client/controller entry points (`mbox_send_message`, `mbox_chan_txdone`, `mbox_chan_received_data`) re-randomise kernel stack on entry — especially important since `rx_callback` is invoked from atomic / IRQ context.
+- **PAX_REFCOUNT**: per-`mbox_chan` `try_module_get` / `module_put` count saturating; per-controller `node` list usage refcount-checked.
+- **PAX_MEMORY_SANITIZE**: `msg_data[idx]` slot zeroed on dequeue (after `send_data` succeeds) so a freed message pointer cannot be re-dispatched; per-`MboxChan` `con_priv` zeroed on `mbox_free_channel`.
+- **PAX_UDEREF**: no direct user pointers in mailbox.c.
+- **PAX_RAP / kCFI**: `send_data`, `startup`, `shutdown`, `last_tx_done`, `peek_data`, `flush`, `tx_prepare`, `tx_done`, `rx_callback`, `of_xlate`, `fw_xlate` all dispatched via kCFI-tagged indirect calls; mismatched signature traps to `BUG()`.
+- **GRKERNSEC_HIDESYM**: `dev_err`/`dev_warn` from mailbox.c emits only device name; `&chan` / `&mbox` rendered with `%pK`.
+- **GRKERNSEC_DMESG**: queue-overflow / "Try increasing MBOX_TX_QUEUE_LEN" warnings ratelimited; `dmesg` access requires CAP_SYSLOG.
+
+mailbox-framework-specific reinforcement:
+- **`mbox_chan` PAX_REFCOUNT on cl-binding** — `chan.cl` set/clear uses saturating counter under `chan.lock`; defends double-bind races during driver bringup.
+- **RAP on `chan_ops`** — `mbox_chan_ops` signatures kCFI-tagged with arg/ret type fingerprint; controller drivers cannot publish ABI-mismatched ops (e.g. `send_data` returning pointer instead of int).
+- **`MBOX_NO_MSG` sentinel disallows NULL message and disallows the kernel-text address range** — defends against a controller driver passing `mssg = (void*)mbox_chan_txdone` to confuse the FSM.
+- **`msg_data[]` ring bounded + GFP_ATOMIC-only path** — never reallocs; defends against atomic-context allocation failure cascade.
+- **`mbox_request_channel` enforces fwnode same-namespace** — fwspec.fwnode must share root with consumer's `cl.dev` fwnode; defends against cross-namespace channel hijack on multi-tenant SoCs.
+- **`txdone_method` mask-tested with strict `&` (not `==`)** — already in row-2 hardening; extended with grsec audit entry when a controller calls into the wrong path.
+- **Poll-mode hrtimer interval clamped** — `txpoll_period` floor 1 ms, ceiling 1000 ms; defends against SoC firmware quirks driving 0-period busy-loop.
+- **`tx_tout` 3,600,000 ms hard cap** — already in row-2; extended with audit log when client passes `tx_tout > 60_000` to flag misbehaving consumers.
+- **`mbox_controller_unregister` con_mutex barrier** — guarantees in-flight `mbox_request_channel` walkers finish before controller free; defends against UAF on iterating list while node freed.
+
 ## Open Questions
 
 (none at this Tier-3 level)

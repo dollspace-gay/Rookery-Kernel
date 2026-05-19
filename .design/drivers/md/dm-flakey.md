@@ -217,6 +217,32 @@ dm-flakey-specific reinforcement:
 - **dm-stripe chunk-size validated power-of-2** — defense against modulo-overhead.
 - **dm-linear offset + size ≤ dev capacity** — defense against OOB device access.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-flakey (and the simple linear/delay/zero targets covered here) is an error-injection target for filesystem and block-layer fault testing. It can drop/corrupt/duplicate bios on schedule — exactly the primitives an attacker would want for fault-injection-driven escalation in CI runners or shared test infrastructure. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-flakey.c` plus dm-flakey-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: dm-flakey status/message output via dm-core's whitelisted slab; ctr feature-flag parsing whitelisted.
+- **PAX_KERNEXEC**: per-`dm_target_type` vtable `__ro_after_init`.
+- **PAX_RANDKSTACK**: per-bio entry to `flakey_map` / `flakey_end_io` re-randomises stack.
+- **PAX_REFCOUNT**: per-flakey-context refcount, per-bio refcount saturating.
+- **PAX_MEMORY_SANITIZE**: per-flakey-context zeroed on dtr.
+- **PAX_UDEREF**: no direct user pointer.
+- **PAX_RAP / kCFI**: ctr/dtr/map/end_io/status/message indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-flakey-context addr never rendered; `%pK` only.
+- **GRKERNSEC_DMESG**: flakey-trigger warnings ratelimited; CAP_SYSLOG.
+
+dm-flakey-specific reinforcement:
+- **Error-injection LOCKDOWN_DEBUGFS** — dm-flakey activate refuses when `kernel_is_locked_down(LOCKDOWN_DEBUGFS)` is true (integrity-mode lockdown). Defends against fault-injection-based attack surface on production / kernel-hardened systems; allowed only in DEV/unlocked kernels.
+- **CAP_SYS_ADMIN + audit on activate** — beyond dm-core's existing CAP_SYS_ADMIN, dm-flakey logs a grsec audit entry with uid + pid + table-args every time a flakey target is loaded. Defends silent insertion via dmsetup-table-load.
+- **`drop_writes` / `corrupt_bio_byte` / `error_writes` feature flags refused on read-only-attribute devices** — refuses if underlying bdev has BLK_OPEN_INTEGRITY or is part of dm-integrity stack; defends silent corruption of integrity-protected data.
+- **`corrupt_bio_byte` value clamp** — corruption byte offset within bio data clamped to `[0, BIO_MAX_VECS * PAGE_SIZE)`; defends OOB write into adjacent bio_vec memory.
+- **Per-bio timer (delay) hrtimer count capped** — at most `CONFIG_DM_FLAKEY_MAX_INFLIGHT (=4096)` pending delayed bios; defends timer-flood DoS.
+- **`up_interval` / `down_interval` clamped > 0** — refuses zero interval which would be undefined / divide-by-zero in interval math.
+- **dm-delay hrtimer per-bio bounded** — extension of row-2 hardening; refuses delay > 600 seconds.
+- **dm-zero discard semantics validated** — already in row-2; extended with grsec audit-log entry on discard refusal.
+- **Status output redacts feature flags when caller lacks CAP_SYS_ADMIN** — prevents un-privileged dmsetup status from probing for flakey instances on shared hosts.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -735,6 +735,24 @@ scsi_lib reinforcement:
 - **Per-RCU-defer on scsi_eh_inc_host_failed** — defense against per-EH-counter increment racing with blk_mq_complete_request finishing the rq.
 - **Per-runtime-exceeced override to FAIL** — defense against per-cmd outliving SD_TIMEOUT * retry budget.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY (struct scsi_cmnd)** — struct scsi_cmnd, sense-buffer (SCSI_SENSE_BUFFERSIZE = 96), and SG_IO sgio buffer slabs whitelisted; defense against per-oversized-sense or per-oversized-sgio leaking adjacent slab.
+- **PAX_KERNEXEC** — scsi_dispatch_cmd, scsi_queue_rq, scsi_finish_command, scsi_softirq_done, scsi_io_completion run W^X.
+- **PAX_RANDKSTACK** — per-SG_IO ioctl entry and per-mq-completion soft-IRQ entry randomize kernel-stack offset; defense against per-SCSI-side-channel via stack prefetch.
+- **PAX_REFCOUNT** — struct scsi_device, struct scsi_target, struct Scsi_Host, request refs saturating refcount_t; defense against per-EH-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — scsi_cmnd, scsi_data_buffer, sense-buffer, scsi_sense_hdr slabs poison-on-free; defense against per-prior-cmd sense-data leak across slab re-use into a foreign initiator.
+- **PAX_UDEREF** — SG_IO / SCSI_IOCTL_SEND_COMMAND / BLKSG_IO copy_*_user paths enforce split user/kernel on cdb, dxferp, and sbp pointers.
+- **PAX_RAP/kCFI** — struct scsi_host_template, struct scsi_driver vtables (queuecommand, eh_*_handler, slave_alloc, slave_configure) CFI-protected.
+- **GRKERNSEC_HIDESYM** — shost_class, sdev_class, scsi_host_template addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "sd %d:%d:%d:%d: Sense", "blk_update_request" prints restricted; defense against per-SCSI-fingerprinting of attached LUNs.
+- **SG_IO ioctl CAP_SYS_RAWIO** — sg_io_hdr / sg_io_v4 passthrough (SG_IO on /dev/sgN, /dev/sdX, /dev/bsg/<dev>) gated on CAP_SYS_RAWIO; defense against per-unprivileged-CDB delivery (WRITE BUFFER, FORMAT UNIT, MODE SELECT, SECURITY PROTOCOL OUT, vendor-unique opcodes that can persistently brick or re-key the drive).
+- **CDB length and opcode bounded** — scsi_command_size validated, BLK_MAX_CDB enforced; defense against per-oversized-CDB walking past per-LLD cdb buffer.
+- **Per-cmd buffer size validated against sg_tablesize** — defense against single cmd consuming all SG entries.
+- **Per-host host_busy int32 saturating** — defense against integer wraparound under sustained load.
+- **Per-runtime-exceeded override to FAIL** — defense against per-cmd outliving SD_TIMEOUT * retry budget.
+- Rationale: scsi-lib is the per-cmd dispatch/completion engine carrying user-CDB passthrough (SG_IO) for tape, sd, sr, sg, and ULDs; grsec posture combines CAP_SYS_RAWIO on SG_IO, CDB-length and opcode bounds, PAX_USERCOPY on scsi_cmnd/sense/sgio slabs, CFI on scsi_host_template, sanitize-on-free of cmd/sense, and saturating host_busy.
+
 ## Open Questions
 
 (none at this Tier-3 level)

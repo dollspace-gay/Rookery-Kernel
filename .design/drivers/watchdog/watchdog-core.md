@@ -595,6 +595,26 @@ Watchdog-core reinforcement:
 - **Per-PM notifier `WDOG_NO_PING_ON_SUSPEND`** — defense against per-suspend false-keepalive masking a hung HW.
 - **Per-reboot notifier `WDOG_STOP_ON_REBOOT`** — defense against per-reboot watchdog firing mid-shutdown.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `drivers/watchdog/watchdog_*.c`:
+
+- **PAX_USERCOPY** — bounds-checks `watchdog_info`, `pretimeout_governor` strings, and timeout integers in `ioctl(WDIOC_*)` so a malformed ioctl cannot overrun the kernel-side struct copy.
+- **PAX_KERNEXEC** — keeps the `watchdog_ops` vtables (start/stop/ping/set_timeout/pretimeout) read-only after registration so a vendor-driver memory bug cannot rewrite the disarm path.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each `write(/dev/watchdog)`/`ioctl` entry, defeating deterministic stack-spray against the long pretimeout-governor switch path.
+- **PAX_REFCOUNT** — wraps `watchdog_device.id` and `wd_data.kref` so repeated open/close cycles cannot wrap the refcount and prematurely free the cdev.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `watchdog_core_data` and pretimeout-governor private state so residual driver pointers cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across `watchdog_write` (magic-'V' scan) and `watchdog_ioctl`.
+- **PAX_RAP / kCFI** — forward-edge CFI on the `watchdog_ops` vtable plus the pretimeout-governor callback so a corrupted function pointer cannot redirect `wdd->ops->stop` to an attacker gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from watchdog probe/registration printks so unprivileged dmesg readers cannot leak driver vtable addresses.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so watchdog timeout/pretimeout panic traces do not leak addresses to unprivileged users.
+- **CAP_SYS_ADMIN on `/dev/watchdog*`** — open is hard-gated; even with permissive udev an unprivileged process cannot disarm the system watchdog or program `min/max_hw_heartbeat_ms`.
+- **Magic-'V' write protection enforced kernel-side** — `WDOG_NO_WAY_OUT` plus the magic-character scan in `watchdog_write` is treated as a security invariant, not a courtesy, so a buggy daemon cannot accidentally disarm the watchdog by writing arbitrary data.
+- **Pretimeout governor switch under capability check** — selecting `pretimeout_governor` via sysfs is restricted to `CAP_SYS_ADMIN` to prevent unprivileged processes from steering panic/noop behavior away from the configured policy.
+- **GRKERNSEC_HIDESYM on watchdog notifier traces** — reboot/PM notifier failure paths sanitize device pointers so a watchdog HW fault report does not leak kASLR-relative addresses.
+
+Rationale: `/dev/watchdog` is the canonical liveness primitive for a hardened deployment — silent disarm or governor swap defeats the entire reset-on-hang guarantee, so capability gating and CFI on the ops vtable are layered on top of the upstream magic-'V' / `NO_WAY_OUT` model.
+
 ## Open Questions
 
 (none at this Tier-3 level)

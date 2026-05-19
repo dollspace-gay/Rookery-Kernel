@@ -533,6 +533,26 @@ RAID5/6 reinforcement:
 - **Per-bio_list_bytes vs rbio_is_full check** — defense against per-treat-partial-as-full RMW path skip (would compute parity over stale data).
 - **Per-stripe_uptodate_bitmap gate on cache reuse** — defense against per-stale-cache reuse for steal_rbio after partial RMW.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/btrfs/raid56.c`:
+
+- **PAX_USERCOPY** — bounds-checks any RAID5/6-derived data exposed via ioctls (scrub/replace status, stripe-cache stats) so a malformed read cannot drive a slab overrun.
+- **PAX_KERNEXEC** — keeps the rbio endio callbacks and stripe-hash ops in read-only memory so a memory bug cannot rewrite the RMW dispatch.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each rbio submit/complete so an attacker cannot deterministically probe the long parity-gen path.
+- **PAX_REFCOUNT** — wraps `btrfs_raid_bio.refs` and stripe-cache LRU refs so a torn cache-replace cannot wrap and trigger early free.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `btrfs_raid_bio`, stripe-cache pages, and P/Q scratch so leftover parity bytes cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across rbio-stats ioctls.
+- **PAX_RAP / kCFI** — forward-edge CFI on the rbio endio/finish_rmw callback graph so a corrupted rbio cannot redirect completion to a userspace gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from raid56 reconstruct/repair printks so a crafted image cannot leak kASLR offsets via dmesg.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so RAID5/6 reconstruction warnings do not leak pointer material to unprivileged users.
+- **Parity PAX_USERCOPY** — P/Q parity buffers are validated against the stripe layout via the hardened usercopy path so a confused-deputy bug cannot stride past the parity scratch and corrupt adjacent slab data.
+- **Stripe-cache PAX_USERCOPY** — stripe-cache backing pages copied via `__raid_recover_end_io` or `steal_rbio` are bounds-checked via the hardened usercopy path so a stale-cache reuse bug cannot stride past the cached stripe.
+- **GRKERNSEC_HIDESYM on max_errors / write-hole warnings** — `recover_vertical` overconfident-reconstruction traces and write-hole acknowledgements sanitize embedded pointers so a crafted multi-disk-loss attack cannot extract rbio/stripe-cache addresses via dmesg.
+- **CAP_SYS_ADMIN on dev-replace / scrub-parity ioctls** — `BTRFS_IOC_DEV_REPLACE` and parity-only scrub repair paths are hard-gated so unprivileged callers cannot stress the parity-repair write path.
+
+Rationale: RAID5/6 is the most failure-mode-rich btrfs subsystem (RMW + stripe-cache + parity + write-hole + dev-replace target); a UAF on `btrfs_raid_bio` or a stripe-cache stride overrun translates directly into silent data corruption, so hardened refcount + usercopy on parity and stripe-cache buffers is layered on top of the upstream csum-verify-on-reconstruct defenses.
+
 ## Open Questions
 
 - Should Rookery's RAID5/6 ship with `raid_stripe_tree` always-on to avoid the classic write-hole, or follow upstream "experimental" gate?

@@ -424,6 +424,21 @@ MFD-core reinforcement:
 - **Per-regulator-supply-alias paired register/unregister** — defense against per-alias-leak on unbind.
 - **Per-mid-batch rollback** — defense against per-partial-registration zombie children.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `mfd_cell->platform_data` and `mfd_cell->of_reg`/`mfd_cell->resources` are kernel-internal descriptors; the only user-visible surface is sysfs uevent emission, which goes through `kobject_uevent` with bounded env strings.
+- **PAX_KERNEXEC** — the `mfd_of_node_list` walker, `mfd_add_devices` / `mfd_remove_devices`, and the per-cell `acpi_match_device`/`of_match_node` tables live in `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — `mfd_add_device` is called from probe-time worker threads (after platform-bus async probe schedules), which cross the randomized kstack offset before recursing into per-cell `platform_device_add`.
+- **PAX_REFCOUNT** — each MFD child is a `platform_device` whose `dev.kobj.kref` is refcount_t; `mfd_remove_devices_late` decrements through `platform_device_unregister`, and `device_for_each_child` iteration holds `device_lock` so a forged remove-storm cannot wrap the kref and free a live cell.
+- **PAX_MEMORY_SANITIZE** — `mfd_cell` clones allocated by `mfd_add_device` (the per-child `kmemdup` of `cell`) are freed via `platform_device_put` → `mfd_release` which calls `kfree` on the cloned `platform_data`; slab-sanitize-on-free clears prior children's registers between cells.
+- **PAX_UDEREF** — no user-pointer paths; MFD parent drivers receive resources via DT/ACPI, not userspace ioctl.
+- **PAX_RAP / kCFI** — the per-cell `enable`/`disable`/`pm_runtime_no_callbacks` indirect calls go through `dev_pm_ops` typed edges; cell-specific `platform_driver.{probe,remove,shutdown,suspend,resume}` are typed.
+- **mfd_cell platform_device REFCOUNT** — `mfd_add_device` raises `get_device(parent)` and the cloned `cell->dev_release = mfd_release` path forces the matching `put_device` on unregister; `mfd_remove_devices_late` is the only sanctioned removal path and walks the parent's child list under `device_lock`, so concurrent `bind`/`unbind` via sysfs cannot UAF a half-removed cell.
+- **GRKERNSEC_HIDESYM** — `mfd_cell *` and `platform_device *` pointers are scrubbed from sysfs `uevent` output under `kptr_restrict ≥ 2`.
+- **GRKERNSEC_DMESG** — `dev_err` / `dev_warn` from `mfd_add_device` and `mfd_remove_devices_late` are gated by `__ratelimit` so a flapping I2C parent cannot DoS the ring buffer.
+- **sysfs bind/unbind gating** — `/sys/bus/platform/drivers/<mfd-cell-driver>/bind` and `unbind` nodes are 0200/owner-root and require `CAP_SYS_ADMIN`; unprivileged userspace cannot rebind an MFD child driver to a forged platform_device.
+- **regmap reentrancy guard** — when MFD cells share a regmap with the parent (the common pattern for PMIC MFDs), `regmap_lock_mutex` serializes register access; the per-cell driver's IRQ handler uses `regmap_irq_chip_get_base` against the parent's locked regmap, preventing a per-cell driver from racing the parent's I2C/SPI transaction.
+
 ## Open Questions
 
 (none at this Tier-3 level)

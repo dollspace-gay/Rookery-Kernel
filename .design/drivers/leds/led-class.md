@@ -445,6 +445,30 @@ LED-class reinforcement:
 - **Per-leds_wq ordered single-thread** — defense against per-out-of-order brightness applies (later "off" passing earlier "on").
 - **Per-brightness_hw_changed_kn refcount via sysfs_get_dirent** — defense against per-sysfs_notify on freed dirent.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: LED-class sysfs is one of the most user-facing kernel attribute surfaces — `brightness`, `trigger`, and `brightness_hw_changed` are commonly chmod-permissive to allow desktop status indicators. That makes the parse/dispatch path and trigger-attach allowlist a classic vector for unprivileged code to feed arbitrary strings through `kstrtoul` and `led_trigger_set` into per-driver callbacks. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/leds/led-class.c` plus LED-class-specific reinforcement.
+
+Baseline (cross-ref `drivers/leds/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: per-`brightness_store` / `trigger_write` source buffers are sysfs-attribute PAGE-allocated and copy via `kstrtoul` / `sysfs_emit` — both whitelisted by USERCOPY against the slab cache they live in.
+- **PAX_KERNEXEC**: `leds_class.dev_groups`, `led_groups`, and per-driver `groups` placed in `__ro_after_init`; `brightness_set` / `blink_set` fn pointers fixed at register time.
+- **PAX_RANDKSTACK**: every sysfs entry (`brightness_store`, `trigger_write`, `brightness_hw_changed_show`) re-randomises stack offset before mutex acquisition.
+- **PAX_REFCOUNT**: per-`led_classdev.dev` kobject refcount saturating; per-`try_module_get` count saturating; defense against `led_get`/`led_put` imbalance underflow.
+- **PAX_MEMORY_SANITIZE**: `device_release` on `led_cdev.dev` zero-fills slab; per-`trigger_data` pointer (driver-private trigger state) zeroed on `led_trigger_set(NULL)` so a stale trigger pointer cannot survive into a later attach.
+- **PAX_UDEREF**: sysfs `store` callbacks read user pages through `sysfs_kf_write` which already enforces UDEREF; no raw user deref in `led-class.c`.
+- **PAX_RAP / kCFI**: `brightness_set`, `brightness_set_blocking`, `brightness_get`, `blink_set`, `pattern_set`, `flash_resume`, `trigger->activate`/`deactivate` indirect calls are kCFI-tagged with signature checks.
+- **GRKERNSEC_HIDESYM**: `dev_dbg` / `dev_warn` from led-class emit only kobject name, never `&led_cdev`; `%pK` for any remaining ptr render.
+- **GRKERNSEC_DMESG**: rename / collision warnings ratelimited per-class; `dmesg` access requires CAP_SYSLOG.
+
+LED-class-specific reinforcement:
+- **CAP_SYS_ADMIN for brightness write** — grsec policy elevates `/sys/class/leds/<name>/brightness` from default `0644` to `0640` (root+leds-group only); refuses unprivileged write via `led_sysfs_is_disabled` extension. Defends against unprivileged keyboard-LED covert channels and indicator spoofing.
+- **Trigger-name allowlist** — `led_trigger_write` compares incoming name against a compile-time allowlist (`none`, `default-on`, `timer`, `oneshot`, `heartbeat`, `disk-activity`, `netdev`, `pattern`, `transient`); refuses arbitrary strings even if a malicious module registered them. Defends against rogue-trigger-registration → privileged callback hijack.
+- **`led_classdev_register_ext` rejects fwnode-supplied `max-brightness` > 65535** — clamp + warn; defends against fwnode-driven u32 wrap into clamp logic.
+- **`LED_REJECT_NAME_CONFLICT` default-on for safety-critical color classes** — grsec policy auto-applies the flag for `LED_COLOR_ID_RED` / `_AMBER` so a non-fault-status LED cannot squat the "fault" name. Defends against operator misreading status.
+- **`led_get` consumer audited** — `led_module_get` rejects when callee module is not in the same userns or lacks CAP_SYS_ADMIN at registration; defends against unprivileged module pinning the LED driver to block unbind.
+- **`brightness_hw_changed_kn` sysfs_get_dirent + drop on unregister** — already in row-2 hardening; extended with grsec audit log on sysfs_notify after `LED_UNREGISTERING` (caught race window).
+- **`led_trigger_set` write-lock barrier before `activate`** — guarantees `trigger_data` cannot be observed half-initialised by a racing `brightness_store`.
+
 ## Open Questions
 
 (none at this Tier-3 level)

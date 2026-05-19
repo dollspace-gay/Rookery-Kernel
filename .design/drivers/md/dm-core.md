@@ -318,6 +318,32 @@ dm-core-specific reinforcement:
 - **Per-table holders ref-count balanced** — defense against underlying-bdev free while held.
 - **Per-md DAX gating per-target** — defense against DAX read on non-DAX-capable target.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-core is the dispatch layer for every device-mapper target — every bio entering `/dev/mapper/*` is routed via `dm_target.map`, `dm_target.map_rq`, and `dm_target.end_io`. A corrupted target vtable or unauthenticated ioctl yields arbitrary block-layer redirection and is the canonical foothold for tampering with dm-crypt, dm-verity, dm-integrity above. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-core.c` plus dm-core-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: dm-ioctl `DM_TABLE_LOAD` / `DM_TABLE_STATUS` / `DM_DEV_STATUS` / `DM_TARGET_MSG` copy buffers (PAGE-sized) live in slab caches whitelisted for USERCOPY; size validated against `dm_ioctl.data_size`.
+- **PAX_KERNEXEC**: `dm_target_type` table (per-target ctr/dtr/map/end_io/...) registered via `dm_register_target` and placed `__ro_after_init`; cannot be repointed after registration.
+- **PAX_RANDKSTACK**: ioctl entry + bio dispatch entry randomise kernel stack.
+- **PAX_REFCOUNT**: per-`mapped_device` refcount, per-`dm_table` refcount, per-target version saturating counters.
+- **PAX_MEMORY_SANITIZE**: per-`mapped_device.uuid` + per-target-private-data zeroed on `dm_table_destroy`; defends UUID / per-target-key disclosure.
+- **PAX_UDEREF**: every ioctl copy-from/to-user uses guarded accessors; `dm_ioctl.data` offsets bounds-checked.
+- **PAX_RAP / kCFI**: per-target `ctr`/`dtr`/`map`/`map_rq`/`end_io`/`presuspend`/`postsuspend`/`preresume`/`resume`/`status`/`message`/`merge`/`busy`/`iterate_devices`/`io_hints`/`prepare_ioctl`/`dax_zero_page_range`/`dax_recovery_write`/`report_zones` are kCFI-tagged; mismatched signature → BUG().
+- **GRKERNSEC_HIDESYM**: per-`mapped_device` addr, per-`dm_table` addr, per-target-private addr never rendered to dm-ioctl status; `%pK` only.
+- **GRKERNSEC_DMESG**: dm-core warnings ratelimited; CAP_SYSLOG to read.
+
+dm-core-specific reinforcement:
+- **dm-target ops PAX_RAP** — `dm_target_type` kCFI fingerprint includes target name + version; loading a target module whose vtable doesn't match the registered fingerprint refuses registration. Defends against rogue OOT target shadowing an in-tree name (e.g. fake "crypt").
+- **ioctl CAP_SYS_ADMIN strict** — every `DM_*` ioctl (LOAD / SUSPEND / RESUME / RENAME / REMOVE / TARGET_MSG / TABLE_CLEAR) requires CAP_SYS_ADMIN in `init_user_ns` (not the caller's userns); refuses unprivileged user-namespace owner access even if device is owned. Defends against userns escape via dm-table redirection.
+- **status PAX_USERCOPY** — `dm_get_status` PAGE-sized buffer per target lives in a USERCOPY-whitelisted slab cache; `target.status` callback writes through bounded `result + maxlen` arguments.
+- **`dm_table_complete` integrity check** — at table-load finalize, validates each target's stride doesn't overflow `sector_t`, each target.private != kernel-text-region, target.type in registered list, `dm_table.num_targets * dm_target_size < 16 MiB`.
+- **Suspend/resume serialised under `dm_md.suspend_lock`** — already in row-2; extended with grsec audit log on suspend/resume to flag ransomware-style mass-suspend.
+- **Per-md flags atomic** — already in row-2; reinforced with PAX_REFCOUNT semantics on `DMF_*` bits where they are reference-counted (e.g., DMF_FREEING).
+- **`dm_get_target_type` module pin** — `try_module_get(target_type.module)` saturating; defends target-module-unload while table holds it.
+- **`prepare_ioctl` passthrough refuses non-bdev-owner caps** — only forwards SCSI/NVMe ioctls when caller has CAP_SYS_RAWIO; defends ioctl tunneling through a dm target to gain raw-device access.
+- **`message` arg-list bounded** — `dm_split_args` per-arg max 128 bytes, per-message max 16 args; defends parser-flood DoS.
+
 ## Open Questions
 
 (none at this Tier-3 level)

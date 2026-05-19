@@ -649,6 +649,21 @@ VB2 reinforcement:
 - **Per-min_reqbufs_allocation ≥ min_queued_buffers + 1** — defense against per-streamon-immediately-after-reqbufs starvation.
 - **Per-coherency-flag verification on second REQBUFS** — defense against per-coherency-model-mismatch corruption.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — per-plane `vb2_plane` length / bytesused / data_offset transit `vb2_qbuf` / `vb2_dqbuf` via `vb2_core_qbuf`'s bounded copy, which validates against `vb2_queue->num_buffers * vb2_queue->num_planes` before any user-pointer copy. The MMAP-backed buffer payload itself is exposed via `vb2_mmap` against a slab- or DMA-coherent-page allocation, not the userspace ioctl buffer.
+- **PAX_KERNEXEC** — `vb2_ops` (`.queue_setup`, `.buf_prepare`, `.buf_finish`, `.start_streaming`, `.stop_streaming`, `.buf_queue`, `.wait_prepare`, `.wait_finish`), `vb2_mem_ops` (vmalloc / dma-contig / dma-sg), and the per-IO `dma_buf_ops` registered by vb2-exporting drivers all live in `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — every entry from userspace (`VIDIOC_QBUF`, `VIDIOC_DQBUF`, `VIDIOC_STREAMON`, `VIDIOC_PREPARE_BUF`, `mmap`, `poll`, `read`/`write`) crosses the per-syscall random kstack offset before reaching vb2 core.
+- **PAX_REFCOUNT on vb2_buffer** — `vb2_buffer->planes[i].dbuf_mapped`, `vb2_queue->owner`-tracked file refcount, and per-plane `dma_buf`/`media_request_object` reference counts use refcount_t with saturation; an attacker who races `VIDIOC_DQBUF` and `close(fd)` cannot wrap the buffer ref and trigger UAF.
+- **PAX_MEMORY_SANITIZE** — when `vb2_core_streamoff` reclaims buffers, all `vb2_plane` slabs and DMA pages are zeroed before being returned to the page allocator or recycled into the next REQBUFS pass, so captured frame data does not bleed between processes that consecutively open `/dev/videoN`.
+- **PAX_UDEREF** — vb2 never touches `__user` pointers after segment switch; all user-buffer handling is brokered through `videobuf2-v4l2.c` → `__vb2_init_fileio`, which uses `copy_from_user` / `copy_to_user` exclusively.
+- **PAX_RAP / kCFI** — `vb2_ops`, `vb2_mem_ops`, `dma_buf_ops`, and the `vb2_fileio_data` callback table are all typed indirect-call edges.
+- **MMAP'd buffer protection** — `vb2_common_vm_ops.{open,close,fault}` rejects `VM_MAYWRITE` for input queues, requires `VM_SHARED` to match the buffer's coherency model, and refuses `VM_GROWSDOWN | VM_GROWSUP`; the per-buffer `vm_area_struct->vm_private_data` is a refcounted handle, so `munmap` after queue-release will not UAF the underlying page.
+- **GRKERNSEC_HIDESYM / GRKERNSEC_DMESG** — `vb2_buffer` and `vb2_queue` pointers are scrubbed under `kptr_restrict ≥ 2`; queue-state transition tracing is at `KERN_DEBUG` with `__ratelimit`.
+- **REFCOUNT on vb2_buffer** — `vb2_buffer->planes[i].dbuf_mapped`, the per-plane `dma_buf_get`/`dma_buf_put` reference, and `vb2_queue->owner`'s file refcount use refcount_t with saturation so a forged `DQBUF`/`close(fd)` race cannot wrap and free a buffer mid-DMA.
+- **DMABUF cross-domain gating** — `vb2_dc_get_dmabuf` / `vb2_vmalloc_get_dmabuf` exporters tag the dma_buf with the originating fd's open mode (`O_RDONLY` vs `O_RDWR`); importers in other subsystems must respect the same direction, preventing a "read-only camera buffer" from being imported as a writable target.
+- **request-API binding discipline** — when a buffer is queued against a media-request, `media_request_object_get` is paired with a matched `media_request_object_put` on completion; a forged request-fd close before `MEDIA_IOC_REQUEST_QUEUE` decrements the request's ref via `media_request_release`, never UAF.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -198,6 +198,24 @@ access-specific reinforcement:
 - **Generic-ECAM region MMIO bounds-checked** — ECAM region's MMIO range validated against ACPI MCFG-declared range before memremap.
 - **Per-host-bridge ops vtable read-only-after-init** — defense against runtime modification.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /sys/bus/pci/devices/<dev>/config read/write buffer and pci_vpd slab whitelisted; defense against per-oversized-config-read leaking adjacent slab.
+- **PAX_KERNEXEC** — pci_bus_read_config_{byte,word,dword}, pci_user_read_config_*, raw_pci_ops dispatch run W^X.
+- **PAX_RANDKSTACK** — per-/sys/bus/pci/.../config-read syscall entry randomizes kernel-stack offset; defense against per-config-space-side-channel.
+- **PAX_REFCOUNT** — struct pci_dev, struct pci_host_bridge, struct pci_bus refs saturating refcount_t; defense against per-hotplug-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — pci_vpd cache, pci_saved_state, pci_cap buffers poison-on-free; defense against per-prior-device-config leak across hot-unplug/replug.
+- **PAX_UDEREF** — pci_read_config / pci_write_config sysfs path enforces split user/kernel on copy_to_user of raw config space.
+- **PAX_RAP/kCFI** — pci_ops->read / pci_ops->write and pci_host_bridge ops vtables CFI-protected; defense against per-forged-pci_ops via crafted host-bridge driver-load race.
+- **GRKERNSEC_HIDESYM** — raw_pci_ops, pci_root_buses, per-host-bridge ops addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "pci %s: BAR %d", "config-space oops" prints restricted; defense against per-topology-disclosure.
+- **Config-space CAP_SYS_RAWIO** — read/write of /sys/bus/pci/devices/<dev>/config (and PCIIOC_* on /proc/bus/pci/<bus>/<dev>) gated on CAP_SYS_RAWIO; defense against per-unprivileged scraping of subsystem-id / device-id / Vendor-Specific Caps for fingerprinting and per-unprivileged write of BAR / MSI vectors / extended caps.
+- **Config-space write length bounded** — only PCI_CFG_SPACE_EXP_SIZE (4096) bytes addressable; defense against per-oversized pwrite walking off PCIe ECAM region.
+- **Per-bus pci_ops generation count** — config-space access serialized; defense against per-bus-rescan-race delivering stale ops to a concurrent reader.
+- **Generic-ECAM MMIO bounds-checked vs MCFG** — defense against per-rogue host-bridge driver providing an ECAM window outside the firmware-declared range.
+- **Per-pci_user_read_config retry on hardware-error** — bounded to PCI_USER_READ_RETRIES; defense against per-broken-device hanging the config-space reader.
+- Rationale: PCI config space is the device-discovery and -control plane; grsec posture is dominated by CAP_SYS_RAWIO at the sysfs/procfs boundary, usercopy-whitelisting and length bounds on the config-space slab, CFI on pci_ops dispatch, and sanitize-on-free of saved-state across hotplug.
+
 ## Open Questions
 
 (none at this Tier-3 level)

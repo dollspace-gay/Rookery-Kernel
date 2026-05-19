@@ -368,6 +368,25 @@ Fixed-voltage reinforcement:
 - **Per-PROBE_PREFER_ASYNCHRONOUS** — defense against per-deferred-probe deadlock with consumer rails.
 - **Per-dev_err_probe (not dev_err)** — defense against per-deferred-probe log flood.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /sys/class/regulator/regulator.N/* attrs reflected for a fixed-regulator instance whitelisted; defense against per-oversized-sysfs-read.
+- **PAX_KERNEXEC** — reg_fixed_voltage_probe, fixed_voltage_enable / fixed_voltage_disable, fixed_voltage_is_enabled run W^X.
+- **PAX_RANDKSTACK** — per-/sys/class/regulator-write and per-GPIO-IRQ (status / enable-active-low edge) entry randomize kernel-stack offset.
+- **PAX_REFCOUNT** — struct regulator_dev, struct fixed_voltage_data refs saturating refcount_t; defense against per-deferred-probe loop refcount overflow.
+- **PAX_MEMORY_SANITIZE** — fixed_voltage_data, fixed_voltage_config, regulator_init_data slabs poison-on-free; defense against per-prior-DT-config leak across re-bind.
+- **PAX_UDEREF** — fixed regulator exposes no direct UAPI beyond the regulator-core sysfs; copy_*_user paths enforce split address spaces at the parent layer.
+- **PAX_RAP/kCFI** — fixed_voltage_ops vtable (enable, disable, is_enabled, get_voltage) CFI-protected via PAX_RAP / kCFI.
+- **GRKERNSEC_HIDESYM** — fixed_voltage_ops, reg_fixed_voltage_driver addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "fixed-regulator: GPIO request failed", "fixed-regulator: failed to register" prints restricted.
+- **GPIO-enable CAP_SYS_RAWIO** — the underlying enable-GPIO line (gpiod_set_value_cansleep inside fixed_voltage_enable) is reached only via the regulator-core consumer API, which itself sits behind /sys/class/regulator (CAP_SYS_ADMIN); direct GPIO sysfs access to the same line (/sys/class/gpio or /dev/gpiochipN) gated on CAP_SYS_RAWIO; defense against per-unprivileged-GPIO-write bypassing the regulator-core consumer count and toggling a downstream rail.
+- **Per-PROBE_PREFER_ASYNCHRONOUS** — defense against per-deferred-probe deadlock with consumer rails.
+- **Per-dev_err_probe (not dev_err)** — defense against per-deferred-probe log flood.
+- **Per-fixed-voltage no-set_voltage** — fixed_voltage_ops deliberately omits ->set_voltage; defense against per-mis-binding a fixed rail and trying to drive it to an unsupported value.
+- **Per-startup-delay enforced** — fixed_voltage_config->startup_delay observed after enable; defense against per-consumer-using-rail-before-stable causing brownout fault on a downstream device.
+- **Per-enable-active-low polarity respected** — GPIO logical level set per fixed_voltage_config->enable_active_high; defense against per-DT-typo enabling rail by default.
+- Rationale: fixed regulator is a thin GPIO-or-always-on wrapper around the regulator core; grsec posture combines CAP_SYS_ADMIN at the regulator-core sysfs, CAP_SYS_RAWIO at any sibling /sys/class/gpio path that could bypass it, CFI on fixed_voltage_ops, startup-delay and polarity discipline, and sanitize-on-free of the fixed_voltage_data slab.
+
 ## Open Questions
 
 (none at this Tier-3 level)

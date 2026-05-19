@@ -245,6 +245,21 @@ urb-specific reinforcement:
 - **Per-URB poison flag** prevents re-submission during driver-disconnect window; defense against TOCTOU between disconnect-detection and final URB-cancel.
 - **Per-URB completion-callback context-aware** — callback may run from IRQ or softirq context; per-driver responsibility documented.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — when usbfs surfaces URB transfer buffers to userspace via `USBDEVFS_REAPURB`, the copy-out length is bounded by `urb->actual_length ≤ urb->transfer_buffer_length`; defends against actual_length > buffer overflow on a misbehaving HCD.
+- **PAX_KERNEXEC** — `usb_hcd_ops` (`urb_enqueue`, `urb_dequeue`, `endpoint_disable`, `endpoint_reset`) and the URB `complete` callback table placed in `__ro_after_init`.
+- **PAX_RANDKSTACK** — entropy added on every `usb_submit_urb` / `usb_unlink_urb` / `usb_kill_urb` entry; neutralises stack-shape probing under URB-spam races.
+- **PAX_REFCOUNT** — `urb->kref`, `usb_anchor.lock`'d list size, and `usb_device.refcnt` use saturating counters; defends against URB-refcount wraparound UAF.
+- **PAX_MEMORY_SANITIZE** — URB transfer buffers and setup-packet allocations (`kmalloc(GFP_KERNEL)` / `usb_alloc_coherent`) zero-on-free; defends against URB-payload leak across recycled allocations.
+- **PAX_UDEREF** — completion callbacks executing in IRQ context never dereference user pointers; the usbfs reap path uses user-AS-annotated copy helpers exclusively.
+- **PAX_RAP / kCFI** — `urb->complete`, `urb->context` callback, and `usb_hcd_ops` entries all type-tagged so an attacker who corrupts an URB cannot redirect into arbitrary text.
+- **GRKERNSEC_HIDESYM** — URB-error dmesg / `usb_hcd_giveback_urb` traces strip kernel pointers.
+- **GRKERNSEC_DMESG** — URB-status / unlink-storm warnings gated behind `CAP_SYSLOG`.
+- **usb_submit_urb refcount PAX_REFCOUNT** — `urb->kref` is incremented in `usb_submit_urb` and decremented exactly once in `usb_hcd_giveback_urb`; saturating arithmetic + double-free detection in `usb_kill_urb` defends against UAF on async-disconnect.
+- **Async-complete PAX_RAP** — `urb->complete` is invoked via a kCFI-tagged indirect call; mismatched tags trip the BUG path before completion runs, defending against the historic "URB-callback overwrite" LPE pattern.
+- **Rationale** — the URB lifecycle is the busiest indirect-call surface in the kernel; PAX_REFCOUNT on `urb->kref` plus RAP on the complete callback together close both the UAF and the indirect-call-redirect families.
+
 ## Open Questions
 
 (none at this Tier-3 level)

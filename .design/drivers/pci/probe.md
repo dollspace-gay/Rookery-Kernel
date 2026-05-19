@@ -745,6 +745,24 @@ probe-specific reinforcement:
 - **only_one_child PCIe optimization** — PCIe Downstream Ports scan only Device 0 on the downstream link unless PCI_SCAN_ALL_PCIE_DEVS flag set (per PCIe spec r3.1, sec 7.3.1; defense against per-bogus-devfn-1..31 ghost enumeration).
 - **Port-type auto-correction logged** — when set_pcie_port_type detects misreported UPSTREAM↔DOWNSTREAM via parent topology, emits pci_info + corrects in pcie_flags_reg cache (defense against per-driver-binding-wrong-role).
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /sys/bus/pci/devices/<dev>/resource[N], /sys/bus/pci/rescan, hotplug-slot sysfs read buffers whitelisted; defense against per-oversized-sysfs-read leaking adjacent slab.
+- **PAX_KERNEXEC** — pci_scan_bus, pci_scan_slot, pci_alloc_dev, pci_setup_device, __pci_read_base run W^X.
+- **PAX_RANDKSTACK** — per-/sys/bus/pci/rescan-write and per-pci_scan_bridge recursion entry randomize kernel-stack offset.
+- **PAX_REFCOUNT** — struct pci_dev, struct pci_bus, struct pci_host_bridge, pci_slot refs saturating refcount_t; defense against per-hotplug-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — pci_dev, pci_bus, pci_saved_state slabs poison-on-free; defense against per-prior-device-state leak across hot-unplug/replug into a sibling slot.
+- **PAX_UDEREF** — /sys/bus/pci/{rescan,remove} enforce split user/kernel on the bool/int parsed from userspace.
+- **PAX_RAP/kCFI** — pci_host_bridge_ops, pci_ops, struct pci_driver probe/remove/shutdown vtables CFI-protected.
+- **GRKERNSEC_HIDESYM** — pci_root_buses, per-host-bridge ops, pci_scan_root_bus_bridge addresses hidden from kallsyms.
+- **GRKERNSEC_DMESG** — "pci %s: [%04x:%04x]", "pci_bus %s: scanning bus" prints restricted; defense against per-topology-disclosure.
+- **BAR sizing CAP_SYS_RAWIO** — pci_read_bases / __pci_read_base BAR-sizing write of 0xFFFFFFFF and re-read is a kernel-internal operation triggered by probe; the userspace counterpart (/sys/bus/pci/devices/<dev>/resource[N]_resize and PCIIOC_*) gated on CAP_SYS_RAWIO; defense against per-unprivileged BAR-window manipulation.
+- **Hotplug audit** — /sys/bus/pci/rescan, /sys/bus/pci/devices/<dev>/remove, /sys/bus/pci/devices/<dev>/reset, and ACPI/PCIe-NHP slot enable/disable events audited (LSM + ratelimited dmesg); defense against per-rescan-storm being weaponized for DoS or per-rogue-device hot-add evading detection.
+- **PCI rescan / remove CAP_SYS_ADMIN** — /sys/bus/pci/rescan, /sys/bus/pci/devices/<dev>/remove, /sys/bus/pci/devices/<dev>/reset writers require CAP_SYS_ADMIN.
+- **only_one_child PCIe enforcement** — Downstream Ports scan only Device 0 unless PCI_SCAN_ALL_PCIE_DEVS flag set; defense against per-bogus-devfn-1..31 ghost enumeration.
+- **Per-pci_alloc_dev kmemleak object** — kmemleak-tracked alloc/free so a hot-add/hot-remove leak is observable.
+- Rationale: PCI probe is the device-attachment plane that turns wire-level PCIe topology into kernel objects bound to drivers; grsec posture combines CAP_SYS_ADMIN on rescan/remove/reset, CAP_SYS_RAWIO on BAR/resource-resize, audit on every hot-add/remove event, CFI on host-bridge/driver vtables, and sanitize-on-free of pci_dev/saved-state slabs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

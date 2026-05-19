@@ -273,6 +273,32 @@ dm-mirror-specific reinforcement:
 - **Per-mirror.offset validated against dev capacity** — defense against OOB device-write.
 - **Cluster-log coordination** — defense against split-brain.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-mirror's recovery / kcopyd path reads from one mirror leg and writes to another to bring sync regions current. A corrupted per-region recovery buffer or mis-counted leg refcount produces silent data substitution between mirror legs, including substituting attacker-controlled content during recovery. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-raid1.c` (+ `dm-region-hash.c`) plus dm-mirror-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: status output via dm-core whitelisted slab; per-leg ctr params whitelisted.
+- **PAX_KERNEXEC**: per-`dm_target_type` vtable + per-`dm_dirty_log_type` vtable (`core` / `disk` / `clustered_disk`) all `__ro_after_init`.
+- **PAX_RANDKSTACK**: per-bio entry to `mirror_map` / `mirror_end_io` / `do_recovery` re-randomises stack.
+- **PAX_REFCOUNT**: per-leg refcount, per-region cell refcount, kcopyd job refcount saturating — see mirror-specific bullet.
+- **PAX_MEMORY_SANITIZE**: per-region recovery buffer zeroed on completion; per-mirror context zeroed on dtr.
+- **PAX_UDEREF**: no direct user pointer.
+- **PAX_RAP / kCFI**: ctr/dtr/map/end_io/presuspend/postsuspend/preresume/resume/status/message + per-dirty-log ops + kcopyd done callback kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-mirror addr, per-region addr, kcopyd job addr never rendered; `%pK`.
+- **GRKERNSEC_DMESG**: mirror-error / recovery-progress warnings ratelimited; CAP_SYSLOG to read full progress.
+
+dm-mirror-specific reinforcement:
+- **Per-disk PAX_REFCOUNT** — `struct mirror.dev` count + per-region `dm_region.pending` count + `kcopyd_job.ref` saturating; defends double-release on requeue during recovery.
+- **Recovery PAX_USERCOPY** — kcopyd reads a region into a slab-allocated buffer carrying the USERCOPY whitelist tag (even though no user copy happens) so a future evolution that exports recovery buffers (e.g., via status/debug) can't accidentally bypass the slab/USERCOPY whitelist.
+- **PAX_MEMORY_SANITIZE on region buffer** — kcopyd buffer pages zeroed before return to free pool; defends source-leg data residue.
+- **Per-mirror.offset validated against `bdev_nr_sectors`** — already row-2; extended with overflow-checked `add_safe` against `sector_t`.
+- **Per-region recovery before read on NOSYNC** — row-2; extended with grsec audit log entry per region marked SYNC.
+- **Per-log persistent commit synchronous** — row-2; extended with checksum (CRC32C) over the per-log header on every commit.
+- **Cluster-log coordination** — extends row-2 (split-brain defense) with a quorum check requiring 2-of-N node ack before declaring a region SYNC in clustered_disk mode.
+- **kcopyd outstanding-job cap** — `dm_kcopyd_client` capped at `max(64, num_legs * 16)` outstanding jobs; defends recovery-storm OOM.
+- **Per-mirror leg checksum on read-verify** — when CONFIG_DM_MIRROR_VERIFY is set, recovered region reads verify CRC32C against a per-region signature; mismatch escalates leg to failed.
+
 ## Open Questions
 
 (none at this Tier-3 level)

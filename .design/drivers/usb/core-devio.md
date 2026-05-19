@@ -750,6 +750,21 @@ usbfs-specific reinforcement:
 - **Per-CAP_REAP_AFTER_DISCONNECT** — feature, defense against per-data-loss on hot-unplug for in-flight reads.
 - **Per-FORBID_SUSPEND increments pm-usage; ALLOW_SUSPEND balances** — defense against per-unbalanced PM refcount across fd lifetime.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `usbdevfs_ctrltransfer`, `usbdevfs_bulktransfer`, `usbdevfs_urb`, and `usbdevfs_iso_packet_desc` arrays copied via bounded `copy_from_user` / `copy_to_user`; URB transfer buffer length validated against the device's max-transfer and against `USBFS_XFER_MAX`.
+- **PAX_KERNEXEC** — usbfs `file_operations` and `usb_device.bus->op` tables placed in `__ro_after_init`.
+- **PAX_RANDKSTACK** — entropy added on every `usbdev_do_ioctl` / `proc_submiturb` entry to neutralise stack-shape probing under URB-spam races.
+- **PAX_REFCOUNT** — `dev_state.openers`, `as_count` (in-flight async URBs), and `usb_device.refcnt` use saturating counters.
+- **PAX_MEMORY_SANITIZE** — usbfs URB transfer / setup-packet buffers zero-on-free; defends against keystroke / HID / smartcard data leak across reaped URBs.
+- **PAX_UDEREF** — every usbfs ioctl dereferences user pointers only via user-AS-annotated copy helpers; setup-packet `wLength` validated before allocation.
+- **PAX_RAP / kCFI** — usbfs URB completion callback, `disconnect`, and async-reap paths type-tagged.
+- **GRKERNSEC_HIDESYM** — `/dev/bus/usb/*` and `/sys/bus/usb/devices/*` paths stripped of kernel pointers in dmesg.
+- **GRKERNSEC_DMESG** — usbfs URB-fault and disconnect prints gated behind `CAP_SYSLOG`.
+- **usbfs USBDEVFS_* ioctl CAP_SYS_RAWIO** — `USBDEVFS_SUBMITURB`, `USBDEVFS_CONTROL`, `USBDEVFS_BULK`, `USBDEVFS_RESET`, `USBDEVFS_CLAIMINTERFACE` all gated behind `CAP_SYS_RAWIO`; defends against unprivileged raw bus access.
+- **URB buffer PAX_USERCOPY** — `proc_do_submiturb` copies into a kmalloc'd `urb->transfer_buffer` whose size is bracketed against the endpoint's `wMaxPacketSize` and `USBFS_XFER_MAX`; defends against integer overflow in setup-packet `wLength`.
+- **Rationale** — usbfs is the canonical attack surface for unprivileged USB-stack RCE (CVE-2016-3672 family, raw URB-handle LPEs); CAP_SYS_RAWIO gating, URB-buffer USERCOPY bounding, and async-list refcount discipline together close the documented usbfs vulnerability class.
+
 ## Open Questions
 
 (none at this Tier-3 level)

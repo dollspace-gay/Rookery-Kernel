@@ -303,6 +303,33 @@ dm-multipath-specific reinforcement:
 - **Per-path NUMA-affinity for io-affinity selector** — defense against pathological cross-NUMA cacheline ping-pong.
 - **HW-handler init retry-bounded** — defense against unbounded init causing IO-stall.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-multipath drives SAN failover by selecting one of N paths through pluggable path-selectors + hardware-handlers. A corrupted path-selector vtable, hostile HW-handler module name, or unaudited `multipathd` interaction yields silent steering of IO to attacker-chosen paths (including bypassing a SAN's tenant isolation). The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-mpath.c` (+ `dm-path-selector.c` + `dm-uevent.c`) plus dm-multipath-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: status/message output via dm-core whitelisted slab; per-handler-name parse via dm_split_args whitelisted.
+- **PAX_KERNEXEC**: per-`dm_target_type` vtable + per-`path_selector_type` vtable + per-`scsi_dh` HW-handler ops all `__ro_after_init`.
+- **PAX_RANDKSTACK**: per-bio entry to `multipath_clone_and_map` / `multipath_end_io` / `pg_init_done` re-randomises stack.
+- **PAX_REFCOUNT**: per-`multipath.refcount`, per-`pgpath.refcount`, per-`priority_group.refcount`, per-queued-bio refcount (row-2) saturating.
+- **PAX_MEMORY_SANITIZE**: per-`pgpath` context zeroed on free; per-`multipath` context zeroed on dtr.
+- **PAX_UDEREF**: no direct user pointer.
+- **PAX_RAP / kCFI**: path-selector `.add_path`/`.fail_path`/`.reinstate_path`/`.select_path`/`.start_io`/`.end_io` + HW-handler `attach`/`detach`/`activate` + uevent emit kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-multipath addr + per-pgpath addr + per-pg addr never rendered; `%pK` only.
+- **GRKERNSEC_DMESG**: path-flap warnings ratelimited (uevent rate-limit already in row-2); CAP_SYSLOG to read.
+
+dm-multipath-specific reinforcement:
+- **Path-policy PAX_RAP** — `path_selector_type` ops signatures kCFI-tagged with module-name fingerprint; a hostile OOT selector cannot register under in-tree name "round-robin" / "queue-length" / "service-time" / "historical-service-time" / "io-affinity".
+- **dm-mpath cli CAP_SYS_ADMIN** — every `dmsetup message <name> 0 (add_path|fail_path|reinstate_path|disable_group|enable_group|switch_group|reload)` requires CAP_SYS_ADMIN in init_user_ns + grsec audit-log entry. Defends silent path manipulation by privileged-namespace user.
+- **HW-handler-name allowlist** — `attached_handler_name` validated against registered `scsi_dh` list at activate (`alua`, `rdac`, `emc`, `hp_sw`); refusal on unknown handler. Defends against attacker-supplied bogus name as path to module-load arbitrary code.
+- **`multipathd` netlink uevent rate-limit** — already row-2; extended with per-uid cgroup-bucket so a single multipathd instance cannot starve uevent delivery to others.
+- **PG init retry bounded** — `pg_init_retries` clamped to [1, 50]; defends pg-init-storm.
+- **Per-queued-bio refcount saturating** — row-2; extended with debug-build double-dispatch trap.
+- **`switch_pg_num` audit** — explicit log entry on operator-driven PG switch (vs. automatic failover).
+- **Per-path NUMA-affinity for io-affinity selector validated** — refuses CPU-mask that doesn't intersect online CPUs; defends starvation on incorrect mask.
+- **`queue_if_no_path` flag toggle audited** — flips IO-queue-on-failure behavior; logged with uid + pid each toggle because it can mask error to filesystem above.
+- **`hw_handler_params` byte-length cap (256 bytes)** — defends handler-param-flood / parser DoS.
+
 ## Open Questions
 
 (none at this Tier-3 level)

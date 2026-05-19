@@ -646,6 +646,21 @@ vhost-scsi reinforcement:
 - **Per-VQ `acked_features` validated against `VHOST_SCSI_FEATURES` mask** — defense against per-bogus-feature-bit (e.g. enabling T10-PI without backend support).
 - **Per-`SCF_SCSI_TMR_CDB` routed through dedicated `vhost_scsi_tmf` lifecycle** — defense against per-TMR/IO state confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `VHOST_SCSI_SET_ENDPOINT`, `VHOST_SCSI_CLEAR_ENDPOINT`, and `VHOST_SCSI_GET_ABI_VERSION` ioctl payloads bounce through bounded `copy_*_user`; per-VQ `cdb` and `sense` arrays validated against `VHOST_SCSI_MAX_CDB_SIZE` and `TRANSPORT_SENSE_BUFFER`.
+- **PAX_KERNEXEC** — `vhost_scsi_ops`, `vhost_scsi_tpg_ops`, and the LIO `se_tpg_tfo` fabric template placed in `__ro_after_init`; defends LIO dispatch against fabric-vtable rewrite.
+- **PAX_RANDKSTACK** — entropy added on every `vhost_scsi_open` / `vhost_scsi_handle_vq` / `vhost_scsi_submission_work` entry; neutralises stack-shape probing during TMR/IO interleaved races.
+- **PAX_REFCOUNT** — `vhost_scsi_inflight.kref`, `vhost_scsi_tpg.tv_tpg_vhost_count`, and `vhost_scsi_tmf.tmf_refcnt` use saturating counters; defends against in-flight-count wrap producing UAF on backend swap.
+- **PAX_MEMORY_SANITIZE** — `se_cmd` scratch (data-out buffers, sense buffer, T10-PI metadata) and `vhost_scsi_cmd` pool entries zero-on-free; defends against tenant-data bleed across recycled commands.
+- **PAX_UDEREF** — every vhost-scsi ioctl dereferences user pointers only via user-AS-annotated copy helpers; guest virtio-scsi requests routed through `vhost_iotlb`-bounded iov-iter.
+- **PAX_RAP / kCFI** — `vhost_work.fn` (`vhost_scsi_submission_work`, `vhost_scsi_complete_cmd_work`, `vhost_scsi_tmf_resp_work`) and LIO target callbacks type-tagged.
+- **GRKERNSEC_HIDESYM** — `/dev/vhost-scsi` and configfs LIO paths under `/sys/kernel/config/target/vhost/` strip kernel pointers.
+- **GRKERNSEC_DMESG** — `VIRTIO_SCSI_S_BAD_TARGET`, TMR-failure, and oversized-CDB prints gated behind `CAP_SYSLOG`.
+- **LIO target CAP_SYS_ADMIN** — every LIO configfs operation (`mkdir /sys/kernel/config/target/vhost/...`, WWN write, endpoint set) requires `CAP_SYS_ADMIN`; defends against unprivileged exposure of host SCSI backstores to guests.
+- **SCSI passthrough CAP_SYS_RAWIO** — guest CDBs routed through pscsi (LIO pass-through backstore) require host-side `CAP_SYS_RAWIO` on the configuring process; defends against unprivileged proxy of raw SCSI ops to physical disks.
+- **Rationale** — vhost-scsi is the host's most privileged SCSI-fabric surface (raw CDB delivery from guest to LIO); CAP_SYS_ADMIN on LIO configfs + CAP_SYS_RAWIO on pscsi + saturating in-flight refcounts close the documented "in-flight-wrap UAF" and "unauthorised backstore exposure" classes.
+
 ## Open Questions
 
 - Per-multi-queue tag-pool sizing: `vq.num` per IO-VQ versus shared sbitmap — Rookery should preserve per-VQ partition unless we can demonstrate equivalent fairness with a shared pool. Defer to Phase D.

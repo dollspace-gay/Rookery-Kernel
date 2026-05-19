@@ -851,6 +851,21 @@ SPI-core reinforcement:
 - **Per-pm_runtime_resume_and_get balanced with put_noidle on failure** — defense against per-RPM-refcount leak in __spi_setup / __spi_pump_transfer_message.
 - **Per-/dev/spidev CAP_SYS_RAWIO + LSM mediation (covered in spidev.md)** — defense against per-userspace SPI-flash-overwrite (boot ROM).
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `spi_ioc_transfer` arrays and TX/RX buffers copied via bounded `copy_from_user` / `copy_to_user` whose length is bracketed against `SPI_IOC_MESSAGE_MAX * sizeof(struct spi_ioc_transfer)`; defends against per-oversized-transfer underflow.
+- **PAX_KERNEXEC** — `spi_controller` and `spi_master.transfer_one_message` vtables placed in `__ro_after_init`; defends bus dispatch against vtable rewrite from a buggy controller driver.
+- **PAX_RANDKSTACK** — entropy added on every `__spi_pump_transfer_message` / `spi_sync` entry; neutralises stack-shape probing under repeated ioctl bursts.
+- **PAX_REFCOUNT** — `spi_device.pm_runtime_usage`, controller bus_lock_flag, and per-controller queue refcounts use saturating arithmetic.
+- **PAX_MEMORY_SANITIZE** — `__spi_map_msg` bounce buffers and `kmalloc`'d TX scratch zero-on-free so cleartext-after-flash-erase bytes never bleed into the next transfer.
+- **PAX_UDEREF** — every spidev ioctl handler dereferences user pointers only through user-AS-annotated copy helpers.
+- **PAX_RAP / kCFI** — `transfer_one`, `prepare_message`, `unprepare_message`, and `set_cs` callbacks type-tagged; defends against ROP through a corrupted `spi_controller` pointer.
+- **GRKERNSEC_HIDESYM** — `/sys/class/spi_master/*` attribute reads sanitised; kobject paths in dmesg never disclose kernel pointers.
+- **GRKERNSEC_DMESG** — controller-error prints (CS-collision, FIFO under/overrun) gated behind `CAP_SYSLOG`.
+- **/dev/spidevN access** — open(2) requires `CAP_SYS_RAWIO` plus LSM mediation; defends against unprivileged overwrite of SPI-NOR boot ROM, EC firmware, or TPM.
+- **Transfer ioctl PAX_USERCOPY** — `SPI_IOC_MESSAGE(N)` validated for `N ≤ SPI_IOC_MESSAGE_MAX`, per-transfer `len ≤ bufsiz`; defends against integer-overflow in `_IOC_SIZE` decode.
+- **Rationale** — SPI is the bus through which boot ROMs, ECs, BMC firmware, and TPMs are written; combining transfer-ioctl USERCOPY bounding, RAWIO gating on /dev/spidev, and RAP on controller vtables shuts down both unprivileged bricking and ROP-via-controller-driver attacks.
+
 ## Open Questions
 
 (none at this Tier-3 level)

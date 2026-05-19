@@ -631,6 +631,21 @@ SCSI-scan reinforcement:
 - **Per-scsi_scan_type=none disables all add_device** — defense against per-runaway-LLD calling __scsi_add_device.
 - **Per-pseudo_sdev removed last in forget_host** — defense against per-passthrough-cmd-in-flight UAF on host teardown.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — every INQUIRY / VPD / REPORT_LUNS response page copied to userspace through bounded `copy_to_user` whose length is bracketed against `sizeof(struct scsi_lun_arr)` and the device-reported allocation length; defends against per-overlarge-VPD-page underflow leaking adjacent slab.
+- **PAX_KERNEXEC** — `scsi_host_template` and `scsi_transport_template` vtables placed in `__ro_after_init`; W^X for the LLD dispatch surface invoked from scan paths.
+- **PAX_RANDKSTACK** — entropy added on every `scsi_scan_target` / `scsi_probe_lun` entry so REPORT_LUNS race attempts cannot pivot off a fixed stack layout.
+- **PAX_REFCOUNT** — `scsi_device.iorequest_cnt`, `iodone_cnt`, and host/target kref counters use saturating arithmetic; overflow on a malicious LLD spamming probes aborts rather than wraps.
+- **PAX_MEMORY_SANITIZE** — INQUIRY / VPD / mode-sense scratch buffers (`scsi_alloc_request_data`, `inquiry_buffer`) zero-on-free so vendor strings from a removed disk do not bleed into the next probe.
+- **PAX_UDEREF** — sg_io / SG_IO passthrough buffers reached during scan-time IOCTLs go through `__copy_from_user_inatomic` with explicit user-AS annotation.
+- **PAX_RAP / kCFI** — `scsi_host_template->queuecommand`, `slave_alloc`, `slave_configure`, and transport `user_scan` callbacks all type-tagged; defends against ROP via a corrupted host template pointer.
+- **GRKERNSEC_HIDESYM** — `/proc/scsi/*`, `dev_printk` traces, and `dmesg` LLD strings stripped of kernel pointers; LUN-scan errors log only sdev id and result code.
+- **GRKERNSEC_DMESG** — REPORT_LUNS / INQUIRY failure prints (sense data, ASC/ASCQ, residue) gated behind `CAP_SYSLOG`; defends against a low-priv user fingerprinting attached storage.
+- **REPORT_LUNS / SG_IO scan** — `scsi_report_lun_scan` invoked from userspace (`/proc/scsi/scsi` write, `scsi_scan_host` triggers) requires `CAP_SYS_RAWIO`; defends against unprivileged crash via crafted LUN list.
+- **INQUIRY VPD audit** — pages 0x80/0x83/0x86/0xb0–0xbf parsed with bounded length, page-code allowlist enforced in `scsi_get_vpd_buf`; defends against per-VPD-truncation int-underflow.
+- **Rationale** — scan is the kernel's first contact with attacker-controllable byte streams from arbitrary SCSI/SAS/iSCSI targets; PAX_USERCOPY + VPD bounds + RAWIO gating + RAP on LLD vtables together close the historic SCSI-probe RCE surface.
+
 ## Open Questions
 
 - (none at this Tier-3 level)

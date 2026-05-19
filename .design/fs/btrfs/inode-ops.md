@@ -600,6 +600,26 @@ Inode-ops reinforcement:
 - **Per-i_mmap_lock rw separation** — defense against per-fallocate vs mmap-write race.
 - **Per-subpage spinlock + bitmaps** — defense against per-cross-sector torn writeback.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/btrfs/inode.c`:
+
+- **PAX_USERCOPY** — bounds-checks every read/write/sendfile payload against the file-extent layout (COW vs NOCOW vs PREALLOC vs inline) so a confused-deputy short read cannot leak adjacent extent data.
+- **PAX_KERNEXEC** — keeps `btrfs_file_inode_operations`, `btrfs_aops`, and the ordered-extent callbacks in read-only memory so a memory bug cannot rewrite the writeback or fixup paths.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each read/write/fallocate/mmap entry so an attacker cannot deterministically probe the long delalloc/COW path.
+- **PAX_REFCOUNT** — wraps `btrfs_ordered_extent.refs` and `btrfs_inode.io_tree` refs so a torn writeback / truncate / fixup sequence cannot wrap and trigger early free.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `btrfs_ordered_extent`, fixup-worker scratch, and ordered-csum buffers so leftover csum bytes / extent keys cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the file-IO entry points.
+- **PAX_RAP / kCFI** — forward-edge CFI on `btrfs_file_inode_operations` and `btrfs_aops` so a corrupted ops pointer cannot redirect writeback to a userspace gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from inode-ops warning printks so a crafted file layout cannot leak kASLR offsets via dmesg.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so ordered-extent / writeback diagnostics do not leak pointer material to unprivileged users.
+- **COW/NOCOW PAX_USERCOPY** — the COW vs NOCOW writeback path validates the user-side buffer length against the file-extent layout via the hardened usercopy path so a crafted NOCOW write cannot stride past the file-extent boundary and corrupt adjacent blocks.
+- **Ordered-extent PAX_REFCOUNT** — `btrfs_ordered_extent.refs` (held across submit, csum, completion, and truncate-vs-finish racing) is wrapped with the hardened-refcount layer so a malicious workload cannot drive an unsigned wrap that would early-free an in-flight ordered extent.
+- **GRKERNSEC_HIDESYM on writepage_cow_fixup warnings** — fixup-worker warning paths sanitize embedded pointers so a page-mkwrite-without-delalloc-reserve attack cannot extract ordered-extent or io_tree addresses via dmesg.
+- **CAP_SYS_ADMIN on data-reloc ioctls** — data-relocation ioctls and any `BTRFS_IOC_DEFRAG_RANGE`-style call that drives `data-reloc` inodes are restricted to privileged callers so unprivileged users cannot stress the reloc-tree code path.
+
+Rationale: btrfs inode-ops is the join point between userspace IO and the COW/NOCOW/PREALLOC/inline state machine; ordered-extent refcount wraps and NOCOW boundary violations are direct corruption primitives, so hardened refcount + usercopy and RAP on the aops vtable are layered on top of the upstream EXTENT_LOCKED/EXTENT_FINISHING_ORDERED bracket.
+
 ## Open Questions
 
 (none at this Tier-3 level)

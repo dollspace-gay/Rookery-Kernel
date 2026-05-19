@@ -697,6 +697,26 @@ block-group reinforcement:
 - **Per-BLOCK_GROUP_TREE feature gated by COMPAT_RO_BLOCK_GROUP_TREE** — defense against per-mismatched on-disk layout.
 - **Per-IGNOREBADROOTS dummy bgs only when explicitly enabled** — defense against per-silent-data-loss on damaged fs.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/btrfs/block-group.c`:
+
+- **PAX_USERCOPY** — bounds-checks any `BTRFS_IOC_GET_BLOCK_GROUP_INFO`-style ioctl payloads so a malformed request cannot drive a slab overrun.
+- **PAX_KERNEXEC** — keeps block-group ops/callbacks in read-only memory so a memory bug cannot rewrite caching or removal hooks.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each allocator/balance ioctl entry, defeating deterministic stack-spray against the long BG lookup path.
+- **PAX_REFCOUNT** — wraps `btrfs_block_group.refs` and `btrfs_caching_control.count` so a torn caching/remove sequence cannot wrap to zero and trigger an early free.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `btrfs_block_group` and `btrfs_caching_control` so leftover free-space bitmaps and chunk-map pointers cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the BG-info ioctl boundary.
+- **PAX_RAP / kCFI** — forward-edge CFI on caching/finished callbacks invoked from the BG state machine.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from btrfs BG warning printks (`btrfs_err`/`btrfs_warn` callsites in block-group.c) so an unprivileged user cannot harvest kASLR offsets via crafted images.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so BG-corruption diagnostics do not leak pointer material to unprivileged users.
+- **`btrfs_block_group` refcount PAX_REFCOUNT** — the BG `refs` counter (rbtree-erase ref + lookup ref tracked separately) is wrapped with the hardened-refcount layer so a malicious image that drives extreme caching churn cannot wrap the counter and produce an early-free UAF.
+- **`BLOCK_GROUP_TREE` feature gate** — the `COMPAT_RO_BLOCK_GROUP_TREE` feature bit is treated as a security invariant: mismatched on-disk layout is rejected at mount rather than silently coerced, blocking downgrade-attack images that try to confuse the BG-tree vs. extent-tree readers.
+- **GRKERNSEC_HIDESYM on caching-failure paths** — `caching_thread` error traces sanitize embedded pointers so a corrupted free-space tree cannot leak BG/rbnode addresses via dmesg.
+- **CAP_SYS_ADMIN on BG-info ioctls** — `BTRFS_IOC_GET_BLOCK_GROUP_INFO` and related diagnostic ioctls are restricted to privileged callers so unprivileged users cannot enumerate the on-disk BG layout.
+
+Rationale: btrfs block-groups are the allocator's anchor; UAF on a BG or a confused `BLOCK_GROUP_TREE` reader yields arbitrary on-disk corruption, so refcount hardening + feature-bit gating are layered on top of the upstream rbtree+rwlock defenses.
+
 ## Open Questions
 
 (none at this Tier-3 level)

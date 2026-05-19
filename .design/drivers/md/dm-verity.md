@@ -276,6 +276,22 @@ dm-verity-specific reinforcement:
 - **Workqueue isolation** — defense against verification work blocking other targets.
 - **memzero_explicit for tfm key in dtr** (when applicable) — defense against post-suspend RAM-leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — Merkle hash blocks are read into dm-bufio's `dm_buffer` slab (whitelisted for IO); the per-bio `verity_io` and its trailing hash-result digest live in a fixed-size `mempool_t` so `copy_to_user` paths only see exact-sized verified data, never tail-padding.
+- **PAX_KERNEXEC** — `verity_target_type`, the per-format Merkle/FEC validator tables, and the chosen `crypto_ahash` `crypto_alg` vtable are all in `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — `verity_map` and the workqueue handler `verity_work` cross the randomized kstack offset before invoking the async hash transform.
+- **PAX_REFCOUNT** — `dm_verity->root_digest` refcount, per-bio `verity_io->in_bh` accounting, and `verity_fec_io->refs` are refcount_t; a flood of failed-block FEC recovery requests saturates rather than wraps.
+- **PAX_MEMORY_SANITIZE** — completed `verity_io` slabs are zeroed before mempool return so per-bio digest material does not bleed into the next user's request.
+- **PAX_UDEREF** — table constructor `verity_ctr` parses the salt, root digest, and (optional) signature blob from kmalloc'd `argv`, with each hex/byte string validated for length and charset before being copied into kernel storage.
+- **PAX_RAP / kCFI** — `crypto_ahash_*` callbacks (`init`, `update`, `final`, `digest`) and `dm_target_type` callbacks are typed indirect calls; sites violating the type trap at the call edge.
+- **fs-verity / Merkle-root signature verification** — when built with `CONFIG_DM_VERITY_VERIFY_ROOTHASH_SIG`, the optional `root_hash_sig_key_desc` argument forces the root hash to be verified against a PKCS#7 signature loaded into the `.builtin_trusted_keys` (or `.secondary_trusted_keys`) keyring before `verity_dtr` accepts the table; activation fails closed if the signature is missing, expired, or signed by an unknown key.
+- **GRKERNSEC_TPE** — combined with Trusted Path Execution, only files under a verity-backed and signature-validated mount are exec'd by root and untrusted users; `verity_dtr` is the trust anchor for that TPE policy.
+- **GRKERNSEC_HIDESYM / GRKERNSEC_DMESG** — root-hash, salt, and bufio buffer pointers are masked under `kptr_restrict ≥ 2`; corruption / FEC-correction events log at `KERN_CRIT` with `__ratelimit` and forward to audit.
+- **fs-verity Merkle-root signature verify** — `dm-verity-verify-sig.c` invokes `verify_pkcs7_signature` against the kernel trusted-keys keyring before activation; signature must chain to a key in `.builtin_trusted_keys`/`.secondary_trusted_keys` or `.platform`, otherwise `verity_ctr` returns `-EKEYREJECTED`.
+- **Restart-mode policy** — `restart_on_corruption` / `panic_on_corruption` modes are operator-selected at table-load time; once corruption is detected, the target either restarts the system or panics rather than serving silently corrupted data.
+- **Pre-fetch hash window discipline** — the optional `prefetch_cluster` is clamped against `max_hash_block_index` so a malicious table cannot trigger out-of-bounds prefetch on the metadata device.
+
 ## Open Questions
 
 (none at this Tier-3 level)

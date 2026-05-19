@@ -245,6 +245,33 @@ dm-integrity-specific reinforcement:
 - **bg recalc-thread bounded by recalc_buffer size** — defense against recalc consuming all CPU.
 - **HMAC-output-truncation only to ≥ 16 bytes** — defense against forge-tag via short truncation.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-integrity stores per-sector HMAC tags + a write-ahead journal beneath dm-crypt, providing the only authenticator that detects ciphertext tampering on LUKS2-with-integrity volumes. A leaked HMAC key, journal replay corruption, or sector-tag aliasing here directly defeats authenticated FDE. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-integrity.c` plus dm-integrity-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: status output through dm-core whitelisted slab; ctr param parsing whitelisted.
+- **PAX_KERNEXEC**: per-`dm_target_type` vtable, per-`crypto_shash`/`crypto_ahash` vtable, journal-mode dispatch table all `__ro_after_init`.
+- **PAX_RANDKSTACK**: every entry to `dm_integrity_map` / `dm_integrity_end_io` / journal commit randomises stack.
+- **PAX_REFCOUNT**: per-`dm_integrity_c` refcount, per-`dm_integrity_io.payload` refcount, journal-section refcount saturating.
+- **PAX_MEMORY_SANITIZE**: HMAC keys + per-sector tag scratch + journal-replay scratch zeroed on free — see integrity-specific subsection.
+- **PAX_UDEREF**: ctr key parsing via dm-core's guarded path.
+- **PAX_RAP / kCFI**: hash/cipher callbacks + journal-recover callback kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `&ic`, `&ic->journal_xor`, per-key buffers never rendered; `%pK` only.
+- **GRKERNSEC_DMESG**: integrity-failure warnings ratelimited (but always emit at least one — see below); CAP_SYSLOG.
+
+dm-integrity-specific reinforcement:
+- **HMAC-SHA-2 keys PAX_MEMORY_SANITIZE** — `ic->journal_mac_key`, `ic->internal_hash_key`, `ic->journal_crypt_key` allocated via `kvzalloc` and `memzero_explicit`-cleared on dtr; defends key residue identical to dm-crypt's posture.
+- **HMAC-output-truncation lower bound 16 bytes** — already in row-2; reinforced with grsec audit refusal when activate args request `internal_hash:hmac(sha256):8` (8 bytes is forge-able).
+- **Journal replay PAX_USERCOPY** — journal sections replay-read into a slab-allocated, USERCOPY-whitelisted buffer; per-section commit-tag verified BEFORE the buffer is consumed for sector dispatch. Defends against crafted journal sections leaking past tag verify.
+- **Journal sector signature verify** — every journal commit section magic `DM_INTEGRITY_JOURNAL_MAGIC` + per-section HMAC validated; refusal triggers integrity-mode flag (target enters `FAILED` and refuses further writes).
+- **Recalc-thread bounded by recalc_sectors** — extension of row-2; recalc thread cgroup-pinned so it cannot starve other tenants.
+- **Per-bio `dm_integrity_io.payload` mempool reservation** — defends OOM-on-flood by reserving N_CPU * 8 payloads at activate.
+- **CSPRNG-only HMAC key derive on `--integrity-no-journal-bitmap` recovery** — refuses fallback to `prandom`.
+- **Activate-time integrity-mode lockdown** — refuses `bitmap` journal mode (lower assurance) when `kernel_is_locked_down(LOCKDOWN_INTEGRITY_MAX)`; defends downgrade attack at activate.
+- **`integrity_metadata_size_per_sector` clamped to [8, 64] bytes** — defends ctr-string-injection driving heap-bounds confusion.
+- **Tag mismatch always-emit (override ratelimit)** — first three tag mismatches per device emit one un-ratelimited dmesg + audit entry per the grsec policy; subsequent are ratelimited but counted via per-device counter exposed under CAP_SYS_ADMIN.
+
 ## Open Questions
 
 (none at this Tier-3 level)

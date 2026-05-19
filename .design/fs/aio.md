@@ -577,6 +577,26 @@ AIO reinforcement:
 - **Per-folio migration via aio_migrate_folio under migrate_lock** — defense against per-page-migration corrupting user mapping.
 - **Per-exit_aio walks kioctx_table on mm teardown** — defense against per-leak when process dies with open kioctxs.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/aio.c`:
+
+- **PAX_USERCOPY** — bounds-checks every `struct iocb` array copied via `io_submit(2)` against the user-supplied `nr` so a confused-deputy submit cannot overrun the kernel-side iocb staging slab.
+- **PAX_KERNEXEC** — keeps the `aio_ring_fops` and `kioctx_table` slots in read-only memory so a memory bug cannot rewrite `aio_ring_mremap`/`aio_migrate_folio` callbacks.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each `io_submit(2)`/`io_getevents(2)` so an attacker cannot deterministically probe the long submit / completion paths.
+- **PAX_REFCOUNT** — wraps `kioctx.users`, `kioctx.reqs`, and the 2-stage iocb refcount so a concurrent submit/cancel/destroy storm cannot wrap to zero and trigger early free.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `kioctx`, `aio_kiocb`, and aio-ring backing pages so leftover iocb fields (file pointers, addr/nbytes) cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the iocb decoder and the `IOCB_CMD_PWRITEV*`/`IOCB_CMD_POLL` dispatch.
+- **PAX_RAP / kCFI** — forward-edge CFI on the per-cmd dispatch (`aio_read`/`aio_write`/`aio_poll`/`aio_fsync`) so a corrupted file ops pointer cannot redirect a submit to a userspace gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from aio error printks so an unprivileged caller cannot harvest kASLR offsets via crafted submit failures.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so aio completion-path WARNs do not leak pointer material to unprivileged users.
+- **`kioctx` refcount PAX_REFCOUNT** — `users`/`reqs` `percpu_ref` counters are wrapped with the hardened-refcount layer so a torn `io_submit`/`io_destroy` race cannot underflow the reference count and cause an early free of an in-flight kioctx.
+- **`struct iocb` PAX_USERCOPY** — `copy_from_user` of submit arrays goes through the hardened usercopy path so a malicious `nr` cannot stride past the staging buffer and corrupt adjacent slab objects.
+- **aio-ring `CAP_SYS_NICE` gating** — the global `aio_max_nr` and per-process aio-ring pin budget are bound by `CAP_SYS_NICE` so an unprivileged caller cannot exhaust `aio_nr` and lock out higher-priority workloads.
+- **GRKERNSEC_HIDESYM on completion-path WARNs** — `aio_complete` / `aio_migrate_folio` warning traces sanitize embedded pointers so a poll-storm cannot extract kernel addresses via crafted error sequences.
+
+Rationale: AIO pins memory, holds file references across syscalls, and exposes a kernel-side ring page mapped into userspace; this combination has historically produced several UAF / refcount-wrap CVEs, so layered refcount + usercopy + capability budgeting and CFI on the per-cmd dispatch are warranted on top of the upstream `percpu_ref` and `kioctx.dead` defenses.
+
 ## Open Questions
 
 (none at this Tier-3 level)

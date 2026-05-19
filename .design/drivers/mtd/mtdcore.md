@@ -523,6 +523,22 @@ MTD-core reinforcement:
 - **Per-mtd_block_markbad idempotent** — defense against per-double-mark wearing oob.
 - **Per-notifier fanout under table_mutex** — defense against per-UBI/JFFS2-seeing-half-registered MTD.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `/dev/mtdN` reads/writes via `mtdchar_read`/`mtdchar_write` go through a per-syscall bounded scratch (`min_t(size_t, count, mtd->erasesize)`), and OOB transfers via `MEMREADOOB64`/`MEMWRITEOOB64` copy into a `kmalloc`'d `mtd_oob_ops` buffer sized to `ops.ooblen + ops.len`, never the user pointer directly.
+- **PAX_KERNEXEC** — `mtd_info`'s `_read`/`_write`/`_erase`/`_panic_write`/`_read_oob`/`_write_oob`/`_get_user_prot_info`/`_lock`/`_unlock` function pointers, `mtd_notifier` list ops, and `mtd_partitions` table live in `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — every entry from userspace (`mtdchar_ioctl`, `mtdchar_read`, `mtdchar_write`, `mtd_blktrans_request`) crosses the per-syscall random kstack offset before reaching the chip's `_read` / `_write` callback.
+- **PAX_REFCOUNT** — `mtd_info->usecount`, `master->refcnt`, and `mtd_blktrans_dev->refcnt` are refcount_t with saturation; a forged open/close storm against `/dev/mtdN` cannot wrap the device ref and free the chip descriptor mid-IO.
+- **PAX_MEMORY_SANITIZE** — `mtd_oob_ops` scratch buffers and the per-erase `instr->buf` are zeroed before slab-free so prior plaintext from an OOB read does not bleed between consumers.
+- **PAX_UDEREF** — `mtdchar_ioctl` always copies `mtd_info_user`, `erase_info_user`, `mtd_write_req` into kernel storage with `copy_from_user`; userspace pointers in `MEMREAD`/`MEMWRITE` sub-structs are themselves validated with `access_ok` before any further copy.
+- **PAX_RAP / kCFI** — `mtd_info` function pointers, `mtd_notifier->add/remove`, and the `mtd_blktrans_ops` (`flush`, `getgeo`, `release`, etc.) are typed indirect-call edges.
+- **/dev/mtdN CAP_SYS_RAWIO** — the privileged ioctls `MEMERASE`, `MEMERASE64`, `MEMLOCK`, `MEMUNLOCK`, `MEMWRITEOOB`, `OTPLOCK`, `OTPWRITE`, and the raw `mtd_write` path all gate on `capable(CAP_SYS_RAWIO)`; read-only ioctls (`MEMGETINFO`, `MEMGETREGIONCOUNT`) remain available to any opener of the device node.
+- **sysfs gate** — `/sys/class/mtd/mtd*/oobsize` and friends are 0444; the write-capable sysfs nodes (e.g. `bitflip_threshold`) require `CAP_SYS_ADMIN`. Bind/unbind nodes under `/sys/bus/platform/drivers/...` likewise require `CAP_SYS_ADMIN`.
+- **GRKERNSEC_HIDESYM / GRKERNSEC_DMESG** — `mtd_info *` and per-partition slave pointers are scrubbed under `kptr_restrict ≥ 2`; bad-block-table activity and uncorrected-bitflip events log at `KERN_WARNING` with `__ratelimit`.
+- **partition table validation** — `mtd_parse_partition`'s offset/size are validated against `master->size`; an out-of-bounds DT/cmdline partition is rejected with `-EINVAL`, blocking a forged DT from overlapping protected regions.
+- **OTP/protect region lockout** — `MEMOTPLOCK` and `MEMLOCK` ioctls write through `_lock`/`_unlock` callbacks that the chip implements; once a region is locked, it cannot be unlocked without a chip-vendor-specific unlock sequence, providing a hardware anchor for secure boot.
+- **mtdblock cache discipline** — `mtdblock`'s erase-block cache writes-back on every `flush` and on FS unmount; a forged unmount cannot leave dirty data in the kernel-side cache because `mtdblock_release` synchronously flushes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

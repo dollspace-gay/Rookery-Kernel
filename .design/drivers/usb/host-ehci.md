@@ -223,6 +223,21 @@ eHCI-specific reinforcement:
 - **DMA-pool descriptor zeroed before reuse** — defense against stale-data leak across URBs.
 - **Per-vendor quirk table audited** — every entry has rationale comment + erratum reference.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `/sys/bus/pci/devices/.../resource*` and any debugfs EHCI register-dump exposed only with bounded `sysfs_emit`; defends against per-PCI-BAR-read leakage.
+- **PAX_KERNEXEC** — `ehci_hcd.driver`, `hc_driver` ops table, and per-vendor quirk overrides placed in `__ro_after_init`; defends EHCI dispatch against vtable rewrite.
+- **PAX_RANDKSTACK** — entropy added on every `ehci_urb_enqueue` / `ehci_irq` entry; neutralises stack-shape probing during async-list races.
+- **PAX_REFCOUNT** — `ehci->async->ref`, periodic-frame ref counters, and `ehci->companion_count` use saturating counters.
+- **PAX_MEMORY_SANITIZE** — qH/qTD descriptor pools and DMA-coherent allocations zero-on-free; defends against stale-URB data leak across pool reuse.
+- **PAX_UDEREF** — EHCI has no direct user-pointer paths; usbfs delegation routed through user-AS-annotated helpers.
+- **PAX_RAP / kCFI** — `hc_driver` callbacks (`urb_enqueue`, `urb_dequeue`, `endpoint_disable`, `bus_suspend`, `bus_resume`) type-tagged.
+- **GRKERNSEC_HIDESYM** — EHCI IRQ-storm / async-unlink dmesg lines strip kernel pointers and BAR addresses.
+- **GRKERNSEC_DMESG** — EHCI register-restore-mismatch warnings gated behind `CAP_SYSLOG`.
+- **PCI BAR CAP_SYS_RAWIO** — any debugfs / sysfs path that exposes the EHCI MMIO BAR for read/write requires `CAP_SYS_RAWIO`; defends against unprivileged-process scribbling host-controller registers.
+- **Async-list refcount** — `ehci->async` and each `ehci_qh` use saturating refcounts; `ehci_qh_destroy` runs only at zero ref, defending against use-after-free on async-list rewalk after device disconnect.
+- **Rationale** — EHCI is the busiest legacy HCD on x86 servers; PAX_REFCOUNT on the async-list and CAP_SYS_RAWIO on BAR exposure together protect against the historic "EHCI async-UAF" and "MMIO-leak" families.
+
 ## Open Questions
 
 (none at this Tier-3 level)

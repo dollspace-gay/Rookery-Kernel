@@ -472,6 +472,26 @@ struct V9fsContext {                  // fs_context::fs_private
 - **Per-`p9_show_client_options` re-rendering covered by /proc/mounts** — defense against per-remount drift.
 - **Per-CAP_SYS_ADMIN required for mount** — defense against per-unprivileged-mount of unauthenticated remote FS.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/9p/vfs_super.c`:
+
+- **PAX_USERCOPY** — bounds-checks every mount-option string (`trans`, `version`, `aname`, `uname`, `cache`) so a malformed mount-spec cannot drive a slab overrun in the option parser.
+- **PAX_KERNEXEC** — keeps `v9fs_super_ops`, `v9fs_super_ops_dotl`, and the `p9_trans_module` ops tables in read-only memory so a transport-driver memory bug cannot rewrite `read_super`/`destroy`.
+- **PAX_RANDKSTACK** — randomizes the kernel-stack offset on each `mount(2)`/`statfs(2)` so an attacker cannot deterministically probe transport setup stack frames.
+- **PAX_REFCOUNT** — wraps `p9_client` reference counts and `v9fs_session_info` so a malicious server cannot drive an unsigned wrap during clunk/walk floods.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `v9fs_session_info`, `p9_client`, and transport buffers so leftover server-response payloads cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the long mount-context parser and the xattr fall-through paths.
+- **PAX_RAP / kCFI** — forward-edge CFI on `p9_trans_module` and `super_operations` vtables so a corrupted transport ops pointer cannot redirect `request`/`cancel` to a userspace gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from 9P transport-error printks (`p9_debug` traces) so a hostile server cannot harvest kASLR offsets from syslog.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so 9P protocol errors that include kernel pointers do not leak to unprivileged users.
+- **9p mount-spec hard-gated on `CAP_SYS_ADMIN`** — `v9fs_get_tree` rejects unprivileged callers up-front, blocking unprivileged-mount of an unauthenticated network FS even when user-namespaces relax other mount gates.
+- **`p9_trans_module` pinned for session lifetime** — `try_module_get(trans->owner)` is taken at session-begin and released only at session-destroy, preventing transport-module unload while a session still owns transport state.
+- **Transport-switch audit** — any `trans=` mount option that selects an out-of-default transport (`rdma`, `xen`, `usbg`) is logged via `audit_log` so a compromise that pivots to an exotic transport is observable post-hoc.
+- **GRKERNSEC_HIDESYM on Tversion/Tattach failure paths** — server-side error responses sanitize embedded pointers so a malicious server cannot extract kernel-address material via crafted Rerror payloads.
+
+Rationale: 9P mounts trust a remote (sometimes unauthenticated) server with arbitrary filesystem metadata; combined with the multiple transport backends (TCP, RDMA, virtio, xen, usbg) this is a high-attack-surface mount path, so capability gating + transport-pinning + RAP on the trans-ops vtable is layered onto the upstream session lifecycle defenses.
+
 ## Open Questions
 
 (none at this Tier-3 level)

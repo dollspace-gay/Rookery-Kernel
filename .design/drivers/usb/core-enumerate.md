@@ -240,6 +240,21 @@ enumerate-specific reinforcement:
 - **SET_ADDRESS race-free** — per-bus `addr0_busy` lock prevents two devices simultaneously trying to use address 0 during enumeration.
 - **Pre-CONFIGURED state interfaces have no per-class driver bound** (CONFIGURED is the only state where binding occurs); defense against pre-config interface-driver poking causing UAF.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — descriptor copy-outs via `usbfs` and `/sys/bus/usb/devices/*/descriptors` go through bounded `copy_to_user` / `sysfs_emit`; defends against descriptor-truncation underflow.
+- **PAX_KERNEXEC** — `usb_bus_type`, `usb_device_type`, and hub-driver vtables placed in `__ro_after_init`; defends enumeration against vtable rewrite.
+- **PAX_RANDKSTACK** — entropy added on every `hub_event` / `hub_port_init` / `usb_new_device` entry; neutralises stack-shape probing during port races.
+- **PAX_REFCOUNT** — `usb_device.refcnt`, `usb_hub.kref`, and `bus->addr0_mutex` waiters use saturating counters.
+- **PAX_MEMORY_SANITIZE** — device-descriptor, config-descriptor, and string-descriptor scratch buffers zero-on-free; defends against string-descriptor data bleeding across enumerations.
+- **PAX_UDEREF** — `usbfs_get_descriptor` user buffer handling routed through user-AS-annotated copy helpers.
+- **PAX_RAP / kCFI** — hub-driver `probe`, `disconnect`, and `hub_thread` work-callbacks type-tagged.
+- **GRKERNSEC_HIDESYM** — `/sys/bus/usb/devices/*` attribute reads strip kernel pointers; descriptor-parse warnings emit no addresses.
+- **GRKERNSEC_DMESG** — hub-thread enumeration prints (port reset, address-set, descriptor-parse failures) gated behind `CAP_SYSLOG`.
+- **Device-descriptor PAX_USERCOPY** — `bLength` checked against the GET_DESCRIPTOR-allocated buffer in `usb_get_device_descriptor`; configuration `wTotalLength` checked against `USB_DT_CONFIG_SIZE..USB_DT_CONFIG_MAX`; defends against malicious-device wTotalLength-overflow exploits.
+- **hub_thread CAP_SYS_RAWIO** — manual port-reset / port-power requests routed through usbfs require `CAP_SYS_RAWIO`; defends against unprivileged hub-state corruption that would block legitimate enumeration.
+- **Rationale** — enumeration parses byte streams from untrusted physical-attacker devices (the canonical "BadUSB" surface); descriptor-length USERCOPY bounding plus RANDKSTACK on hub_event close the descriptor-parse RCE family.
+
 ## Open Questions
 
 (none at this Tier-3 level)

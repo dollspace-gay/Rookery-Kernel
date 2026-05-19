@@ -259,6 +259,32 @@ dm-bufio-specific reinforcement:
 - **read_callback / write_callback per-client** — defense against generic-buffer state misinterpretation.
 - **Per-buffer aux_data isolated** — defense against client-aux corrupting bufio state.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-bufio caches metadata blocks for dm-thin / dm-cache / dm-era / dm-integrity / dm-verity — its per-block buffer arena is shared across security-relevant DM targets where a stale-buffer reuse or unsanitised buffer-free can leak crypto keys, snapshot metadata, or btree fingerprints into a freshly-allocated buffer reused by a different target instance. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-bufio.c` plus dm-bufio-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: dm-bufio has no direct user copy surface; status output through `dm_status` goes via dm-core whitelisted slab.
+- **PAX_KERNEXEC**: per-client `read_callback`, `write_callback` fn ptrs installed at `dm_bufio_client_create` and `__ro_after_init`-anchored in the per-client struct (write-protected via per-client `client_create` finalize barrier).
+- **PAX_RANDKSTACK**: every entry from a DM target into `dm_bufio_read` / `_get` / `_new` / `_write_dirty_buffers` re-randomises stack offset.
+- **PAX_REFCOUNT**: per-buffer `hold_count` saturating; per-client refcount saturating; per-cache LRU list cursor refcount-checked.
+- **PAX_MEMORY_SANITIZE**: per-buffer `data` page zero-filled at buffer-free (release back to slab); per-`aux_data` (target-specific metadata) zeroed on `__make_buffer_clean` after a target releases — defends against dm-thin metadata bleeding into a subsequent dm-cache buffer.
+- **PAX_UDEREF**: no user pointers in dm-bufio.c.
+- **PAX_RAP / kCFI**: `read_callback`, `write_callback` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `&buf` / `&client` / per-buffer data-ptr never rendered in dm-bufio status / debug; `%pK` only.
+- **GRKERNSEC_DMESG**: dm-bufio warnings ("buffer io_error", reformat counters) ratelimited; CAP_SYSLOG required.
+
+dm-bufio-specific reinforcement:
+- **Per-block-list PAX_REFCOUNT** — `hash_table` bucket list cursor + per-buffer node uses saturating refcount; defends double-eviction race when shrinker + cleaner contend.
+- **PAX_MEMORY_SANITIZE on buf-free** — block payload page (typically 4K) zero-filled before return to slab; the `aux_data` block also memset(0) at release so a dm-thin btree node cannot leak into a dm-cache mapping table when buffer is recycled.
+- **DIRTY buffers excluded from PAX-poisoned page reuse** — page never returned to free pool until WRITE_DIRTY → CLEAN transition completes; defends use-after-write-completion.
+- **Per-client max_buffers strict ceiling** — `dm_bufio_set_max_buffer_size` clamps userspace request to 16 MiB per client; defends OOM via inflated table-load.
+- **Cleaner-thread cgroup-pinned** — bound to init_cgroup so a hostile cgroup cannot starve writeback through cpu-quota; defends crash-consistency starvation.
+- **`__cache_size_refresh` overflow-checked** — total slab usage computed as `checked_mul`/`checked_add`; trap on overflow.
+- **`buffer_state` transitions guarded by `cmpxchg`** — state-machine cannot be torn by concurrent shrinker; defends ABA on (CLEAN→DIRTY→WRITING→CLEAN).
+- **Per-client lockdep class** — distinct lockdep key per dm-bufio client prevents lockdep tag collapse when stacked clients (e.g., dm-cache atop dm-integrity) acquire reciprocally.
+- **`alloc_buffer` GFP flags clamp** — refuses GFP_ATOMIC requests that would bypass memcg accounting; defends accounting evasion.
+
 ## Open Questions
 
 (none at this Tier-3 level)

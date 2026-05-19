@@ -829,6 +829,22 @@ N_TTY reinforcement:
 - **Per-TTY_LDISC_CHANGING tested in receive_buf_common loop** — defense against per-receive into half-installed n_tty after TIOCSETD.
 - **Per-tty_audit_add_data** — defense against per-audit gap on copy-out.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `n_tty.read_buf` (the canonical line buffer) copied to userspace through bounded `copy_to_user` with explicit `min(nr, can_read)`; defends against ICANON line-buffer underflow leaking adjacent slab.
+- **PAX_KERNEXEC** — `tty_ldisc_ops n_tty_ops` and the receive_buf / write callback table placed in `__ro_after_init`; defends ldisc dispatch against vtable rewrite.
+- **PAX_RANDKSTACK** — entropy added on every `n_tty_read` / `n_tty_receive_buf_common` entry; neutralises stack-shape probing under repeated TIOCSETD races.
+- **PAX_REFCOUNT** — `tty_struct.count`, `n_tty_data.column`, and `tty_ldisc.users` use saturating counters; defends against count-wrap UAF on rapid open/close.
+- **PAX_MEMORY_SANITIZE** — `read_buf`, `echo_buf`, and `lookahead_buf` zero-on-free so cleartext keystrokes (passwords typed at the password: prompt) never bleed into the next allocation.
+- **PAX_UDEREF** — `n_tty_read` / `n_tty_write` dereference user pointers only via user-AS-annotated `copy_*_user`.
+- **PAX_RAP / kCFI** — every `tty_ldisc_ops` callback (`open`, `close`, `receive_buf`, `write_wakeup`, `set_termios`) type-tagged; defends against ROP through a swapped ldisc pointer set via TIOCSETD.
+- **GRKERNSEC_HIDESYM** — `/proc/tty/ldiscs`, `/sys/class/tty/*` attribute reads sanitised; defends against ldisc-pointer disclosure.
+- **GRKERNSEC_DMESG** — `n_tty` overflow / `tty_audit_buf` warnings gated behind `CAP_SYSLOG`.
+- **ICANON line buffer PAX_USERCOPY** — `read_buf` copy-out length clipped to `tail - canon_head` and to `read_cnt`; defends against the historic ICANON line-buffer wraparound CVE class.
+- **ECHO restriction** — `ECHO` is suppressed for noecho-flagged sessions; `n_tty_set_termios` enforces ECHO can only be set on a tty the caller can write; defends against echo-pollution password capture.
+- **SIGINT/SIGQUIT generation** — `__isig` and `isig` deliver signals only to the controlling session's foreground process group; defends against cross-session signal injection through a smuggled tty.
+- **Rationale** — n_tty is in the trusted path of every login, sudo, ssh, and serial console; PAX_USERCOPY on read_buf + RAP on the ldisc vtable + ECHO/SIG controls together protect both keystroke confidentiality and session integrity.
+
 ## Open Questions
 
 (none at this Tier-3 level)

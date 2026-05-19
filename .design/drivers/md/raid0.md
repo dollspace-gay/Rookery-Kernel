@@ -201,6 +201,22 @@ raid0-specific reinforcement:
 - **Disk-list immutable post-init** — defense against concurrent disk-add corrupting zone-table.
 - **Per-bio refcount** if multi-chunk — defense against partial-bio_endio.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — sysfs `chunk_size` / `layout` accessors go through `kstrtoul` against bounded `PAGE_SIZE` scratch; bitmap pages (when used by md-cluster on raid0 stacked) are part of dm-bufio's whitelisted slab so copy_to_user cannot straddle slab tail-padding.
+- **PAX_KERNEXEC** — `raid0_personality` (the `mdk_personality` vtable: `.make_request`, `.run`, `.stop`, `.status`, `.hot_remove_disk`, `.size`, `.takeover`, `.error_handler`) is `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — `raid0_make_request` and the zone-resolver `find_zone` cross the randomized kstack offset on entry; bio splitting along chunk boundaries happens after the per-syscall random offset is installed.
+- **PAX_REFCOUNT** — per-disk `md_rdev->nr_pending` and the zone-table `r0conf` refcount are refcount_t with saturating semantics; a forged hot-remove storm saturates rather than wraps and frees a live rdev.
+- **PAX_MEMORY_SANITIZE** — when a member device leaves the array, its private mempool slabs and bio_set are returned with sanitizing free so per-IO bvec data doesn't bleed to the next user.
+- **PAX_UDEREF** — `/sys/block/mdX/md/*` writes copy through `copy_from_user` into a kstrdup'd scratch; no `__user` pointer is dereferenced after segment switch.
+- **PAX_RAP / kCFI** — `raid0_ops` (and the md `mdk_personality` indirect-call edges) are typed; mismatched signatures trap at the call site.
+- **GRKERNSEC_HIDESYM** — `r0conf->devlist` and per-zone base pointers are scrubbed from sysfs output under `kptr_restrict ≥ 2`.
+- **GRKERNSEC_DMESG** — disk-add / disk-remove / takeover events go at `KERN_NOTICE` with `__ratelimit`.
+- **CAP gating** — `MD_IOCTL` and `mddev_create` for raid0 arrays require `CAP_SYS_ADMIN` in the device's userns.
+- **Per-disk REFCOUNT** — `md_rdev->nr_pending` ensures `remove_disk` blocks until in-flight bios drain; `rdev_dec_pending` is the only sanctioned drop.
+- **Bitmap PAX_USERCOPY** — when raid0 is stacked under md-cluster with bitmap, bitmap-file IO is sliced through `bio_add_page` against a slab-whitelisted page cache.
+- **RAP on raid_ops** — `raid0_personality.{make_request,run,stop}` indirect calls are typed at module init; `personality_list` is `__ro_after_init` and only `register_md_personality` can extend it.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -818,6 +818,23 @@ ice driver reinforcement:
 - **Per-LAG operations on dedicated ordered workqueue (ice_lag_wq)** — defense against per-LAG-reentrancy.
 - **Per-FDIR / aRFS filter-count caps + per-VSI flow-table isolation** — defense against per-noisy-neighbor flow-table exhaustion.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `ethtool_ops` IN/OUT structures (`ethtool_link_settings`, `ethtool_eeprom`, `ethtool_drvinfo`, `ethtool_coalesce`, `ethtool_rxnfc`, `ethtool_rxfh_indir`, `ethtool_ts_info`) transit `dev_ethtool` against bounded kmalloc scratch sized per the ETHTOOL_GREGS / ETHTOOL_GMODULEINFO upper bounds; DMA descriptor rings live in their own dma-coherent slabs and never alias the ioctl path.
+- **PAX_KERNEXEC** — `ice_netdev_ops`, `ice_ethtool_ops`, `ice_xdp_ops`, `ice_dcbnl_ops`, `ice_devlink_ops`, the VF pf-pci `ice_virtchnl_ops` dispatch, and all `iidc_*` integration callbacks live in `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — every entry from userspace (ethtool ioctl, devlink netlink, XDP_REDIRECT setup, RTM_SETLINK for VFs) crosses the per-syscall random kstack offset before reaching ice's per-vsi handler.
+- **PAX_REFCOUNT** — `ice_vsi->ref`, `ice_pf->ref`, `ice_vf->refcnt`, and per-ring `tx_ring->ref` are refcount_t with saturation so a forged VF reset storm cannot wrap and free a live VF.
+- **PAX_MEMORY_SANITIZE** — tx/rx descriptor rings and AdminQ command buffers are zeroed on teardown (`ice_clean_rx_ring`, `ice_free_q_vector`) before dma-pool return so prior packet headers don't leak between VFs.
+- **PAX_UDEREF** — devlink and ethtool entry points hand the kernel a copied-in struct; no `__user` deref under KERNEL_DS, and the FW shared-memory mailbox is accessed via accessor macros that perform `READ_ONCE` / `WRITE_ONCE` against ioremapped MMIO.
+- **PAX_RAP / kCFI** — `net_device_ops`, `ethtool_ops`, `xdp_metadata_ops`, `bpf_prog->bpf_func` indirect-call edges, `udp_tunnel_nic_info`, and `ice_dcbnl_ops` are all typed.
+- **VF SR-IOV CAP_NET_ADMIN** — `ice_sriov_configure`, `ndo_set_vf_mac`, `ndo_set_vf_vlan`, `ndo_set_vf_rate`, `ndo_set_vf_spoofchk`, `ndo_set_vf_link_state`, and `ndo_set_vf_trust` are gated by `capable(CAP_NET_ADMIN)` in the init userns; container roots without that capability cannot reprogram VFs they don't own.
+- **XDP BPF W^X** — JITed XDP programs attached via `ndo_bpf` are placed in `bpf_jit_binary_pack_alloc` regions that are `RO` after `bpf_jit_binary_lock_ro`, with `set_memory_ro`/`set_memory_x` enforced; CONFIG_BPF_JIT_ALWAYS_ON + CONFIG_BPF_UNPRIV_DEFAULT_OFF keeps the JIT path off-limits to unprivileged callers.
+- **ethtool ioctl CAP_NET_ADMIN** — write-side ethtool commands (ETHTOOL_SSET, ETHTOOL_SCOALESCE, ETHTOOL_SRXFH, ETHTOOL_SRXFHINDIR, ETHTOOL_RESET, ETHTOOL_FLASHDEV, ETHTOOL_SEEPROM, ETHTOOL_SMODULEEEPROM, ETHTOOL_PERQUEUE) require `CAP_NET_ADMIN` against the network namespace owning the PF.
+- **GRKERNSEC_HIDESYM / GRKERNSEC_DMESG** — `ice_pf`, `ice_vsi`, `ice_vf`, and AdminQ command pointers are scrubbed under `kptr_restrict ≥ 2`; AQ-error and reset events log at `KERN_WARNING` with `__ratelimit` so a malfunctioning NIC cannot DoS dmesg.
+- **DDP package signature** — `ice_load_pkg`/`ice_init_pkg` validates the DDP package CRC and PLDM signature before loading into the device's packet-pipeline; an unsigned or mismatched-segment package is rejected, preventing pipeline-rewrite attacks on the data plane.
+- **VF mailbox rate limit** — `ice_mbx_vf_state_handler` enforces per-VF AdminQ message rate caps via `ice_mbx_traffic_report`; a malicious VF that floods `virtchnl` messages is throttled to prevent PF starvation.
+- **switchdev offload allowlist** — `ndo_setup_tc` and `flow_block_offload` paths reject unsupported `flow_action_id` so a tenant-owned tc filter cannot smuggle a privileged offload into hardware.
+
 ## Open Questions
 
 (none at this Tier-3 level)

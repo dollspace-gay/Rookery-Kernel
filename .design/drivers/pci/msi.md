@@ -613,6 +613,24 @@ MSI/MSI-X reinforcement:
 - **iounmap on failure** — `out_unmap` path in `msix_capability_init` releases `dev.msix_base` ioremap (defense against per-VA-leak on capability_init failure).
 - **DOMAIN_BUS_PCI_DEVICE_MSI vs _MSIX bus tokens distinct** — per-domain template tags distinguish MSI / MSI-X so x86/IOMMU code can route MSI differently from MSI-X (defense against per-misrouted-message in IOMMU-remap).
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /proc/irq/<n>/* and /sys/bus/pci/devices/<dev>/msi_irqs/* read buffers whitelisted; defense against per-oversized-procfs-read leaking adjacent slab.
+- **PAX_KERNEXEC** — msix_capability_init, pci_msi_setup_msi_irqs, pci_msi_domain_alloc_irqs run W^X; MSI/MSI-X ISR text mapped read+execute only.
+- **PAX_RANDKSTACK** — per-MSI/MSI-X handler entry randomizes kernel-stack offset; defense against per-vector-side-channel via stack-prefetch.
+- **PAX_REFCOUNT** — struct msi_desc, struct irq_domain, pci_dev MSI refs saturating refcount_t; defense against per-VFIO-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — msi_desc, msi_msg, msix_entry slabs poison-on-free; defense against per-prior-vector-state leak in re-used desc.
+- **PAX_UDEREF** — VFIO MSI-X passthrough enforces split user/kernel on the msi_msg blob copied between userspace and irq_chip.
+- **PAX_RAP/kCFI** — irq_chip->irq_compose_msi_msg / irq_write_msi_msg, msi_domain_ops, pci_msi_domain_info vtables CFI-protected.
+- **GRKERNSEC_HIDESYM** — msi_desc, irq_domain, msi_domain_ops addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "msix_capability_init", "irq %d: nobody cared" prints restricted; defense against per-vector-fingerprinting.
+- **MSI-X table CAP_SYS_RAWIO** — VFIO PCI MSI-X table region access (read of MSI-X Cap, write of vector-control / MSI Address / MSI Data) gated on CAP_SYS_RAWIO + VFIO group permission; defense against per-unprivileged steering of MSI-X vectors to a forged target.
+- **Vector table mapping bounded** — pci_msix_init / msix_capability_init iounmap-on-failure path closes the dev.msix_base ioremap; vector-table size capped at PCI_MSIX_FLAGS_QSIZE+1 (2048); defense against per-oversized-table walking past BAR end.
+- **MSI Address upper bits filtered** — pci_msi_domain_check_cap rejects 64-bit MSI on hosts with only 32-bit IRQ remap; defense against per-MSI-message routing into the FEEh region with hostile high-bits.
+- **Per-IOMMU-remap MSI vs MSI-X bus-token distinct** — DOMAIN_BUS_PCI_DEVICE_MSI vs _MSIX templates routed independently; defense against per-misrouted-message in IRQ remap.
+- **Per-affinity-mask write CAP_SYS_NICE/ADMIN** — /proc/irq/<n>/smp_affinity gated; defense against per-unprivileged steering of latency-sensitive vectors off isolcpus.
+- Rationale: MSI/MSI-X exposes both a config-space BAR-mapped table and a per-IRQ routing matrix that can deliver arbitrary kernel interrupts; grsec posture combines CAP_SYS_RAWIO on table access, VFIO-group permission on passthrough, CFI on irq_chip dispatch, sanitize-on-free of msi_desc, and bus-token separation for IOMMU remap.
+
 ## Open Questions
 
 (none at this Tier-3 level)

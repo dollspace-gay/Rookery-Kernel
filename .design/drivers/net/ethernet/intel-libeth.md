@@ -168,6 +168,23 @@ libeth-specific reinforcement:
 - **Per-TX completion budget cap** — TX completion poll bounded; defense against TX-ring becoming unbounded backlog.
 - **xdp_do_flush rate-limited** — per-cpu redirect-batch flush bounded; defense against XDP_REDIRECT-flood DoS to other ifindex.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — libeth Rx page-pool fragment slabs (libeth_fqes, libeth_buf) flagged whitelist-only; skb head/data slabs sized so usercopy bounds-check fits the actual headroom range.
+- **PAX_KERNEXEC** — libeth NAPI poll, libeth_rx_sync_for_cpu, libeth_xdp_buff_add_frag run with W^X kernel text; no JIT writable pages used by the library helpers.
+- **PAX_RANDKSTACK** — per-NAPI-soft-IRQ entry randomizes kernel-stack offset, denying offset-stable ROP from a hostile NIC frame parsed inside libeth_rx_pkt.
+- **PAX_REFCOUNT** — page_pool refcounts on libeth fragments use saturating refcount_t; defense against refcount overflow from a flood of XDP_REDIRECT recycles.
+- **PAX_MEMORY_SANITIZE** — Rx fragment slabs poison-on-free so a freed libeth_fqe cannot be re-observed across NAPI cycles by a sibling driver (ice, idpf, libie).
+- **PAX_UDEREF** — libeth has no direct UAPI surface, but copy_from_iter / sk_msg paths flowing through libeth helpers enforce SMAP/SMEP-equivalent split user/kernel address spaces.
+- **PAX_RAP/kCFI** — libeth_ops vtable (rx_pkt, xdp_run, buf_add_frag) protected by CFI; defense against per-call-site indirect-call hijack from a corrupted driver private.
+- **GRKERNSEC_HIDESYM** — kallsyms exposure of libeth helpers (libeth_rx_pkt, libeth_xdp_*) restricted; defense against per-driver-symbol-leak guiding ROP gadget chains.
+- **GRKERNSEC_DMESG** — dmesg restricted to CAP_SYSLOG so libeth pr_warn / pr_err on malformed Rx descriptors do not leak ring layout to unprivileged readers.
+- **Library-only surface (no /sys/class/libeth)** — libeth has no driver-specific UAPI; hardening posture is inherited from the calling driver (ice / idpf / libie) plus net-stack defenses.
+- **Per-libeth_xdp_buff_add_frag bounded** — frag-count and total-len cap enforced inside the library so a hostile NIC cannot stitch a 64-frag oversized XDP buffer the caller would deref blindly.
+- **Per-libeth_rx_sync_for_cpu DMA-direction asserted** — defense against DMA_FROM_DEVICE/TO_DEVICE confusion poisoning a sibling driver's Rx page-pool.
+- **Per-NAPI weight cap inherited from net stack** — libeth poll-budget honors core net stack NAPI weight (default 64) so a hostile peer cannot soak a CPU through libeth helpers.
+- Rationale: libeth is a no-UAPI library that runs in soft-IRQ context on behalf of multiple Intel NICs; grsec posture is dominated by W^X text, CFI on the helper vtable, page-pool refcount saturation, and sanitize-on-free of Rx fragments rather than capability gates (the caller driver enforces CAP_NET_ADMIN at the netdev boundary).
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -619,6 +619,25 @@ NVMe-TCP host reinforcement:
 - **Per-handle_c2h_term logged FES and triggers recovery** — defense against per-silent-fatal-transport-error.
 - **Per-existing-controller `nvmf_ip_options_match` check** — defense against per-duplicate-controller (unless `duplicate_connect`).
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — nvme_tcp PDU header slab (nvme_tcp_hdr / nvme_tcp_cmd_pdu / nvme_tcp_r2t_pdu) and per-request data_iter pages whitelisted; defense against per-oversized-PDU-leaking-adjacent-slab.
+- **PAX_KERNEXEC** — nvme_tcp_io_work, nvme_tcp_recv_skb, nvme_tcp_try_send, kTLS sw-encrypt fast-path all W^X.
+- **PAX_RANDKSTACK** — per-recv-state-machine entry (nvme_tcp_recv_pdu / nvme_tcp_recv_data / nvme_tcp_recv_ddgst) randomizes stack offset; defense against per-fabric-side-channel via stack-prefetch.
+- **PAX_REFCOUNT** — nvme_tcp_queue, nvme_tcp_ctrl, sock refs saturating refcount_t; defense against per-reconnect-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — nvme_tcp_pdu pool, per-request data buffers, and TLS session keys poison-on-free; defense against per-prior-PDU leak in re-used slab.
+- **PAX_UDEREF** — TCP path is kernel-internal (no user copy on the data path); kTLS ULP control via setsockopt enforces split user/kernel on key material.
+- **PAX_RAP/kCFI** — nvme_tcp transport_ops (create_ctrl, free_ctrl, submit_async_event, get_address) CFI-protected; defense against per-forged-ops via crafted module-load race.
+- **GRKERNSEC_HIDESYM** — nvme_tcp_* helpers and per-queue sock pointers hidden from kallsyms to unprivileged readers.
+- **GRKERNSEC_DMESG** — "queue %d: tls handshake failed", "header digest error", "data digest error" prints restricted; defense against per-fabric-topology-disclosure.
+- **kTLS hardened** — nvme-tcp tls=1.3 only (NVMe-TCP TLS PSK per TP-8019); kTLS ULP runs in kernel, AEAD ciphersuites only (AES-128-GCM / AES-256-GCM / CHACHA20-POLY1305); no NULL / RC4 / 3DES.
+- **ALPN strict** — TLS handshake requires ALPN id "nvme" (NVMe-TCP TLS profile); defense against per-cross-protocol-attack (e.g. HTTPS proxy fronting an NVMe target).
+- **Fabrics reconnect rate-limit** — nvme_tcp_reconnect_ctrl_work backs off (NVMF_DEF_RECONNECT_DELAY .. NVMF_DEF_CTRL_LOSS_TMO), max_reconnects honored; defense against per-flapping-target wedging CPU on reconnect work.
+- **HDR/DATA digest CRC32C verified** — per-PDU header and data digests checked before queueing to block layer; defense against per-on-wire-tamper of NVMe command/data when TLS not negotiated.
+- **Per-c2h_term log + recovery** — Controller-to-Host TerminationReq logs FES and triggers ctrl reset; defense against silent fatal transport error.
+- **Per-handshake CAP_NET_ADMIN on /dev/nvme-fabrics** — TLS PSK lookup performed in kernel keyring under the namespace of the caller; defense against per-unprivileged-PSK-reuse.
+- Rationale: nvme-tcp carries block-layer data over an untrusted IP fabric; grsec posture combines kTLS-only AEAD with strict ALPN, CRC32C digest verification, reconnect rate-limit, CFI on transport_ops, sanitize-on-free of PDU/key slabs, and usercopy-whitelisting on PDU headers.
+
 ## Open Questions
 
 (none at this Tier-3 level)

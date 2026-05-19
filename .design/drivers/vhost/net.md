@@ -661,6 +661,21 @@ vhost-net reinforcement:
 - **Per-vhost_clear_msg on fd=−1** — defense against per-stale IOTLB message after backend disable.
 - **Per-experimental_zcopytx default off** — defense against per-untested zerocopy in production.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `VHOST_NET_SET_BACKEND`, `VHOST_SET_VRING_*`, and feature-mask ioctls bounce through bounded `copy_*_user`; iov-iter walks of guest memory go through `copy_from_iter_full` / `copy_to_iter` with length capped at `vq->iov_limit`.
+- **PAX_KERNEXEC** — `vhost_net_ops`, per-vq `handle_kick` table, and `vhost_dev_ops` placed in `__ro_after_init`.
+- **PAX_RANDKSTACK** — entropy added on every `vhost_net_open` / `vhost_net_ioctl` / `handle_tx` / `handle_rx` entry; neutralises stack-shape probing under vhost-poll races.
+- **PAX_REFCOUNT** — `vhost_net.dev.refcnt`, `vq->kref`, and `ubufs->refcount` for zerocopy use saturating counters.
+- **PAX_MEMORY_SANITIZE** — virtio-net header scratch (`vhost_hdr`), zerocopy `ubuf_info`, and IOTLB message buffers zero-on-free.
+- **PAX_UDEREF** — every vhost-net ioctl dereferences user pointers only via user-AS-annotated copy helpers; mem-table user-VA ranges validated against `access_ok` before iov-iter installation.
+- **PAX_RAP / kCFI** — `vhost_poll.fn`, `vhost_work.fn`, `handle_tx`, and `handle_rx` work-callbacks type-tagged.
+- **GRKERNSEC_HIDESYM** — `/dev/vhost-net` and per-vq trace prints strip kernel pointers.
+- **GRKERNSEC_DMESG** — IOTLB-fault / mem-table validation-failure prints gated behind `CAP_SYSLOG`.
+- **/dev/vhost-net CAP_NET_ADMIN** — `open("/dev/vhost-net")` and `VHOST_NET_SET_BACKEND` require `CAP_NET_ADMIN`; defends against unprivileged installation of attacker-controlled tap/macvtap fds.
+- **virtio-net DMA buffer PAX_USERCOPY** — guest-physical buffer translations performed via `vhost_iotlb_itree_iter_first` are bounded against `vq->iov[i].iov_len`; defends against per-IOTLB-translation overflow producing kernel-overlap reads.
+- **Rationale** — vhost-net pipes guest network frames into the host's tap layer at near-line-rate; CAP_NET_ADMIN gating, IOTLB-bound USERCOPY, and RAP on the work-callbacks close the historic vhost-net "iov-iter overrun" and "ubuf double-free" families.
+
 ## Open Questions
 
 (none at this Tier-3 level)

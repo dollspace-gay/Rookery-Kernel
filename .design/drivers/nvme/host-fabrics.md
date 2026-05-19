@@ -440,6 +440,24 @@ NVMe-oF common reinforcement:
 - **Per-discovery NQN auto-tag (opts.discovery_nqn)** — defense against per-discovery-vs-IO command-set confusion.
 - **Per-/dev/nvme-fabrics under nvmf_dev_mutex** — defense against per-concurrent-create_ctrl race on shared device.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /dev/nvme-fabrics write-buffer (NVMF_DEV_ATTR_NAME parse) and discovery-log-page slab flagged whitelist-only; defense against per-oversized-options-string leaking adjacent slab.
+- **PAX_KERNEXEC** — nvmf_create_ctrl, nvmf_parse_options, nvmf_register_transport run W^X; no transport module mapped writable+executable.
+- **PAX_RANDKSTACK** — per-/dev/nvme-fabrics-write and per-keep-alive-work entry randomize kernel-stack offset; defense against per-fabrics-discovery-side-channel.
+- **PAX_REFCOUNT** — nvme_ctrl, nvmf_ctrl_options, transport_ops refs saturating refcount_t; defense against per-reconnect-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — nvmf_ctrl_options and host_traddr/host_iface buffers poison-on-free; defense against per-prior-options-leak into newly-allocated ctrl.
+- **PAX_UDEREF** — /dev/nvme-fabrics copy_from_user of options string and discovery-log copy_to_user enforce split user/kernel address spaces.
+- **PAX_RAP/kCFI** — nvmf_transport_ops (create_ctrl), nvme_ctrl_ops vtable CFI-protected; defense against per-forged-transport-ops via crafted module-load race.
+- **GRKERNSEC_HIDESYM** — nvmf_transports list head and per-transport ops symbols hidden from kallsyms to unprivileged readers.
+- **GRKERNSEC_DMESG** — dmesg restricted; "NQN", "ctrl new", "failed to connect" prints do not leak fabric topology to non-CAP_SYSLOG.
+- **Discovery CAP_SYS_ADMIN** — opening /dev/nvme-fabrics and writing a connect-string (nqn=, transport=, traddr=, host_traddr=) requires CAP_SYS_ADMIN in init_user_ns; defense against per-unprivileged-fabric-attach to arbitrary controller.
+- **NVMe-CLI passthrough CAP_SYS_RAWIO** — admin/io passthrough NVME_IOCTL_ADMIN_CMD / NVME_IOCTL_IO_CMD on a fabrics ctrl gated on CAP_SYS_RAWIO; defense against per-vendor-specific-opcode firmware-write via fabrics.
+- **host_traddr / host_iface authentication** — fabrics connect validates host_traddr ownership (bind-source) and host_iface route; defense against per-spoofed-source-IP attaching to a target that authorizes by host_traddr.
+- **Per-options nqn / hostnqn length-checked (NVMF_NQN_SIZE)** — defense against per-oversized-NQN slab-write.
+- **Per-keepalive timeout floor (KATO_DEFAULT)** — defense against per-zero-kato silencing the keep-alive watchdog and hiding a dead fabric link.
+- Rationale: nvmf core mediates user-controlled fabric attachment (TCP/RDMA/FC) where the wire peer is untrusted; grsec posture combines CAP_SYS_ADMIN at /dev/nvme-fabrics, CAP_SYS_RAWIO on passthrough, usercopy-whitelisting on the connect-string parse, and CFI on transport_ops dispatch.
+
 ## Open Questions
 
 (none at this Tier-3 level)

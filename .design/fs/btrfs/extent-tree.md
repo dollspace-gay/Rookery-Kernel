@@ -288,6 +288,26 @@ Extent-tree reinforcement:
 - **Per-balance back-ref-rewrite atomic** — defense against per-balance-crash inconsistency.
 - **Per-enospc-flush escalation policy** — defense against per-DOS via early-ENOSPC.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/btrfs/extent-tree.c`:
+
+- **PAX_USERCOPY** — bounds-checks any extent-tree-derived data exposed via ioctls (e.g. `BTRFS_IOC_TREE_SEARCH*`) so a malformed search cannot drive a slab overrun.
+- **PAX_KERNEXEC** — keeps the extent-tree callback tables in read-only memory so a memory bug cannot rewrite delayed-ref or back-ref processors.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each transaction-start so an attacker cannot deterministically probe the long extent-alloc path.
+- **PAX_REFCOUNT** — wraps `btrfs_delayed_ref_node.refs` and `btrfs_extent_item.refs` so a malicious image driving extreme ref churn cannot wrap to zero.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for delayed-ref nodes and extent-item scratch buffers so leftover back-ref keys cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the extent-tree-search ioctl boundary.
+- **PAX_RAP / kCFI** — forward-edge CFI on the delayed-ref `process` callback so a corrupted node cannot redirect ref processing to a userspace gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from extent-tree warning printks so a crafted image cannot leak kASLR offsets via dmesg.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so extent-tree corruption diagnostics do not leak pointer material to unprivileged users.
+- **Delayed-ref PAX_REFCOUNT** — `btrfs_delayed_ref_node.refs` (incremented at every add-ref/drop-ref) is wrapped with the hardened-refcount layer so a malicious image driving extreme delayed-ref churn cannot wrap and produce an early-free UAF on a delayed-ref node.
+- **EXTENT_ITEM signature** — `btrfs_extent_item` decode validates the type/refs/generation triple against the BG type at every read, treating a mismatched signature as a hard mount-time abort rather than a recoverable warning, so a crafted on-disk extent cannot smuggle a confused-deputy refcount drift.
+- **GRKERNSEC_HIDESYM on back-ref-count drift warnings** — `__btrfs_run_delayed_refs` warning paths sanitize embedded pointers so a crafted back-ref attack cannot extract delayed-ref or rbnode addresses via dmesg.
+- **CAP_SYS_ADMIN on extent-tree search ioctls** — `BTRFS_IOC_TREE_SEARCH*` is restricted to privileged callers so unprivileged users cannot enumerate the on-disk extent layout.
+
+Rationale: extent-tree refcount drift is the dominant root cause of btrfs on-disk corruption; layered refcount hardening + EXTENT_ITEM signature validation closes the gap between upstream "best-effort" balance/quota checks and a hardened-by-construction allocator.
+
 ## Open Questions
 
 (none at this Tier-3 level)

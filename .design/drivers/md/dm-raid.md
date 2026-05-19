@@ -245,6 +245,33 @@ dm-raid-specific reinforcement:
 - **Takeover progress journaled** — defense against crash-mid-takeover leaving inconsistent state.
 - **Per-target reload + suspend/resume coordinated** — defense against concurrent table-swap with active recovery.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-raid bridges device-mapper to md's raid personalities (raid1/4/5/6/10) and adds online takeover (level change). A corrupted raid-level transition, persistent-metadata replay, or unauthenticated `recovery_rate` change can drive a healthy array into a parity-mismatch or write-hole state — silently corrupting data already on disk. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-raid.c` (+ `md/raid*.c` glue) plus dm-raid-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: status output via dm-core whitelisted slab; ctr feature-flag parsing whitelisted.
+- **PAX_KERNEXEC**: per-`dm_target_type` vtable + per-`md_personality` vtable (`raid1`, `raid4`, `raid5`, `raid6`, `raid10`) all `__ro_after_init`.
+- **PAX_RANDKSTACK**: every entry to `raid_map` / `raid_end_io` / `raid_message` re-randomises stack.
+- **PAX_REFCOUNT**: per-raid-set refcount, per-disk refcount, per-stripe-cache refcount saturating — see raid-specific bullet.
+- **PAX_MEMORY_SANITIZE**: per-raid context + per-disk bdev_handle slot zeroed on free; per-bitmap page zeroed at destroy.
+- **PAX_UDEREF**: no direct user pointer.
+- **PAX_RAP / kCFI**: ctr/dtr/map/end_io/presuspend/resume/message/iterate_devices/status + per-personality `make_request`/`run`/`stop`/`status`/`error_handler`/`hot_add_disk`/`hot_remove_disk`/`spare_active`/`sync_request`/`resize` kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-raid-set addr, per-disk addr never rendered; `%pK` only.
+- **GRKERNSEC_DMESG**: per-recovery-progress + per-disk-failure warnings ratelimited; CAP_SYSLOG to read full progress.
+
+dm-raid-specific reinforcement:
+- **Raid-level PAX_REFCOUNT** — `mddev->refcount`, per-`md_rdev.nr_pending`, per-stripe-cache `sh.count` saturating; defends double-release in error-recovery path that is famous for refcount bugs in raid5.
+- **Persistent metadata signature** — md superblock 1.x already carries CRC32; dm-raid extends with a per-superblock SHA256 over `(magic, level, chunk_size, raid_disks, data_offset, layout, feature_map)` written alongside; refusal on mismatch defends against crafted-superblock attack that would alter `raid_disks` to expose previously-parity sectors as data.
+- **Online takeover audit** — every `dmsetup message <name> 0 (reshape|takeover) <level>` requires CAP_SYS_ADMIN + grsec audit-log entry with from-level / to-level / pid / uid. Defends silent level change that would erase parity.
+- **`recovery_rate` sysfs gate** — already row-2; extended with grsec audit log on every change, since aggressive recovery-rate can throttle production IO.
+- **Bitmap loaded if requested** — row-2; extended with CRC32 over bitmap header per bit-region.
+- **Journal device validated** — row-2; extended with refusal to start raid5/6 in `journal_mode=writeback` without a journal device (closes write-hole).
+- **Per-disk fail/remove ordered under `reconfig_mutex`** — row-2; extended with assertion that no two CPUs concurrently mark a disk Faulty (cmpxchg).
+- **Takeover progress journaled** — row-2; extended with periodic checkpoint to journal device every `STRIPE_CACHE_SIZE` stripes.
+- **`raid_disks` reshape bounded** — refuses reshape that would grow `raid_disks` beyond `MD_SB_DISKS (32)`; defends OOM via reshape-storm.
+- **`max_recovery_disks` clamped** — limits parallel disks-under-recovery to `min(raid_disks/2, 4)`; defends recovery-storm DoS.
+
 ## Open Questions
 
 (none at this Tier-3 level)

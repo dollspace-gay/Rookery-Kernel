@@ -543,6 +543,26 @@ Disk-IO reinforcement:
 - **Per-shutdown skip commit-super** — defense against per-write-to-failed-device on umount.
 - **Per-FS_ERROR commit_super skip** — defense against per-error-amplification on cleanup.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/btrfs/disk-io.c`:
+
+- **PAX_USERCOPY** — bounds-checks every super-block / tree-block buffer copied between user and kernel space (e.g. `BTRFS_IOC_GET_SUPER`-style consumers) so a malformed read cannot drive a slab overrun.
+- **PAX_KERNEXEC** — keeps `btrfs_super_ops`, `btree_aops`, and `extent_io_ops` in read-only memory so a memory bug cannot rewrite the I/O-completion or readahead callbacks.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on entry to `open_ctree`/`close_ctree` and the tree-block read path, defeating deterministic stack-spray against the long mount-time parser.
+- **PAX_REFCOUNT** — wraps `btrfs_root.refs` and `btree_inode` reference counts so a malicious image driving extreme root churn cannot wrap counts and trigger early free.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `btrfs_fs_info`, `btrfs_super_block` scratch copies, and tree-block buffers so leftover device UUIDs / csum-tree bytes cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the long mount-time super parser.
+- **PAX_RAP / kCFI** — forward-edge CFI on `btrfs_super_ops` and `extent_io_ops` so a corrupted ops pointer cannot redirect tree-block read completion to a userspace gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from btrfs mount/commit error printks so a crafted on-disk superblock cannot leak kASLR offsets via dmesg.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so disk-IO error traces do not leak pointer material to unprivileged users.
+- **`write_dev_supers` PAX_USERCOPY** — the per-device super-write path validates the bounce buffer length against `BTRFS_SUPER_INFO_SIZE` via the hardened usercopy path, so a corrupted in-memory super cannot stride past the super-block bounce buffer.
+- **`btree_inode` PAX_REFCOUNT** — the synthetic `btree_inode` reference count (held across every tree-block read/write) is wrapped with the hardened-refcount layer so a malicious image driving extreme tree-block churn cannot wrap and prematurely free the btree inode.
+- **GRKERNSEC_HIDESYM on parent-transid / mirror-retry failures** — `verify_parent_transid` and `validate_extent_buffer` warning paths sanitize embedded pointers so a crafted stale-block attack cannot extract eb/page addresses via dmesg.
+- **CAP_SYS_ADMIN on `BTRFS_IOC_DEV_REPLACE`** — dev-replace ioctls are hard-gated, blocking unprivileged callers from initiating a device-replace into a smaller or seed-flagged target.
+
+Rationale: `disk-io.c` is the trust boundary between the on-disk image and the in-memory btrfs structures; any UAF on `btree_inode` or a write-side overrun in `write_dev_supers` translates directly into persistent on-disk corruption, so refcount + usercopy hardening is layered on top of the upstream csum/parent-transid/USEBACKUPROOT defenses.
+
 ## Open Questions
 
 (none at this Tier-3 level)

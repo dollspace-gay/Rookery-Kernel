@@ -573,6 +573,24 @@ Regulator-helpers reinforcement:
 - **Per-EXPORT_SYMBOL_GPL discipline** — defense against per-GPL-shim out-of-tree.
 - **Per-regmap layer atomicity** — defense against per-torn read/write.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY (regmap read/write)** — regulator-helpers are regmap-driven (regulator_enable_regmap, regulator_disable_regmap, regulator_set_voltage_sel_regmap, regulator_get_voltage_sel_regmap, regulator_is_enabled_regmap, regulator_list_voltage_linear_range); regmap's user-facing reflection (/sys/kernel/debug/regmap/<dev>/registers and any sysfs-backed reg-read/reg-write attr) usercopy-whitelisted; defense against per-oversized-register-dump leaking adjacent slab and per-out-of-range register access copying beyond reg_stride * max_register.
+- **PAX_KERNEXEC** — regulator_enable_regmap, regulator_disable_regmap, regulator_set_voltage_sel_regmap, regulator_get_voltage_sel_regmap run W^X.
+- **PAX_RANDKSTACK** — per-regmap-bus-IRQ (I2C/SPI completion) and per-/sys/class/regulator entry randomize kernel-stack offset.
+- **PAX_REFCOUNT** — regmap, regulator_dev refs saturating refcount_t; defense against per-bus-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — regmap_cache, regulator_linear_range_table, regulator_desc slabs poison-on-free; defense against per-prior-register-cache leak across re-bind of the helper-using driver.
+- **PAX_UDEREF** — debugfs regmap reg-read / reg-write enforce split user/kernel on the address+value parse.
+- **PAX_RAP/kCFI** — regulator_ops vtable populated by the helpers (enable_regmap, disable_regmap, set_voltage_sel_regmap, get_voltage_sel_regmap, is_enabled_regmap) CFI-protected.
+- **GRKERNSEC_HIDESYM** — regulator helpers (regulator_*_regmap, regulator_list_voltage_linear_range) addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "failed to read enable register", "failed to write voltage selector" prints restricted.
+- **Per-helper desc->enable_reg / vsel_reg bounded** — every helper checks register against regmap->max_register before bus access; defense against per-DT-typo register write into an unmapped MMIO/I2C slave region.
+- **Per-mask bit-width validated** — desc->enable_mask, vsel_mask validated as power-of-two-aligned within reg_stride; defense against per-mask-overlap clobbering adjacent control bits.
+- **Per-regmap layer atomicity** — regmap-locked read-modify-write inside *_regmap helpers; defense against per-torn update racing with a foreign driver on the same regmap.
+- **Per-EXPORT_SYMBOL_GPL discipline** — all helpers are GPL-only; defense against per-GPL-shim out-of-tree driver linking against regulator_*_regmap.
+- **Per-linear-range table immutable-after-init** — regulator_desc->linear_ranges marked const; defense against per-runtime tampering of voltage-selector ↔ microvolt mapping.
+- Rationale: regulator-helpers are the regmap-driven canonical implementation of regulator_ops for I2C/SPI PMICs; grsec posture is dominated by PAX_USERCOPY on regmap reflection, register-address / mask bounds at every helper entry, regmap-locked atomicity, CFI on the resulting regulator_ops, and sanitize-on-free of regmap-cache and linear-range tables.
+
 ## Open Questions
 
 (none at this Tier-3 level)

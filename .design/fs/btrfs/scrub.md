@@ -591,6 +591,26 @@ Scrub reinforcement:
 - **Per-super-block scrub triggers transaction commit when errors detected** — defense against per-counter-loss across crash.
 - **Per-memalloc_nofs_save for the whole scrub** — defense against per-reclaim-deadlock vs transaction commit attempting to pause scrub.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/btrfs/scrub.c`:
+
+- **PAX_USERCOPY** — bounds-checks every `BTRFS_IOC_SCRUB*` payload (start, cancel, progress) so a malformed ioctl cannot drive a slab overrun in the scrub argument parser.
+- **PAX_KERNEXEC** — keeps scrub worker callbacks and the per-stripe endio dispatch in read-only memory so a memory bug cannot rewrite the repair-path callbacks.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each scrub-progress / scrub-start entry so an attacker cannot deterministically probe the long mirror-cycle path.
+- **PAX_REFCOUNT** — wraps `scrub_ctx.refs` and `scrub_workers` refs so a torn cancel/pause sequence cannot wrap and trigger early free.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `scrub_ctx`, per-sector csum scratch, and write-bitmap buffers so leftover csum bytes cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the scrub ioctl boundary.
+- **PAX_RAP / kCFI** — forward-edge CFI on scrub endio and worker callbacks so a corrupted worker pointer cannot redirect repair into a gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from scrub-repair/error printks so a crafted bad mirror cannot leak kASLR offsets via dmesg.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so scrub repair-success/failure diagnostics do not leak pointer material to unprivileged users.
+- **CAP_SYS_ADMIN on csum-verify ioctls** — `BTRFS_IOC_SCRUB`, `BTRFS_IOC_SCRUB_CANCEL`, `BTRFS_IOC_SCRUB_PROGRESS`, and any per-device csum-verify path are hard-gated so unprivileged callers cannot initiate or pause a full-fs csum verification and stress the repair-write path.
+- **`scrub_workers` PAX_REFCOUNT** — the per-fs `scrub_workers` reference count (mutex-guarded against workqueue destroy while jobs in flight) is wrapped with the hardened-refcount layer so a malicious cancel/start storm cannot wrap and prematurely free the workqueue.
+- **GRKERNSEC_HIDESYM on RAID56 parity-regen refuse paths** — RAID56 "refuse parity regen if data stripes still have errors" warning traces sanitize embedded pointers so a crafted parity-driven repair attack cannot extract scrub-ctx or stripe-cache addresses via dmesg.
+- **PAX_MEMORY_SANITIZE on write-bitmap buffers** — `init_error & ~final_error` write-bitmap scratch is zeroed on free so a partial-repair crash cannot leave residual sector-bitmap material recoverable from the freelist.
+
+Rationale: scrub is a privilege-relevant integrity verifier that issues writes against the very mirrors it is verifying; a `scrub_ctx` UAF or a write-bitmap stride overrun translates directly into silent on-disk corruption (a "repair" that overwrites good data), so capability gating + refcount hardening on the workqueue is layered on top of the upstream mirror-cycle / RAID56-no-parity-regen defenses.
+
 ## Open Questions
 
 - Should Rookery support concurrent multi-device scrub (current upstream serializes per-device via dev.scrub_ctx) for faster verification across N drives?

@@ -305,6 +305,22 @@ raid5-specific reinforcement:
 - **Per-stripe parity-correctness verify** during sync — defense against silent bit-rot.
 - **Per-disk-page sg-list bounded** — defense against pathological large bio.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — stripe-cache pages (`r5conf->stripe_hashtbl` entries' per-disk pages) live in a slab whitelisted for IO; sysfs `stripe_cache_size`, `preread_bypass_threshold`, and `group_thread_cnt` writes are read into a bounded scratch via `kstrtoul`.
+- **PAX_KERNEXEC** — `raid5_personality`, `raid6_personality`, the per-algorithm `raid6_calls` table, and the journal-target ops (`r5l_journal_ops`) are all `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — `raid5_make_request`, the per-group worker `raid5_do_work`, and the daemon `raid5d` cross the randomized kstack offset on every invocation.
+- **PAX_REFCOUNT** — `stripe_head->count`, `r5conf->active_stripes`, per-`md_rdev->nr_pending`, and `r5l_io_unit->count` are refcount_t with saturation; a forged batch-stripe storm saturates rather than wraps and frees a live stripe.
+- **PAX_MEMORY_SANITIZE** — when a stripe is released from the cache (`release_stripe`), its per-disk pages are zeroed before being returned to the page allocator so parity-data residue does not leak.
+- **PAX_UDEREF** — `/sys/block/mdX/md/*` writes copy through kstrtoul/kstrdup_user; `MD_*` ioctl reshape parameters are validated against the live `mddev->layout` before commit.
+- **PAX_RAP / kCFI** — `raid6_calls.{gen_syndrome, xor_syndrome, valid}` and `mdk_personality` callbacks are typed indirect-call edges.
+- **Per-disk REFCOUNT** — `rdev_dec_pending` is the only sanctioned `nr_pending` drop; hot-remove waits for drain before freeing the rdev backing journal or data devices.
+- **Bitmap / Stripe PAX_USERCOPY** — write-intent bitmap and stripe-cache buffers are slab-whitelisted with explicit size; parity blocks never cross slab boundaries during `copy_to_user` resync IO.
+- **RAP on raid_ops** — `raid5_personality` is in `__ro_after_init`, registered through the typed `register_md_personality` path.
+- **GRKERNSEC_HIDESYM / GRKERNSEC_DMESG** — `r5conf` and `stripe_head` pointers are scrubbed under `kptr_restrict ≥ 2`; double-degraded / parity-mismatch events log at `KERN_CRIT` with `__ratelimit` and forward to audit.
+- **CAP gating** — `MD_IOCTL`, `STOP_ARRAY`, and `SET_ARRAY_INFO` for raid5/6 arrays require `CAP_SYS_ADMIN`; journal-device add/remove gates on the same capability.
+- **Journal (PPL / raid5-cache) signature** — log entries carry a per-stripe checksum (`__le32 checksum`) and a journal-sequence epoch; on recovery the kernel rejects entries whose checksum or epoch fail, blocking a write-hole replay attack.
+
 ## Open Questions
 
 (none at this Tier-3 level)

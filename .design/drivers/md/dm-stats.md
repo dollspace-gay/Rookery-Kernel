@@ -257,6 +257,22 @@ dm-stats-specific reinforcement:
 - **last hot-cache atomic** — defense against torn pointer dereference.
 - **stats_clear atomicity** — defense against partial-clear visible to readers.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `dm_stats_print` histogram and per-area latency arrays are emitted through `dm_stats_message`'s bounded `result` buffer with explicit length-clamping; the per-CPU `stat_percpu` vector is whitelisted in its own slab cache so copy_to_user cannot straddle adjacent objects.
+- **PAX_KERNEXEC** — `dm_stats` helper tables (`message_stats_*` dispatch) live in `__ro_after_init`; histogram-bucket arrays are allocated with `__GFP_ZERO` from a non-executable slab.
+- **PAX_RANDKSTACK** — `dm_stats_account_io` runs in the IO completion path, which hits the randomized kstack offset before recording per-area latency.
+- **PAX_REFCOUNT** — `dm_stat->in_flight` and per-area `n_entries` are refcount_t / atomic_t with overflow saturation; a malicious user issuing a flood of `@stats_create` cannot wrap and free the table.
+- **PAX_MEMORY_SANITIZE** — histogram buckets and per-CPU stat arrays are zeroed on `@stats_delete` before slab return so previously-recorded IO patterns don't leak between tenants.
+- **PAX_UDEREF** — `@stats_create` / `@stats_print` argument parsing reads strings through `copy_from_user` into a kmalloc'd `argv` scratch, never through user-pointer chase.
+- **PAX_RAP / kCFI** — dispatch from `dm_stats_message` into the per-command handler uses a typed switch, not an indirect call; the few indirect calls (e.g. `dm_io` completion) carry RAP signatures.
+- **GRKERNSEC_HIDESYM** — `/sys/fs/dm-*` and `dmsetup status` output for stats objects has kernel pointers scrubbed under `kptr_restrict ≥ 2`.
+- **GRKERNSEC_DMESG** — `dm_stats` does not log per-IO information; admin-only events (create/delete/clear) go at `KERN_DEBUG` with ratelimit.
+- **RBAC on /sys/fs/dm** — stats objects are addressable only via the dm device-mapper ioctl plane; `@stats_*` messages require `CAP_SYS_ADMIN` in the device's userns and the device's dm-uevent group, so unprivileged userland cannot enumerate per-IO histograms.
+- **Histogram PAX_USERCOPY** — the per-bucket counts emitted by `@stats_print_clear` are emitted via `DMEMIT` against a fixed `result` buffer; bucket-array tail-padding is never copied to userspace.
+- **Per-area allocation cap** — `MAX_STATS_AREAS` (default `dm_stats_max_areas`) bounds the total number of areas a single dm device can host; `@stats_create` returns `-EINVAL` once the cap is hit, preventing memory-exhaustion attacks.
+- **stats_clear epoch** — `stats_clear` increments a per-area sequence counter so concurrent `stats_print` sees either pre-clear or post-clear state, never a torn mix.
+
 ## Open Questions
 
 (none at this Tier-3 level)

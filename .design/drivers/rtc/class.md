@@ -551,6 +551,24 @@ RTC-class reinforcement:
 - **Per-DT-alias-id-conflict dev_warn + dynamic fallback** — defense against per-duplicate-rtcN collision.
 - **Per-PIE hrtimer CLOCK_MONOTONIC + REL** — defense against per-wallclock-step-induced misfire.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /dev/rtcN ioctl arg buffers (struct rtc_time, struct rtc_wkalrm, struct rtc_pll_info) and /sys/class/rtc/rtcN/* attrs whitelisted; defense against per-oversized-ioctl-read leaking adjacent slab.
+- **PAX_KERNEXEC** — rtc_class_open, rtc_read_time, rtc_set_time, rtc_set_alarm, rtc_irq_handler, rtc_aie_update_irq run W^X.
+- **PAX_RANDKSTACK** — per-/dev/rtcN-ioctl and per-RTC-IRQ entry randomize kernel-stack offset; defense against per-RTC-side-channel via stack-prefetch.
+- **PAX_REFCOUNT** — struct rtc_device, rtc_class_open file refs saturating refcount_t; defense against per-open-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — rtc_device, rtc_timer, rtc_wkalrm, rtc_task slabs poison-on-free; defense against per-prior-alarm leak across close/re-open.
+- **PAX_UDEREF** — RTC_RD_TIME / RTC_SET_TIME / RTC_ALM_SET / RTC_WKALM_SET / RTC_PIE_ON copy_*_user enforce split user/kernel.
+- **PAX_RAP/kCFI** — struct rtc_class_ops vtable (read_time, set_time, read_alarm, set_alarm, alarm_irq_enable, ioctl) CFI-protected.
+- **GRKERNSEC_HIDESYM** — rtc_devices list, per-driver rtc_class_ops addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "rtc: hctosys", "rtc%d: alarm rollover" prints restricted.
+- **/dev/rtcN CAP_SYS_TIME** — RTC_SET_TIME, RTC_EPOCH_SET, RTC_PARAM_SET (per-driver writable params) require CAP_SYS_TIME; defense against per-unprivileged-clock-skew (replay attacks against time-sensitive auth, breakage of TLS not-before/not-after, breakage of kerberos ticket lifetime).
+- **RTC_AIE/PIE/UIE CAP_WAKE_ALARM** — RTC_AIE_ON, RTC_PIE_ON, RTC_UIE_ON, RTC_WKALM_SET (alarm/periodic/update IRQ enable + wake-alarm program) gated on CAP_WAKE_ALARM; defense against per-unprivileged-power-state-manipulation waking a suspended system at attacker-controlled times.
+- **Per-DT-alias-id collision dev_warn + fallback** — defense against per-duplicate-rtcN collision.
+- **Per-PIE hrtimer CLOCK_MONOTONIC + REL** — defense against per-wallclock-step-induced misfire.
+- **Per-alarm time-of-day bounded** — rtc_set_alarm validates rtc_wkalrm.time against rtc_valid_tm; defense against per-out-of-range alarm wedging the driver's set_alarm callback.
+- Rationale: /dev/rtcN exposes wallclock setting and wake-from-suspend programming directly to userspace; grsec posture combines CAP_SYS_TIME on time-set, CAP_WAKE_ALARM on alarm/periodic/wake-alarm enables, CFI on rtc_class_ops, usercopy-whitelisting on the rtc_time/rtc_wkalrm slab, and sanitize-on-free of rtc_timer/wkalrm across close.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -524,6 +524,27 @@ ELF-loader reinforcement:
 - **Per-`AT_RANDOM` 16-byte ChaCha-seeded** — defense against per-predictable userspace PRNG seeding (glibc / musl init).
 - **Per-`AT_SECURE` set on suid/sgid/caps** — defense against per-LD_PRELOAD / LD_LIBRARY_PATH abuse via untrusted env.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/binfmt_elf.c`:
+
+- **PAX_USERCOPY** — bounds-checks every `copy_from_user` of program headers, AT_RANDOM bytes, and interpreter-path strings so a malformed phdr table cannot drive a slab overrun.
+- **PAX_KERNEXEC** — keeps `elf_format` ops and the auxv builder in read-only memory so a memory bug cannot rewrite the exec dispatch.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each `execve(2)` so an attacker cannot deterministically probe the long ELF-load path.
+- **PAX_REFCOUNT** — wraps refcounts on `linux_binprm`, `mm_struct`, and file references taken during exec so a torn exec failure cannot wrap counts.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `linux_binprm` scratch buffers and the per-phdr staging area so leftover phdr contents (PT_NOTE, AT_RANDOM seed material) cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the long auxv builder and stack setup.
+- **PAX_RAP / kCFI** — forward-edge CFI on `linux_binfmt.load_binary`/`load_shlib`/`core_dump` so a corrupted binfmt pointer cannot redirect exec to a userspace gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from exec / coredump printks so an unprivileged user cannot harvest kASLR offsets via crafted ELFs that trigger load warnings.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so coredump/segfault traces do not leak pointer material to unprivileged users.
+- **PT_LOAD W^X enforced (PAX_MPROTECT + PAX_PAGEEXEC + PAX_NOEXEC)** — any PT_LOAD with both `PF_W` and `PF_X` is rejected at load time, and post-load `mprotect(PROT_WRITE|PROT_EXEC)` is denied under PAX_MPROTECT so a binary cannot escalate a writable region to executable.
+- **PT_GNU_STACK enforce** — a missing or `PF_X` PT_GNU_STACK header is treated as a hard policy violation (no implicit executable stack); legacy binaries that require an executable stack are quarantined behind an explicit per-binary opt-in via `paxctl`/`PT_PAX_FLAGS`.
+- **AT_RANDOM PaX-seeded** — the 16-byte AT_RANDOM auxv entry is sourced from the PaX-grade RNG (ChaCha rekeyed per-exec) so glibc/musl stack-canary seeding inherits high-entropy material on every exec.
+- **MAP_FIXED_NOREPLACE on all PT_LOAD** — extends the upstream `MAP_FIXED_NOREPLACE` guard from "first ET_EXEC PT_LOAD" to every PT_LOAD (including ET_DYN segments), so a TOCTOU pre-map at any segment address fails the entire exec rather than silently overwriting a previously mapped region.
+- **GRKERNSEC_HIDESYM on segfault/coredump traces** — segfault printks and core-dump path metadata sanitize embedded pointers so a crafted ELF that crashes inside the loader cannot extract kASLR base from syslog.
+
+Rationale: `binfmt_elf` is the dominant kernel-entry path for arbitrary attacker-controlled program headers and auxv; W^X enforcement, PaX-grade AT_RANDOM, and universal `MAP_FIXED_NOREPLACE` close the gap between upstream "best-effort" defenses and a hardened-by-construction loader.
+
 ## Open Questions
 
 (none at this Tier-3 level)

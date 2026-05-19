@@ -775,6 +775,23 @@ MMC-core reinforcement:
 - **Per-SPI-mode CMD CRC-disable rejection of R1_SPI_ILLEGAL_COMMAND** — defense against per-SPI-card retry-storm.
 - **Per-MMC_CAP2_ALT_GPT_TEGRA narrow predicate** — defense against per-non-Tegra wrong GPT offset.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `mmc_blk_ioctl` (MMC_IOC_CMD / MMC_IOC_MULTI_CMD) reads `mmc_ioc_cmd` from user into a kernel-side `mmc_blk_ioc_data` slab whitelisted to exactly `sizeof(struct mmc_ioc_cmd) + data_len`; the response buffer is bounded by `MMC_IOC_MAX_BYTES` and copy_to_user'd against an exact-sized object.
+- **PAX_KERNEXEC** — `mmc_host_ops`, `mmc_bus_ops`, `mmc_driver`'s probe/remove/suspend/resume table, and the per-card-type ops (`mmc_ops`, `sd_ops`, `sdio_ops`) all live in `__ro_after_init` rodata.
+- **PAX_RANDKSTACK** — every `mmc_blk_issue_rq`, `mmc_wait_for_req`, and SDIO `sdio_io_rw_*` entry crosses the per-syscall random kstack offset before reaching the host controller's `request` callback.
+- **PAX_REFCOUNT** — `mmc_card->dev.kobj.kref`, `mmc_host->ref`, `mmc_blk_data->usage`, and `sdio_func->use_count` are refcount_t with saturation; a forged hot-remove race cannot wrap the card ref and trigger UAF on the block-disk minor.
+- **PAX_MEMORY_SANITIZE** — `mmc_blk_ioc_data` slabs are zeroed on free; the per-request `mmc_request_done` path zeros bounce-buffer pages before they are returned to the page allocator so prior LBA contents do not leak.
+- **PAX_UDEREF** — `mmc_blk_ioctl_cmd` copies the user request into kernel space via `copy_from_user`, validates `opcode` against an allowlist (CMD53/CMD56/etc), and only then dispatches; no `__user` deref under KERNEL_DS.
+- **PAX_RAP / kCFI** — `mmc_host_ops` (`.request`, `.set_ios`, `.get_ro`, `.get_cd`, `.enable_sdio_irq`, `.start_signal_voltage_switch`, etc.), `mmc_bus_ops`, and `sdio_driver` callbacks are typed indirect-call edges.
+- **mmc_card REFCOUNT discipline** — `get_device(&card->dev)` / `put_device(&card->dev)` brackets every external user (`mmc_blk_probe`, `sdio_register_driver`), so a card eject during `mmc_blk_issue_rq` cannot free the card until the in-flight bio drains.
+- **mmc_blk CAP_SYS_RAWIO** — `MMC_IOC_CMD` and `MMC_IOC_MULTI_CMD` are gated by `capable(CAP_SYS_RAWIO)` (and `bdev_read_only` for write opcodes); RPMB partition access additionally requires the userspace caller to hold `CAP_SYS_RAWIO` to issue CMD23/CMD18/CMD25 sequences.
+- **SDIO bind allowlist** — `sdio_register_driver` matches against the device's CIS-derived `vendor` / `device` IDs; combined with `CONFIG_SDIO_UART_BIND_ALLOWLIST`-style policies, unprivileged userland cannot rebind an SDIO function to a malicious in-tree driver via sysfs `bind`/`unbind` (those nodes require `CAP_SYS_ADMIN`).
+- **GRKERNSEC_HIDESYM / GRKERNSEC_DMESG** — `mmc_host`, `mmc_card`, and `mmc_blk_data` pointers are scrubbed under `kptr_restrict ≥ 2`; card-init verbose tracing is at `KERN_DEBUG` with `__ratelimit`.
+- **RPMB partition CAP_SYS_RAWIO** — accessing `/dev/mmcblkNrpmb` requires `CAP_SYS_RAWIO` and a write-counter authentication round-trip; an unprivileged process cannot forge keyed boot-image rollback.
+- **Boot partition ro_lock** — `mmc_blk_ioctl` rejects writes to a boot partition once `boot_ro_lock` is set in EXT_CSD; the lock survives reboot and prevents firmware/U-Boot replay.
+- **eMMC GP partition userns isolation** — general-purpose partition access requires the requesting userns to hold `CAP_SYS_RAWIO` against the host bus; container roots in a child userns are denied.
+
 ## Open Questions
 
 (none at this Tier-3 level)

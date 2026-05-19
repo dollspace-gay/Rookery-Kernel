@@ -291,6 +291,33 @@ dm-crypt-specific reinforcement:
 - **NO_WORKQUEUE only for read-fast-path** — defense against atomic-context cipher-call sleeping.
 - **Per-CPU bs_pool bounded** — defense against unbounded bio-clone allocation under load.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-crypt holds the cleartext encryption key, IV-generator state, and per-bio cipher contexts on the kernel heap for the entire mount lifetime of every LUKS volume. A key disclosure via slab residue, swap-out of unlocked key pages, or weak IV randomness is a direct full-disk-encryption defeat. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-crypt.c` plus dm-crypt-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: dm-crypt has no direct user copy of key material; status output redacts key. Ctr params (key string) go through whitelisted dm-core buffer.
+- **PAX_KERNEXEC**: per-`dm_target_type` vtable, per-`crypto_cipher`/`crypto_skcipher` vtable, IV-generator ops table all `__ro_after_init`.
+- **PAX_RANDKSTACK**: every entry to `crypt_map` / `crypt_endio` / `crypt_convert` re-randomises stack offset.
+- **PAX_REFCOUNT**: per-`crypt_config` refcount, per-`dm_crypt_io` refcount, per-CPU bs_pool counter all saturating.
+- **PAX_MEMORY_SANITIZE**: applies to every cipher context / key buffer on free — see crypt-specific subsection.
+- **PAX_UDEREF**: ctr key parsing uses dm-core's guarded path.
+- **PAX_RAP / kCFI**: cipher ops, IV-generator ops, kcryptd worker fns kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `&cc->cipher_tfm`, `&cc->key`, `&io` never rendered; `%pK` only.
+- **GRKERNSEC_DMESG**: cipher-error messages ratelimited; key never logged. CAP_SYSLOG to read.
+
+dm-crypt-specific reinforcement:
+- **Keys PAX_MEMORY_SANITIZE** — `crypt_config.key`, per-cipher tfm context, per-IV-gen state, and per-bio scratch buffer all zeroed via `memzero_explicit` on free (refuses compiler dead-store elimination). Defends key residue in slab post-`dmsetup remove`.
+- **RLIMIT_MEMLOCK on swap-out prevention** — `crypt_config.key` allocated via `mempool` backed by `__GFP_NORETRY|__GFP_NOWARN` and explicitly `mlock`-equivalent (pinned VMA in the kernel direct map). Refuses overcommit: dm-crypt activate checks `init_user_ns.cap_ipc_lock` and `RLIMIT_MEMLOCK` of the activating uid (CAP_SYS_ADMIN bypasses). Defends key being paged to swap and persisted on disk.
+- **CSPRNG-only IV** — `iv_essiv` / `iv_benbi` / `iv_plain64` / `iv_random` initialised from `get_random_bytes_wait()` (blocking CSPRNG-ready); refuses fallback to `prandom`. Per-bio IV derived through cipher-key-keyed PRF only, never from raw sector + timestamp.
+- **PAX_REFCOUNT on per-CPU bs_pool** — bio-clone count per CPU bounded + saturating.
+- **`crypt_map_continue` workqueue isolation** — kcryptd worker pinned to CPUs in same cgroup as activating uid (or root-only when CAP_SYS_ADMIN); defends side-channel via cross-cgroup cipher work timing.
+- **`crypt_set_key` audit log** — every key set/replace logged via grsec audit (key fingerprint SHA256, not key) with uid + pid + dm-name; defends silent key swap.
+- **`crypt_dtr` zeroes IV-gen state** — defense against ESSIV salt residue.
+- **`dm-integrity` mandatory pairing flag** — `integrity_iv_size > 0` checked at activate; when LUKS2 header demands integrity, refuses to activate without companion dm-integrity layer. Defends ciphertext tampering.
+- **Cipher allowlist** — `crypt_alloc_tfms` refuses ciphers not in `{aes, anubis, blowfish, camellia, cast5/6, des3, serpent, twofish, xchacha, chacha20}` × `{cbc, xts, ctr, ecb-deprecated, gcm}` matrix; defends downgrade to weak / experimental crypto via crafted ctr string.
+- **`crypt_iv_essiv_gen` rejects key < 128 bits** — defends low-entropy key acceptance.
+
 ## Open Questions
 
 (none at this Tier-3 level)

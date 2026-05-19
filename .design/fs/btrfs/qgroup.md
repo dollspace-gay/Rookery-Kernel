@@ -512,6 +512,26 @@ Qgroup reinforcement:
 - **Per-cycle-detection in add_relation** — defense against per-quota-tree cyclic parent chain.
 - **Per-maybe_fs_roots gate in account_extent** — defense against per-non-fs-tree (reloc, csum) accounting pollution.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/btrfs/qgroup.c`:
+
+- **PAX_USERCOPY** — bounds-checks every `BTRFS_IOC_QUOTA_*` / `BTRFS_IOC_QGROUP_ASSIGN` / `BTRFS_IOC_QGROUP_CREATE` payload so a malformed ioctl cannot drive a slab overrun in the qgroup parser.
+- **PAX_KERNEXEC** — keeps the qgroup ops tables and rescan worker callbacks in read-only memory so a memory bug cannot rewrite the account/rescan dispatch.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each qgroup ioctl/transaction entry so an attacker cannot deterministically probe the long account-extent path.
+- **PAX_REFCOUNT** — wraps `btrfs_qgroup.refcnt` (held across relation/account paths) so a torn relation/account cycle cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `btrfs_qgroup` and rescan-progress scratch so leftover quota stamps and rfer/excl counters cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the qgroup ioctl boundary.
+- **PAX_RAP / kCFI** — forward-edge CFI on the rescan worker callback so a corrupted worker pointer cannot redirect rescan into a userspace gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from qgroup INCONSISTENT/EDQUOT printks so a crafted image cannot leak kASLR offsets via dmesg.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so qgroup-corruption diagnostics do not leak pointer material to unprivileged users.
+- **CAP_SYS_ADMIN on qgroup quota ioctls** — `BTRFS_IOC_QUOTA_CTL`, `BTRFS_IOC_QGROUP_ASSIGN`, `BTRFS_IOC_QGROUP_CREATE`, and `BTRFS_IOC_QGROUP_LIMIT` are hard-gated so unprivileged callers cannot enable/disable quotas or assign cross-subvol relations.
+- **qgroup-tree PAX_REFCOUNT** — `btrfs_qgroup.refcnt` is wrapped with the hardened-refcount layer so a malicious workload driving extreme relation/account churn cannot wrap the counter and produce an early-free UAF on a qgroup node.
+- **GRKERNSEC_HIDESYM on cycle-detection failures** — `add_relation` cycle-detection failure traces sanitize embedded pointers so a crafted quota-tree cycle attack cannot extract qgroup-node addresses via dmesg.
+- **FS_QUOTA_OVERRIDE + CAP_SYS_RESOURCE audit** — any use of the emergency override path is logged via `audit_log` so an unexpected override (which bypasses EDQUOT) is observable post-hoc.
+
+Rationale: qgroup accounting is a privilege-relevant resource policy; INCONSISTENT drift translates directly into a quota bypass, and the rescan worker plus cross-subvol relation graph are easy targets for refcount/usercopy bugs, so capability gating + refcount hardening are layered on top of the upstream qgroup_ioctl_lock/qgroup_lock defenses.
+
 ## Open Questions
 
 (none at this Tier-3 level)

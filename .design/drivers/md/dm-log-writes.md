@@ -253,6 +253,32 @@ dm-log-writes-specific reinforcement:
 - **Per-bio refcount during log-writer ref** — defense against UAF.
 - **dmsetup logged_count visible** — defense against silent log-loss.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-log-writes records every write going to a tested device into a parallel "log" device for crash-consistency replay testing. The log device contains an attacker-replayable transcript of every write — including dm-crypt ciphertext + dm-integrity tags + filesystem journal payload of the device under test. A logdev that can be re-mounted by an unprivileged module load creates a powerful replay/escalation primitive. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-log-writes.c` plus log-writes-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: status output via dm-core whitelisted slab; per-mark message string via whitelisted parse.
+- **PAX_KERNEXEC**: `dm_target_type` vtable `__ro_after_init`.
+- **PAX_RANDKSTACK**: per-bio entry to `log_writes_map` / `log_writes_end_io` / per-log-writer kthread re-randomises stack.
+- **PAX_REFCOUNT**: per-`log_writes_c` refcount, per-`pending_block` refcount, per-bio refcount during log-writer (already row-2) saturating.
+- **PAX_MEMORY_SANITIZE**: per-`pending_block.data` page zeroed on free (after WRITE_FUA commit) so payload doesn't linger; per-logdev-context zeroed on dtr.
+- **PAX_UDEREF**: no direct user pointer.
+- **PAX_RAP / kCFI**: ctr/dtr/map/end_io/message indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-logdev-context addr, per-pending-block addr never rendered; `%pK` only.
+- **GRKERNSEC_DMESG**: log-overflow / "log device full" warnings ratelimited; CAP_SYSLOG.
+
+dm-log-writes-specific reinforcement:
+- **Log-replay GRKERNSEC_KMOD restrict** — `dmsetup log-writes` activate refuses when `GRKERNSEC_MODHARDEN` is set unless the activating uid is in init_user_ns + CAP_SYS_MODULE; defends against an unprivileged user loading dm-log-writes to harvest crypto write transcripts on shared CI.
+- **Log integrity hash** — every committed log section carries a SHA256 over `(sequence, sector, payload, flags)`; replay tooling refuses sections whose hash doesn't match. Defends against log-device tampering between record and replay.
+- **CAP_SYS_ADMIN audit on `mark` messages** — `dmsetup message <log> 0 mark <string>` requires CAP_SYS_ADMIN + grsec audit-log; defends silent log-cursor manipulation.
+- **`logging_enabled` toggle audit** — already-row-2 atomic; extended with audit-log on toggle transitions.
+- **Per-PendingBlock data clone for FUA** — already row-2; extended with PAX_MEMORY_SANITIZE on the clone after WRITE_FUA endio so payload doesn't linger across mempool reuse.
+- **Pending-block list ceiling** — `MAX_PENDING_BLOCKS` (configurable, default 8192) capped at activate; defends OOM via flood of FUA-marked writes.
+- **Logdev superblock signature** — magic `DM_LOG_WRITES_SUPERBLOCK_MAGIC` + per-superblock SHA256 over `(log_size, sector_size, nr_entries)`; refusal on mismatch defends against replay of tampered logdev under a fresh name.
+- **Logdev open requires same-owner as tested-device** — `log_writes_ctr` checks bdev ownership / namespace match; defends cross-tenant log capture.
+- **`logged_count` visible — but quantised** — exposed value rounded to nearest 1024 unless CAP_SYS_ADMIN; defends fine-grain timing-attack via byte-precise progress counter.
+
 ## Open Questions
 
 (none at this Tier-3 level)

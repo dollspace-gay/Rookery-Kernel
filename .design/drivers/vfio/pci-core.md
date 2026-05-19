@@ -210,6 +210,21 @@ vfio-pci-core specific reinforcement:
 - **PCI-bus-error from passed-through device** does NOT panic the host; AER + DPC handle the fault, vfio reports REQ eventfd notification to userspace.
 - **Vendor variant-driver migration validation** — per-vendor variant driver implementing migration runs incoming RESUMING-state bytes through validation before applying (defense against malicious migration source crafting bytes that exploit destination-side variant driver bugs).
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `VFIO_DEVICE_GET_REGION_INFO`, `VFIO_DEVICE_GET_IRQ_INFO`, and config-space read/write ioctls bounce data through bounded `copy_*_user`; defends against per-region-info underflow.
+- **PAX_KERNEXEC** — `vfio_pci_core_device.ops`, `vfio_device_ops`, and per-variant migration vtables placed in `__ro_after_init`; defends pass-through dispatch against vtable rewrite.
+- **PAX_RANDKSTACK** — entropy added on every `vfio_pci_core_ioctl` / `vfio_pci_mmap` / `vfio_pci_rw` entry; neutralises stack-shape probing during DMA-map races.
+- **PAX_REFCOUNT** — `vfio_device.refcount`, `virqfd_context.users`, and IOMMU-group fd refcounts use saturating counters; defends against device-handle wraparound UAF.
+- **PAX_MEMORY_SANITIZE** — config-space shadow, MSI/MSI-X vector table mirrors, and DMA-bounce scratch buffers zero-on-free.
+- **PAX_UDEREF** — every vfio ioctl handler dereferences user pointers only via user-AS-annotated copy helpers.
+- **PAX_RAP / kCFI** — `vfio_device_ops`, `virqfd_context.wakeup`, and per-variant `migration_set_state` callbacks type-tagged; defends against ROP through a corrupted vfio_device pointer.
+- **GRKERNSEC_HIDESYM** — `/dev/vfio/*` and `/sys/bus/pci/drivers/vfio-pci/*` paths strip kernel pointers.
+- **GRKERNSEC_DMESG** — AER / DPC / migration-validation failure prints gated behind `CAP_SYSLOG`.
+- **Device assignment CAP_SYS_ADMIN** — `VFIO_GROUP_SET_CONTAINER`, `VFIO_SET_IOMMU`, and `vfio_pci_probe` (driver_override path) require `CAP_SYS_ADMIN`; defends against unprivileged seizure of a PCI device into pass-through.
+- **MMIO mmap CAP_SYS_RAWIO** — `VFIO_DEVICE_GET_REGION_INFO` regions flagged `VFIO_REGION_INFO_FLAG_MMAP` may only be mmap'd by callers holding `CAP_SYS_RAWIO`; defends against unprivileged BAR-mapping that bypasses IOMMU isolation expectations.
+- **Rationale** — vfio assigns raw DMA-capable devices to userspace; CAP_SYS_ADMIN on assignment + CAP_SYS_RAWIO on BAR mmap + RAP on variant-driver migration callbacks together close the unprivileged-DMA-attacker class.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -293,6 +293,23 @@ dm-thin-specific reinforcement:
 - **Per-thin bio_prison.cell ref-count** — defense against double-release on requeue.
 - **Pool out_of_data_space flag atomic** — defense against torn-state during alloc race.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — pool-metadata superblock and dm-btree nodes traverse dm-bufio's `dm_buffer` slab cache, which is whitelisted for IO transfer; userspace-visible status strings (`pool status`) are bounded by `DM_MAX_ARGS` and emitted via `DMEMIT` with length clamps.
+- **PAX_KERNEXEC** — `pool_target_type`, `thin_target_type`, `dm_block_manager` ops, and the dm-btree value-type vtables (`subtree_dec`, `data_block_inc`, etc.) reside in `__ro_after_init`.
+- **PAX_RANDKSTACK** — the dm-thin worker (`do_worker` / `process_deferred_bios`) hits the randomized kstack offset on each pass before touching the bio_prison cell list.
+- **PAX_REFCOUNT** — `dm_thin_new_mapping->ref_count`, `bio_prison_cell->lock_count`, `pool->ref_count`, `thin_c->refcount`, and `dm_block_validator` users use refcount_t; an attacker who forges discard/snapshot/break_sharing storms hits saturation rather than wrap-then-free.
+- **PAX_MEMORY_SANITIZE** — provisioned data blocks are zeroed (when `zero_new_blocks = true`) and freed metadata blocks return to the space-map only after dm-bufio sanitization so cross-thin data leaks are impossible.
+- **PAX_UDEREF** — `pool message` and `thin message` argument parsing copies userspace strings into a kmalloc scratch via `dm_split_args`; metadata B-tree traversal never deferences user pointers.
+- **PAX_RAP / kCFI** — typed indirect calls cover `dm_block_manager_ops`, `dm_space_map`, `dm_btree_value_type`, and the dm-target callback set; mismatched signatures trap at the dispatch site.
+- **Pool metadata signature** — superblock carries a CRC32c covering all fields (validated by `dm_bm_validator_check`); on mount, mismatched signature aborts activation and the pool requires `thin_repair` before further use. Optionally, distros sign the userspace `thin_check` binary path and gate it via IMA/Loadpin so a tampered repair tool cannot silently bless a corrupted pool.
+- **CAP_SYS_ADMIN on pool ops** — `pool_ctr`, `thin_ctr`, and message verbs (`create_thin`, `create_snap`, `delete`, `set_transaction_id`, `reserve_metadata_snap`) require `CAP_SYS_ADMIN` in the device-mapper userns.
+- **GRKERNSEC_HIDESYM** — pool metadata-device pointers and B-tree root addresses are scrubbed from status output under `kptr_restrict ≥ 2`.
+- **GRKERNSEC_DMESG** — out-of-data-space and metadata-low-watermark events log at `KERN_NOTICE` with `__ratelimit`.
+- **Thin-pool CAP_SYS_ADMIN** — all writable pool messages (`create_thin`, `create_snap`, `delete`, `set_transaction_id`, `reserve_metadata_snap`, `release_metadata_snap`) require `CAP_SYS_ADMIN` in the device-mapper userns. Container roots cannot graft a thin volume into a pool they do not own.
+- **Pool metadata signature** — superblock CRC32c + magic gate activation; mismatched superblock aborts pool import via `-EINVAL`, forcing `thin_repair` (which can in turn be IMA/Loadpin gated).
+- **Discard pass-through gating** — `discard_passdown` is a per-pool table flag set by the operator and validated against the underlying device's `BLK_FEAT_SECURE_ERASE` capability; an untrusted thin-volume tenant cannot weaponize discard to force secure-erase on the host PV.
+
 ## Open Questions
 
 (none at this Tier-3 level)

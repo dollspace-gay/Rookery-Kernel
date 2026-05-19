@@ -776,6 +776,21 @@ TTY core reinforcement:
 - **Per-tty_mutex around tty_drivers list** — defense against per-list corruption under parallel register/unregister.
 - **Per-flip_wq workqueue scoped per-driver** — defense against per-cross-driver work-bleed.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `tty_write` / `tty_read` user buffer access goes through bounded copy helpers; `write_buf` allocation length verified against `count`; defends against per-`tty->write_buf` overflow.
+- **PAX_KERNEXEC** — `tty_driver`, `tty_operations`, and the per-driver `ops` tables placed in `__ro_after_init`; defends tty dispatch against driver-vtable rewrite.
+- **PAX_RANDKSTACK** — entropy added on every `tty_open` / `tty_release` entry; neutralises stack-shape probing under fast open/close churn.
+- **PAX_REFCOUNT** — `tty_struct.count`, `tty_port.count`, and `tty_driver.refcount` use saturating counters.
+- **PAX_MEMORY_SANITIZE** — `tty_buffer` flip buffers and `write_buf` allocations zero-on-free; defends against stale keystroke / serial-line data bleeding across tty grants.
+- **PAX_UDEREF** — `TIOC*` ioctls (`TIOCSTI`, `TIOCSCTTY`, `TIOCSETD`, `TIOCSWINSZ`) dereference user pointers only via user-AS-annotated copy helpers.
+- **PAX_RAP / kCFI** — `tty_operations` callbacks (`open`, `close`, `write`, `ioctl`, `set_termios`, `hangup`) type-tagged; defends against ROP through a swapped driver pointer.
+- **GRKERNSEC_HIDESYM** — `/proc/tty/drivers`, `/sys/class/tty/*` listings stripped of kernel pointers.
+- **GRKERNSEC_DMESG** — tty hangup / driver-unregister prints gated behind `CAP_SYSLOG`.
+- **/dev/tty CAP_SYS_ADMIN for set_ldisc** — `TIOCSETD` (set line discipline) gated behind `CAP_SYS_ADMIN`; closes the historic ldisc-pointer-swap LPE class (CVE-2020-25656 / CVE-2017-2636 family).
+- **Controlling-tty session enforcement** — `TIOCSCTTY` enforces "session leader" + "no current controlling tty" rule and requires `CAP_SYS_ADMIN` for `TIOCSCTTY_FORCE`; defends against cross-session tty hijack.
+- **Rationale** — `tty-io` is the dispatch core that ldisc-swap LPEs and TIOCSTI injection attacks target; combining CAP_SYS_ADMIN on TIOCSETD, controlling-tty enforcement, and RAP on tty_operations closes the entire historic tty-LPE family.
+
 ## Open Questions
 
 (none at this Tier-3 level)

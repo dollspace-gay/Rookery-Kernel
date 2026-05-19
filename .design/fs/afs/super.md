@@ -452,6 +452,26 @@ kAFS super reinforcement:
 - **Per-validate_fc fail-closed on no_cell-without-dyn** — defense against per-misconfigured-mount.
 - **Per-RxRPC traffic confined to ctx.key context** — defense against per-credential-leak across mounts.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/afs/super.c`:
+
+- **PAX_USERCOPY** — bounds-checks every mount-option string (cell name, volume name, source-spec parser) so a malformed `-o source=` cannot drive a slab overrun inside `afs_parse_source`.
+- **PAX_KERNEXEC** — keeps `afs_super_ops`, `afs_dynroot_inode_operations`, and the `rxrpc_kernel_ops` table in read-only memory so a network-side bug cannot rewrite `kill_sb`/`statfs`.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each `mount(2)`/`statfs(2)` so an attacker cannot deterministically probe the RxRPC handshake path.
+- **PAX_REFCOUNT** — wraps `afs_cell`, `afs_volume`, and `afs_net` reference counts so a malicious server cannot drive a wrap during a callback-flood.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `afs_super_info`, `afs_volume`, and `rxrpc_call` buffers so leftover Kerberos ticket material cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the long mount-context parser and the `add_key`/`request_key` fallthroughs.
+- **PAX_RAP / kCFI** — forward-edge CFI on `afs_super_ops` and `rxrpc_kernel_ops` vtables so a corrupted ops pointer cannot redirect callback-break handling to a userspace gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from `afs_debug` traces and cell-alias resolution printks so an unprivileged user cannot harvest kASLR offsets from AFS error messages.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so RxRPC negotiation errors do not leak pointer material to unprivileged users.
+- **kAFS cell mount hard-gated on `CAP_SYS_ADMIN`** — `afs_get_tree` rejects unprivileged callers, blocking unprivileged-mount of a cell against an unauthenticated VLDB server even when user-namespaces relax other mount gates.
+- **krb5/RxRPC key zero-on-destroy** — `afs_super_info.key` and the underlying `rxrpc_key_payload` are wiped via `memzero_explicit` on key revoke / mount teardown so a kernel-memory disclosure bug cannot recover Kerberos ticket material.
+- **Cell-alias resolution audit** — `afs_alias_lookup` resolutions that change the canonical cell name are logged via `audit_log` so a DNS-poisoning attack that redirects a mount to a hostile cell is observable post-hoc.
+- **GRKERNSEC_HIDESYM on RxRPC reject/abort paths** — RxRPC error printks sanitize embedded pointers and ticket material so a hostile server cannot extract kernel addresses or key bytes via crafted RxRPC errors.
+
+Rationale: kAFS mounts trust a remote VLDB+fileserver pair with arbitrary filesystem metadata and rely on Kerberos tickets stored in-kernel; combined with the long-lived `afs_cell`/`afs_volume` lifecycle this is a high-value cred-leak target, so capability gating + explicit key zeroing + RAP on the RxRPC ops vtable are layered on top of the upstream callback-break / publish-under-RCU defenses.
+
 ## Open Questions
 
 (none at this Tier-3 level)

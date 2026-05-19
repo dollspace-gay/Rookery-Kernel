@@ -591,6 +591,26 @@ Free-space-cache reinforcement:
 - **Per-trimming_ranges + cache_writeout_mutex** — defense against per-trim issuing discard on a range that the allocator simultaneously re-added.
 - **Per-v2 mode-flip threshold** — defense against per-INFO_KEY extent_count explosion (auto-flip to bitmap when extent_count exceeds bg.bitmap_high_thresh).
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/btrfs/free-space-cache.c`:
+
+- **PAX_USERCOPY** — bounds-checks any free-space-cache-derived data exposed via ioctls (cache-dump diagnostic paths) so a malformed read cannot drive a slab overrun.
+- **PAX_KERNEXEC** — keeps the free-space-cache rbtree callbacks and v2 INFO_KEY handlers in read-only memory so a memory bug cannot rewrite the allocator hooks.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each allocator entry so an attacker cannot deterministically probe the long free-space lookup path.
+- **PAX_REFCOUNT** — wraps `btrfs_free_cluster.refs` and the v1 cache-inode refcount so torn cluster-refill sequences cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for free-space rbnodes and v1 bitmap pages so leftover free-space records cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across cache-diagnostic ioctls.
+- **PAX_RAP / kCFI** — forward-edge CFI on free-space rbtree comparator and discard callback so a corrupted node cannot redirect comparison into a gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from free-space-cache warning printks (e.g. `WARN_ON(re_search)`) so a crafted image cannot leak kASLR offsets via dmesg.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so cache-corruption diagnostics do not leak pointer material to unprivileged users.
+- **Free-space xattr PAX_USERCOPY** — any free-space xattr passthrough (e.g. inline-trim hint blobs) is validated and copied via the hardened usercopy path so a malformed xattr cannot stride past the staging buffer in the inline-trim decoder.
+- **v1 inode-cache deprecated under policy** — the legacy v1 free-space cache (per-BG cache inode + CRC32C page + generation match) is treated as DEPRECATED: new mounts default to v2 space_cache, and v1 mount-option presence is logged via `audit_log` so a downgrade-attack image that forces v1 to exploit the inode-cache code path is observable post-hoc.
+- **GRKERNSEC_HIDESYM on cache-load failure** — `load_free_space_cache` v1 validation failures (`bg.length - used - bytes_super` mismatch) sanitize embedded pointers so a crafted cache cannot leak ctl/rbnode addresses via dmesg.
+- **CAP_SYS_ADMIN on cache-dump diagnostic ioctls** — any cache-state dump path is restricted to privileged callers so unprivileged users cannot enumerate the on-disk free-space layout.
+
+Rationale: the legacy v1 free-space cache is a known source of confused-deputy bugs (inode-cache + CRC32C + generation match has been the source of multiple corrupt-mount CVEs); deprecating it and adding hardened usercopy on the residual xattr path closes the gap on top of the upstream `DC_CLEAR`/`tmp_ctl` defenses.
+
 ## Open Questions
 
 (none at this Tier-3 level)

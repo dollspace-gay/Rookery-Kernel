@@ -143,6 +143,30 @@ LDM-specific reinforcement here:
 - **SEQNUM monotonicity** preserved across uevent_helper exec window (uevent_seqnum increment happens BEFORE userspace fork; never re-incremented mid-flight).
 - **Device-link cycle detection** at link_add time — refuse cycles (defense against driver bug causing supplier↔consumer cycle which would deadlock dpm_list traversal).
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `struct device` is the universal LDM root referenced from sysfs, devtmpfs, uevent, devres, fwnode, and driver-private state — a hostile refcount imbalance, sysfs-attribute store callback, or uevent envp injection here pivots to UAF on any registered device on the box. The matrix below restates baseline PaX/grsec coverage applied to `drivers/base/core.c` plus LDM-core-specific reinforcement.
+
+Baseline (cross-ref `drivers/base/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: per-attribute `show`/`store` buffers (PAGE_SIZE) are slab-cache-allocated with `USERCOPY` whitelist; copy-to/from-user bounded by attribute-method return.
+- **PAX_KERNEXEC**: per-bus / per-class / per-dev_type vtables (`bus_type`, `class`, `device_type`) placed in `__ro_after_init`; per-device `release` fnptr never patched post-`device_add`.
+- **PAX_RANDKSTACK**: every entry into `device_add` / `device_release` / `kobject_uevent_env` re-randomises kernel stack offset (per-syscall + per-irq-return) before the deeply-recursive bus/class iteration.
+- **PAX_REFCOUNT**: per-device kobject refcount uses saturating `Refcount` (already in row-1); same applied to `class_kset`, `bus_kset`, `device_link.refcount` — overflow saturates not wraps, defending the canonical "register N times to wrap-then-UAF" attack.
+- **PAX_MEMORY_SANITIZE**: `kfree(dev)` (via `device_release`) zero-fills the `struct device` slab block before reuse, including the embedded `kobject`, `dev_pm_info`, `dma_parms`, and `driver_data` pointer slot — defends against use-after-free disclosure of stale per-driver private pointers.
+- **PAX_UDEREF**: per-uevent `kobj_uevent_env.envp[]` and `buf[]` copy-to/from netlink-skb goes through `copy_to_user`-class accessors (no raw `__user` deref); sysfs attribute `store` similarly.
+- **PAX_RAP / kCFI**: indirect calls through `bus_type->probe`, `class->dev_release`, `device_type->uevent`, `dev_pm_ops->*`, `driver->probe` are kCFI-tagged; mismatch → `BUG()` not silent type-confusion.
+- **GRKERNSEC_HIDESYM**: per-device address (`&dev`), kobject address (`&dev->kobj`), and `driver_data` pointer never rendered into sysfs, `dmesg`, or `/proc` — only kernel ptr hashes (`%pK`) when CAP_SYSLOG asserted.
+- **GRKERNSEC_DMESG**: `dev_err` / `dev_warn` ratelimited; `dmesg` access requires CAP_SYSLOG (defense against probe-failure address leak).
+
+LDM-core-specific reinforcement:
+- **Per-device-driver kref PAX_REFCOUNT** — `device_driver.p->kobj.kref` + `device_driver.p->klist_devices` use saturating refcount; defends bind/unbind storm.
+- **/sys/bus/<bus>/devices CAP_SYS_ADMIN gate** — `bind` / `unbind` / `uevent` write nodes refuse `EPERM` without CAP_SYS_ADMIN in init_user_ns (grsec policy beyond upstream's permissive 0200).
+- **devtmpfs uid-restricted node creation** — device nodes published with mode capped to `bus_type->devnode_uid_gid` policy; refuse `0666` defaults from misconfigured driver-`devnode()` callbacks.
+- **uevent envp filter** — drop env vars whose key matches kernel-internal prefixes (`MODPROBE_*`, `LD_*`) before multicast, defending against driver-string-injection → userspace-udev env confusion.
+- **Device-link cycle refusal** at `device_link_add` (already in row-2 hardening) — extends with grsec audit log entry on attempted cycle.
+- **fwnode handle validation** — `device_set_fwnode` refuses cross-namespace fwnode reuse (OF node from one device-tree attached to a synthetic ACPI device).
+- **per-namespace uevent_helper exec gate** — when `uevent_helper` legacy path runs, refuse exec from non-init userns + audit-log; modern udev path unaffected.
+
 ## Open Questions
 
 - Q1: `uevent_helper` (legacy `/sbin/hotplug`) cmdline support — keep + default-empty, or remove entirely? (Distros all use udev-via-netlink; uevent_helper is essentially dead code but documented for backward compat.) **Resolution**: keep, default-empty.

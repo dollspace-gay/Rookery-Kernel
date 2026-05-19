@@ -282,6 +282,23 @@ dm-snapshot-specific reinforcement:
 - **kcopyd error retry policy** — defense against transient-fail invalidating snapshot.
 - **Snapshot-full graceful invalidation** — defense against subsequent silent-failure.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `dm_snap_persistent` exception-store header copies between bio bvec and snapstore metadata pages are validated against the exception-store slab cache; `chunk_size` ioctl IN/OUT buffers are bounded per `DM_DEV_SET_GEOMETRY` length.
+- **PAX_KERNEXEC** — `dm_exception_ops` / `dm_target_type` vtables (`origin_target_type`, `snapshot_target_type`, `merge_target_type`) live in `__ro_after_init` and are linked through `__ksymtab_ro`.
+- **PAX_RANDKSTACK** — kcopyd worker entry (`do_work` / `run_complete_job`) hits the per-syscall random kstack offset before touching exception-store metadata.
+- **PAX_REFCOUNT** — `dm-cow` `pending_exception->ref_count`, `dm_snapshot->active`, and per-snap `dm_dev` references use refcount_t with saturating semantics; overflow on a runaway invalidation path saturates rather than wraps and frees the snapshot.
+- **PAX_MEMORY_SANITIZE** — exception-store chunks released back to the slab are zeroed before reuse so origin data does not bleed across snapshots.
+- **PAX_UDEREF** — `DM_TABLE_LOAD` / `DM_TARGET_MSG` payloads from userspace are read through `copy_from_user` with explicit segment switches; the snapshot ctr never deferences user pointers under KERNEL_DS.
+- **PAX_RAP / kCFI** — all snapshot-target callbacks (`.ctr`, `.dtr`, `.map`, `.preresume`, `.resume`, `.status`, `.message`, `.iterate_devices`) are typed indirect calls registered at module init.
+- **GRKERNSEC_HIDESYM** — snapstore device pointers and exception-table addresses are scrubbed from `dmsetup status` / `dmsetup table` output when `kptr_restrict ≥ 2`.
+- **GRKERNSEC_DMESG** — snapshot overflow / invalidation events log at `KERN_NOTICE` with `dm_target` rate-limited via `__ratelimit` so a chunk-flood cannot DoS the ring buffer.
+- **CAP gating** — `DM_DEV_CREATE` for snapshot/origin requires `CAP_SYS_ADMIN` in the device's userns; container roots without `CAP_SYS_ADMIN` cannot graft a malicious cow store onto a host origin.
+- **Snapstore PAX_USERCOPY** — the exception-store header read into `dm_exception_store` is sized against `sizeof(struct disk_header)` with explicit checksum validation; tail-padding never reaches the dm-target status string.
+- **dm-cow refcount** — `pending_exception->ref_count`, `dm_snap_pending_exception->ref_count`, and the per-cow-block `dm_buffer` ref are all refcount_t; a forged retry storm against an invalidated cow store saturates and returns `-EIO` rather than wrapping.
+- **Anti-rollback via origin generation** — when stacked with dm-verity or fs-verity, the origin's generation counter is captured on snapshot create and validated on merge; mismatched generation aborts the merge to refuse silent data rollback.
+- **dm-uevent gating** — snapshot full / invalidated / merge-done uevents are emitted via `dm_uevent` to the dm subsystem, not to all of `udev`, so policy can route them only to authorized listeners.
+
 ## Open Questions
 
 (none at this Tier-3 level)

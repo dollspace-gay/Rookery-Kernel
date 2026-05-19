@@ -460,6 +460,21 @@ V4L2-dev reinforcement:
 - **Per-priority FSM bounded atomic_t counters** — defense against per-prio-underflow.
 - **Per-class video4linux owned by THIS_MODULE** — defense against per-module-unload race.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `VIDIOC_*` ioctl IN/OUT payloads transit `video_usercopy`'s bounded `mbuf` (≤128B inline, kmalloc fallback above), which uses `copy_from_user` / `copy_to_user` against an exact-sized object; no struct tail-padding or compat-layout slack reaches userspace.
+- **PAX_KERNEXEC** — `v4l2_file_operations`, `video_device->fops` for each driver, `v4l2_ioctl_ops`, and `media_device_ops` reside in `__ro_after_init` rodata; the per-driver `video_device_release_empty` is the typed release path.
+- **PAX_RANDKSTACK** — every `VIDIOC_*` entry from `v4l2_ioctl` and every `read/write/poll/mmap` on `/dev/videoN` crosses the per-syscall random kstack offset before reaching the driver's `vidioc_*` handler.
+- **PAX_REFCOUNT** — `video_device->entity.use_count`, `v4l2_device->ref`, `v4l2_subdev->entity.use_count`, and the per-fh `v4l2_fh->prio` accounting use refcount_t / atomic_t with saturation; flooding the open/close path cannot wrap and free a live device.
+- **PAX_MEMORY_SANITIZE** — `v4l2_fh` allocations are zeroed on free; the per-ioctl `mbuf` scratch is zeroed before reuse so stale compat-layout bytes don't leak into the next ioctl's OUT direction.
+- **PAX_UDEREF** — `video_usercopy` is the canonical user-pointer gateway: it copies the request into a kernel-side struct, dispatches with KERNEL_DS off, then copies results back. Drivers must not deference `__user` pointers directly.
+- **PAX_RAP / kCFI** — `v4l2_ioctl_ops` (~150 typed function pointers), `v4l2_file_operations`, `v4l2_subdev_ops`, `media_entity_operations`, and `vb2_ops` are all typed indirect-call edges.
+- **CAP_SYS_ADMIN on /dev/videoN privileged ops** — `VIDIOC_S_DV_TIMINGS`, `VIDIOC_S_EDID`, `VIDIOC_DBG_*`, `VIDIOC_S_REGISTER`, and other low-level register/EDID write paths gate on `capable(CAP_SYS_ADMIN)`; standard `VIDIOC_QBUF`/`VIDIOC_DQBUF` only require open access to the device node.
+- **Ioctl PAX_USERCOPY discipline** — the legacy `_IOC_DIR` / `_IOC_SIZE` interpretation routes through `video_usercopy`'s validated table, which clamps to the highest known ioctl size, blocking compat-tail-padding TOCTOU.
+- **GRKERNSEC_HIDESYM / GRKERNSEC_DMESG** — `video_device` and `v4l2_fh` pointers are scrubbed under `kptr_restrict ≥ 2`; per-driver verbose-IO traces are at `KERN_DEBUG` and rate-limited so a misbehaving capture loop cannot DoS dmesg.
+- **udev policy on /dev/videoN** — distros place `/dev/videoN` under the `video` group with mode 0660; combined with seccomp+landlock in containerized stacks, only explicitly granted processes can `open(O_RDWR)` the node.
+- **EDID write CAP_SYS_ADMIN** — `VIDIOC_S_EDID` (and the `i2c_dev` write path used by some bridge drivers) gates on `CAP_SYS_ADMIN`, preventing an unprivileged user from injecting a malicious EDID that triggers TMDS/HDMI parser bugs in firmware.
+
 ## Open Questions
 
 (none at this Tier-3 level)

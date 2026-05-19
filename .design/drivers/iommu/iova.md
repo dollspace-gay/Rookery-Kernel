@@ -225,6 +225,31 @@ iova-specific reinforcement:
 - **fq_timer interval bounded** — minimum 1ms, maximum 100ms; defense against userspace-controllable flush latency tuning.
 - **Per-pool size limit** — IOVA range bounded by domain.geometry.aperture_end (cross-ref `iommu-core.md`).
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: the IOVA allocator sits between every IOMMU-attached driver and the DMA engine — a stale-IOVA reuse, magazine OOB, or rb-tree corruption here lets one driver alias another driver's DMA mapping or steal arbitrary host-physical memory through the IOMMU. Reserved-IOVA enforcement specifically guards MSI-X and RMRR windows from being aliased.
+
+Baseline (cross-ref `drivers/iommu/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: IOVA allocator has no direct copy-to/from-user surface (kernel-internal), but `/sys/kernel/debug/iommu_groups/<N>/iova_rcache_stat` and related debugfs counters copy through `simple_read_from_buffer` whitelisted slab caches; PAX_USERCOPY whitelists those.
+- **PAX_KERNEXEC**: per-pool `flush_cb` callback installed once at `init_iova_flush_queue`; vtable placed `__ro_after_init`; cannot be repointed at runtime.
+- **PAX_RANDKSTACK**: entry from `dma_map_*` into `alloc_iova_fast` re-randomises kernel stack offset.
+- **PAX_REFCOUNT**: per-`Iova` node use-count + per-`IovaMagazine` slot-count + depot-size all use saturating counters; defends magazine-overflow class bugs.
+- **PAX_MEMORY_SANITIZE**: `Iova` node `kfree` zero-fills slab block before reuse; per-magazine `pfns[]` zeroed on magazine return-to-depot so a stale PFN cannot leak through magazine-recycle into a different domain.
+- **PAX_UDEREF**: no direct user pointers in IOVA fast-path; debugfs surface uses guarded accessors.
+- **PAX_RAP / kCFI**: indirect calls through `flush_cb`, `iova_alloc_dirty_callback`, `cpuhp_dead` callback are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-domain pointer + magazine pointer + cached_node pointer never rendered into debugfs/dmesg as raw addresses — only `%pK`.
+- **GRKERNSEC_DMESG**: IOVA-allocator warnings (`alloc_iova: no available range`) ratelimited; debug-stat read requires CAP_SYSLOG.
+
+iova-specific reinforcement:
+- **IOVA-node PAX_REFCOUNT** — sole-ownership invariant (rb-tree XOR magazine XOR depot) enforced via debug-only refcount; double-insert into magazine traps.
+- **rcache RCU-safe magazine free** — depot-pop happens under rcu_read_lock; magazine free deferred to `call_rcu` so a concurrent depot-walk-then-pop doesn't UAF.
+- **Reserved-IOVA list immutable post-init** — `reserve_iova` callable only during `iova_domain::init` window (closed by first `alloc_iova_fast`); defense against post-boot reserved-window stripping.
+- **Magazine pfns[] bounds-checked** — every push/pop validates `size < IOVA_MAG_SIZE`; trap on overflow rather than silent OOB write.
+- **Per-pool deferred-flush-queue length cap** — refuses enqueue when `fq.depth > FQ_MAX_DEPTH (256)`; forces synchronous flush instead, defending against fq-flood DoS.
+- **fq_flush_timeout interval clamp** — userspace cannot push interval below 1ms or above 100ms via `/sys/kernel/iommu_groups/<N>/fq_flush_us`.
+- **cpuhp dead-callback ordering** — guarantees offlined CPU's rcache fully drained before per-CPU state freed; defends against CPU-hotplug-driven UAF.
+- **Aperture-bounds validated** — `alloc_iova` refuses limit_pfn exceeding `iovad.dma_32bit_pfn` for 32-bit-DMA-mask devices; prevents wrap-around into reserved 0..start_pfn region.
+
 ## Open Questions
 
 (none at this Tier-3 level)

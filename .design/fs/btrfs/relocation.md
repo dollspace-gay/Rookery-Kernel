@@ -705,6 +705,26 @@ Relocation reinforcement:
 - **Per-prepare_to_merge even on error** — defense against per-orphaned reloc-roots after cancel/error.
 - **Per-recover_relocation at mount** — defense against per-interrupted-balance leaving the fs in unmountable state.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the upstream hardening above, Rookery layers the following grsec/PaX-style controls onto `fs/btrfs/relocation.c`:
+
+- **PAX_USERCOPY** — bounds-checks every `BTRFS_IOC_BALANCE*` payload so a malformed balance argument cannot drive a slab overrun in the relocation argument parser.
+- **PAX_KERNEXEC** — keeps relocation worker callbacks and the backref-cache ops in read-only memory so a memory bug cannot rewrite `relocate_tree_block`/`replace_path` dispatch.
+- **PAX_RANDKSTACK** — randomizes kernel-stack offset on each balance ioctl entry so an attacker cannot deterministically probe the long relocate-tree-block path.
+- **PAX_REFCOUNT** — wraps `btrfs_root.refs` for reloc-roots and `data_reloc` inode references so a torn merge/cancel sequence cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for reloc-root scratch, backref-cache nodes, and `data_reloc` staging buffers so leftover backref keys cannot be recovered from the freelist.
+- **PAX_UDEREF** — enforces user/kernel pointer separation across the balance ioctl boundary.
+- **PAX_RAP / kCFI** — forward-edge CFI on relocation worker callbacks so a corrupted backref-cache node cannot redirect the relocate dispatch into a gadget.
+- **GRKERNSEC_HIDESYM** — strips kernel pointers from relocation EUCLEAN/cancel printks so a crafted image cannot leak kASLR offsets via dmesg.
+- **GRKERNSEC_DMESG** — gates dmesg on `CAP_SYSLOG` so reloc-tree corruption diagnostics do not leak pointer material to unprivileged users.
+- **CAP_SYS_ADMIN on `BTRFS_IOC_BALANCE*`** — balance ioctls (`BTRFS_IOC_BALANCE`, `BTRFS_IOC_BALANCE_V2`, `BTRFS_IOC_BALANCE_CTL`, `BTRFS_IOC_BALANCE_PROGRESS`) are hard-gated so unprivileged callers cannot initiate or cancel a balance and stress the reloc-tree code path.
+- **Reloc-tree signature** — `BTRFS_DATA_RELOC_TREE_OBJECTID` reloc-roots validate the type/parent/generation triple against the live fs-tree at every backref step, treating mismatch as a hard `-EUCLEAN` abort so a crafted reloc-root cannot smuggle a stale-backref-cache attack into the mover.
+- **GRKERNSEC_HIDESYM on backref-cache mismatch** — CoW-tap cache-coherency failure traces (`-EUCLEAN` paths) sanitize embedded pointers so a crafted stale-backref attack cannot extract reloc-root or backref-node addresses via dmesg.
+- **PAX_MEMORY_SANITIZE on data_reloc inode buffers** — staging inode buffers are zeroed on orphan-cleanup so a crash during relocation cannot leave plaintext data-reloc payloads recoverable from the freelist.
+
+Rationale: relocation operates with elevated rights over the entire on-disk layout (RO block-groups, snapshot-doubled reservations, csum-clone) and a bug in the backref cache or reloc-tree signature translates directly into silent on-disk corruption; capability gating + reloc-tree signature validation is layered on top of the upstream `BTRFS_FS_RELOC_RUNNING` / `prepare_to_merge` defenses.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -264,6 +264,22 @@ raid1-specific reinforcement:
 - **Per-discard atomicity** — defense against partial-discard leaving ghost-data on subset of mirrors.
 - **freeze_array/unfreeze_array discipline** — defense against config-change during active IO.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `bitmap_storage` pages and per-write-intent bitmap pages live in dm-bufio's whitelisted slab cache; sysfs status accessors emit at most `PAGE_SIZE` of bounded text via `scnprintf`.
+- **PAX_KERNEXEC** — `raid1_personality` (`.make_request`, `.run`, `.error_handler`, `.hot_add_disk`, `.hot_remove_disk`, `.sync_request`, `.resize`, `.takeover`) is in `__ro_after_init` rodata; the per-mirror barrier-tree node ops are likewise rodata.
+- **PAX_RANDKSTACK** — `raid1_make_request_read` / `raid1_make_request_write` and the resync worker `raid1d` cross the per-syscall random kstack offset on entry.
+- **PAX_REFCOUNT** — `r1conf->nr_pending` (per-barrier counter), per-`md_rdev->nr_pending`, and `r1bio->remaining` are refcount_t / atomic_t with saturating overflow; a forged barrier-loop cannot wrap and prematurely complete an in-flight stripe.
+- **PAX_MEMORY_SANITIZE** — the per-bio mempool `r1bio_pool` is allocated from a slab with `SLAB_TYPESAFE_BY_RCU` (or zeroed-on-free) so released `r1bio` objects do not leak prior read-mirror selection metadata.
+- **PAX_UDEREF** — `/sys/block/mdX/md/bitmap_file`, `/sys/block/mdX/md/sync_action`, and `MD_*` ioctls copy from user via `copy_from_user` and validate string args before being stored.
+- **PAX_RAP / kCFI** — `mdk_personality` callbacks and the bitmap-storage ops (`bitmap_operations`) are typed indirect-call edges.
+- **Per-disk REFCOUNT discipline** — `rdev_dec_pending` / `atomic_dec_and_test(&rdev->nr_pending)` is the only sanctioned drop path; remove-disk waits for nr_pending to drain before freeing the rdev.
+- **Bitmap PAX_USERCOPY** — write-intent bitmap-file IO is sliced via `bio_add_page` against a slab-whitelisted page cache, so a mis-sized bitmap header cannot escape into adjacent kernel objects.
+- **RAP on raid_ops** — `mdk_personality->{make_request,run,...}` indirect calls are typed at module init; `personality_list` is `__ro_after_init`.
+- **GRKERNSEC_HIDESYM / GRKERNSEC_DMESG** — `r1conf` and `r1bio` pointers are scrubbed; mirror-fail and resync-start events go at `KERN_WARNING` / `KERN_INFO` with `__ratelimit`.
+- **CAP gating** — `MD_IOCTL` and `STOP_ARRAY` for a raid1 array require `CAP_SYS_ADMIN`; sysfs nodes that change `level`/`layout` likewise gate on `CAP_SYS_ADMIN`.
+- **Cluster md bitmap PAX** — cluster-md bitmap pages cross-node via dlm-lock-protected IO; bitmap-page validators reject mismatched node-ID footers so a malicious cluster member cannot inject ghost bitmap state.
+
 ## Open Questions
 
 (none at this Tier-3 level)

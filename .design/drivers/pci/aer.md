@@ -575,6 +575,24 @@ AER reinforcement:
 - **Per-sysfs ratelimit-set CAP_SYS_ADMIN** — defense against per-unprivileged interval=0 (log-flood enable).
 - **Per-PM save/restore of AER caps** — defense against per-D3-resume loss of mask/severity/ECRC config.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /sys/bus/pci/devices/<dev>/aer_dev_correctable, aer_dev_fatal, aer_dev_nonfatal sysfs read buffers whitelisted; defense against per-oversized-stat-leak.
+- **PAX_KERNEXEC** — aer_irq, aer_isr, pcie_do_recovery, aer_process_err_devices run W^X; no AER ISR mapped writable+executable.
+- **PAX_RANDKSTACK** — per-AER-IRQ entry randomizes kernel-stack offset; defense against per-error-injection-side-channel.
+- **PAX_REFCOUNT** — aer_rpc, pci_dev_get refs saturating refcount_t; defense against per-AER-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — aer_err_info, aer_capability_regs, ratelimit-state slabs poison-on-free; defense against per-prior-error leak in re-used aer_err_source.
+- **PAX_UDEREF** — sysfs aer attr read enforces split user/kernel on copy_to_user; AER has no /dev node.
+- **PAX_RAP/kCFI** — pci_error_handlers vtable (error_detected, mmio_enabled, slot_reset, resume) CFI-protected; defense against per-forged-pci_error_handlers via driver-load race.
+- **GRKERNSEC_HIDESYM** — aer_rpc, pcie_do_recovery, per-driver pci_error_handlers addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "AER: Multiple Corrected error", "AER: aer_status:" prints restricted; defense against per-error-fingerprinting of attached devices.
+- **Error-recovery audit** — every entry into pcie_do_recovery and every transition through error_detected -> mmio_enabled -> slot_reset -> resume audited (LSM hook + dev_info-rate-limited); defense against per-error-storm being weaponized for log-flood DoS.
+- **AER mask config CAP_SYS_ADMIN** — write to /sys/bus/pci/devices/<dev>/aer/* (mask, severity, ecrc, ratelimit interval/burst) gated on CAP_SYS_ADMIN; defense against per-unprivileged masking of fatal errors to hide a faulting device.
+- **Ratelimit-set CAP_SYS_ADMIN** — per-device aer ratelimit_state interval/burst sysfs writers require CAP_SYS_ADMIN; defense against per-unprivileged interval=0 enabling log-flood.
+- **Per-RP rpc->prod_idx / cons_idx bounded** — AER_ERROR_SOURCES_MAX (128) ring depth; defense against per-storm overrunning the producer/consumer indices.
+- **Per-PM save/restore of AER caps** — aer mask/severity/ECRC settings re-applied on D3 resume; defense against per-D3-resume loss of administrator-configured policy.
+- Rationale: AER mediates error recovery on a hot path that can be triggered by a malfunctioning or hostile device; grsec posture combines CAP_SYS_ADMIN at the sysfs config knobs, audit on every recovery transition, ratelimit-state on log emission, CFI on pci_error_handlers dispatch, and sanitize-on-free of error-info slabs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

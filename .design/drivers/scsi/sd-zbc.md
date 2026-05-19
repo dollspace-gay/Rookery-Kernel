@@ -440,6 +440,21 @@ ZBC-sidecar reinforcement:
 - **Per-`memalloc_noio_save` around blk_revalidate_disk_zones** — defense against per-revalidate-allocates-IO recursion on a stalling disk.
 - **Per-`__GFP_NORETRY` + `kvzalloc` with halving fallback** — defense against per-OOM during report-buffer alloc.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `blk_zone` records returned via `BLKREPORTZONE` ioctl copied through a bounded `copy_to_user` whose length is `nr_zones * sizeof(struct blk_zone)`; defends against per-truncated-array integer underflow leaking neighbouring zone state.
+- **PAX_KERNEXEC** — `sd_zbc_ops` and the `request_queue` zone-revalidation callbacks reside in `__ro_after_init`; defends ZBC report parsing against vtable overwrite.
+- **PAX_RANDKSTACK** — entropy added on every `sd_zbc_revalidate_zones` / `sd_zbc_report_zones_buflen` entry to neutralise stack-shape probing under repeated REPORT_ZONES races.
+- **PAX_REFCOUNT** — `scsi_disk.openers`, `disk_zones` revalidate counter, and per-block-device `zone_wp_offset` reference counts use saturating ops.
+- **PAX_MEMORY_SANITIZE** — report-zone scratch buffers (`kvzalloc`'d) zero-on-free so write-pointer / sequential-write-required descriptors do not leak across revalidate calls.
+- **PAX_UDEREF** — `BLKREPORTZONE` / `BLKRESETZONE` user pointers dereferenced only via the user-AS-annotated copy helpers; defends against passing a kernel pointer in the ioctl.
+- **PAX_RAP / kCFI** — `report_zones` and `zone_mgmt` callbacks (sd_zbc_report_zones, sd_zbc_zone_mgmt_ioctl) type-tagged so a corrupted gendisk pointer cannot redirect into arbitrary text.
+- **GRKERNSEC_HIDESYM** — zone-mismatch / RQF_QUIET ASC=0x24 dmesg lines emit no kernel pointers; only sdev tag and zone number.
+- **GRKERNSEC_DMESG** — sense-data prints from REPORT_ZONES / ZBC-pass-through gated behind `CAP_SYSLOG`.
+- **ZBC pass-through** — `SG_IO` / `BLKZONE*` operations that hit the ZBC command set require `CAP_SYS_RAWIO` to defend against unprivileged zone-state corruption.
+- **Zone-state validation** — every `blk_zone` parsed in `sd_zbc_parse_report` is range-checked (zone-type ∈ {CONV, SWR, SWP}, cond ∈ valid set, wp ∈ [start, start+len]); defends against firmware-injected illegal zone descriptors.
+- **Rationale** — ZBC devices are increasingly exposed to untrusted firmware paths (SMR-HDD, ZNS-SSD); the combination of zone-state validation, USERCOPY bounding, and RAWIO gating ensures a malicious target cannot weaponise REPORT_ZONES against the block layer.
+
 ## Open Questions
 
 (none at this Tier-3 level)

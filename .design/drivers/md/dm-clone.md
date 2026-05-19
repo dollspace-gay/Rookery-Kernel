@@ -251,6 +251,31 @@ dm-clone-specific reinforcement:
 - **delete_old_origin only after 100% hydrated** — defense against premature origin-loss.
 - **Per-bio refcount during hydrate** — defense against double-endio on requeue.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: dm-clone hydrates a destination device from a read-only source while serving live reads/writes; until full hydration, every read mixes source and destination state under a per-region hydration bitmap. A malicious source-pause request, snapshot-CoW user-buffer mismatch, or hydration-bitmap replay corruption directly produces persistent data substitution at the block layer — invisible to filesystems above. The reinforcement below restates baseline PaX/grsec coverage applied to `drivers/md/dm-clone-target.c` (+ `dm-clone-metadata.c`) plus dm-clone-specific reinforcement.
+
+Baseline (cross-ref `drivers/md/dm-core.md` § Hardening):
+- **PAX_USERCOPY**: dm-clone `status` / `message` output via dm-core's whitelisted slab; ctr params parsed via whitelisted `dm_split_args`.
+- **PAX_KERNEXEC**: per-clone `dm_target_type` vtable `__ro_after_init`.
+- **PAX_RANDKSTACK**: every entry to `clone_map` / `clone_endio` / `hydrate_region` re-randomises stack.
+- **PAX_REFCOUNT**: per-clone refcount, per-region hydration cell refcount, per-bio refcount during hydrate (already in row-2) — all saturating.
+- **PAX_MEMORY_SANITIZE**: hydration scratch buffer (per-`hydration_t`) zero-filled on free; defends against source-data lingering in slab after a "pause hydration" / "resume hydration" cycle.
+- **PAX_UDEREF**: no direct user pointers.
+- **PAX_RAP / kCFI**: `dm_target_type` callbacks + `clone_endio` + per-region hydration-callback all kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-region addr + per-hydration addr never rendered; `%pK` only.
+- **GRKERNSEC_DMESG**: hydration-error warnings ratelimited; CAP_SYSLOG to read.
+
+dm-clone-specific reinforcement:
+- **Source-pause RBAC** — `dmsetup message <name> 0 pause_hydration` / `resume_hydration` / `delete_old_origin` requires CAP_SYS_ADMIN + dm-mod-policy entry; defends against unprivileged stall of hydration prior to source-delete.
+- **PAX_USERCOPY on snapshot-CoW path** — when a write to a not-yet-hydrated region triggers source→destination CoW, the source-block copy buffer is slab-allocated with USERCOPY whitelist; defends against partial-buffer reuse leaking source data.
+- **Hydration bitmap PAX_MEMORY_SANITIZE on free** — bitmap pages zeroed at table-destroy; defends bitmap residue disclosure on subsequent dm device atop the same volume.
+- **`delete_old_origin` post-100% guard** — already in row-2; extended with grsec audit log of the exact region-count + commit-id seen at delete time.
+- **Discard-bitmap bounded** — sized once at activate; defends realloc DoS via table-reload.
+- **`hydration_threshold` clamped** — userspace `hydration_threshold N` clamped to `[1, total_regions/8]` so an attacker cannot trigger origin-storm.
+- **Metadata superblock signature** — `DM_CLONE_SUPERBLOCK_MAGIC` + per-superblock SHA256 over critical fields (region_size, source_block_size, target_block_size, max_hydration_threshold) verified on activate.
+- **Per-region bio refcount saturating** — defends double-endio on requeue race already noted; extended with debug-build trap.
+
 ## Open Questions
 
 (none at this Tier-3 level)

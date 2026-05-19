@@ -648,6 +648,22 @@ Thermal-core reinforcement:
 - **Per-zone IDA + per-cdev IDA disjoint pools** — defense against per-id-collision in sysfs.
 - **Per-`policy` sysfs write needs CAP_SYS_ADMIN (parent overview)** — defense against per-unprivileged-disable of throttling.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `thermal_zone_device` temperature / trip-point reads exposed via sysfs go through bounded `sysfs_emit`; defends against per-snprintf-misuse leak of adjacent zone state.
+- **PAX_KERNEXEC** — `thermal_zone_device_ops`, `thermal_cooling_device_ops`, and per-governor `throttle` callbacks placed in `__ro_after_init`; defends against governor-vtable overwrite.
+- **PAX_RANDKSTACK** — entropy added on every `thermal_zone_device_update` / `handle_critical_trips` entry; neutralises stack-shape probing in the trip-evaluation path.
+- **PAX_REFCOUNT** — `thermal_zone_device.refcount`, `thermal_cooling_device.refcount`, and IDA-allocated zone/cdev ids backed by saturating counters.
+- **PAX_MEMORY_SANITIZE** — `thermal_governor` scratch state (per-zone weight tables, IPA history buffers) zero-on-free.
+- **PAX_UDEREF** — `netlink-thermal` user-buffer handling and sysfs store callbacks dereference user pointers only through user-AS-annotated copy helpers.
+- **PAX_RAP / kCFI** — governor `throttle`, `bind_to_tz`, and `unbind_from_tz` callbacks type-tagged; defends against ROP via a swapped governor pointer.
+- **GRKERNSEC_HIDESYM** — `/sys/class/thermal/*` symlinks and `dev_printk` paths never leak kernel pointers.
+- **GRKERNSEC_DMESG** — critical-trip and `thermal_zone_device_critical()` shutdown prints gated behind `CAP_SYSLOG`.
+- **Governor PAX_RAP** — every governor registered via `thermal_register_governor` is recorded with a kCFI tag matching `governor->throttle`; mismatched tags refuse registration.
+- **/sys/class/thermal CAP_SYS_ADMIN** — `policy`, `mode`, `trip_point_*_temp`, and `emul_temp` sysfs writes require `CAP_SYS_ADMIN`; defends against unprivileged disable of throttling that would cook the CPU/battery.
+- **Critical-trip dispatch** — `thermal_emergency_poweroff()` and `orderly_poweroff()` invocations from `handle_critical_trips` cannot be cancelled by userspace; defends against attacker-induced trip-suppression to force thermal runaway.
+- **Rationale** — thermal is a uniquely physical-attack surface; an unprivileged disable of throttling is a denial-of-hardware-life primitive. CAP_SYS_ADMIN on sysfs + governor-vtable RAP + non-cancellable critical-trip dispatch close the chain from sysfs to silicon damage.
+
 ## Open Questions
 
 (none at this Tier-3 level)

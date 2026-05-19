@@ -506,6 +506,24 @@ PWM-core reinforcement:
 - **Per-pwm_class_pm rollback on suspend failure** — defense against per-partial-suspend leaving some lines stuck enabled.
 - **Per-UAPI __pad sanity check (must be 0)** — defense against per-future-flag-leak via uninitialized userspace padding.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /sys/class/pwm/pwmchipN/* attr buffers (period, duty_cycle, polarity, enable, capture) and pwm_state slab whitelisted; defense against per-oversized-sysfs-read leaking adjacent slab.
+- **PAX_KERNEXEC** — pwm_apply_state, pwm_capture, pwm_request_from_chip, pwm_chip_add run W^X; per-driver ->apply / ->capture callbacks bound at registration.
+- **PAX_RANDKSTACK** — per-/sys/class/pwm-write and per-pwm-IRQ entry (for capture-completion) randomize kernel-stack offset.
+- **PAX_REFCOUNT** — struct pwm_chip, struct pwm_device refs saturating refcount_t; defense against per-export/unexport-storm refcount overflow.
+- **PAX_MEMORY_SANITIZE** — pwm_chip, pwm_device, pwm_state slabs poison-on-free; defense against per-prior-line-state (duty/period) leak across re-export.
+- **PAX_UDEREF** — sysfs export/unexport and period/duty_cycle/polarity/enable writers enforce split user/kernel on the integer parse path.
+- **PAX_RAP/kCFI** — pwm_ops vtable (request, free, apply, capture, get_state) CFI-protected; defense against per-forged-pwm_ops via driver-load race.
+- **GRKERNSEC_HIDESYM** — pwm_chip list head, per-chip pwm_ops addresses hidden from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — "pwm-chip%d: failed to apply", "pwm-chip%d: capture timeout" prints restricted.
+- **/sys/class/pwm CAP_SYS_ADMIN** — write to /sys/class/pwm/pwmchipN/export, unexport, pwmN/period, pwmN/duty_cycle, pwmN/polarity, pwmN/enable gated on CAP_SYS_ADMIN; defense against per-unprivileged-write driving a backlight / motor / piezo line outside safe envelope (over-current, motor-stall, audible-injection).
+- **irq-context PAX_KERNEXEC** — pwm capture-completion path (per-chip IRQ -> pwm_capture_result) runs W^X and ratelimited; defense against per-capture-storm log-flood and against W^X violation in per-driver capture-ISR.
+- **Per-pwm_apply_state envelope bounded** — pwm_apply_state enforces duty_cycle <= period and period <= chip-max-period; defense against per-overflow apply triggering driver UB.
+- **Per-pwm_class_pm rollback** — suspend failure rolls back to previous state; defense against per-partial-suspend stuck-enabled line.
+- **Per-UAPI __pad zero-check** — defense against per-future-flag-leak through uninit userspace padding in pwm_setup args.
+- Rationale: PWM controls high-power physical lines (backlights, motors, fans, lasers, piezo) where unprivileged write can damage hardware or injure users; grsec posture combines CAP_SYS_ADMIN at /sys/class/pwm, envelope bounds in pwm_apply_state, CFI on pwm_ops dispatch, sanitize-on-free of pwm_state, and W^X enforcement on capture-ISR.
+
 ## Open Questions
 
 (none at this Tier-3 level)
