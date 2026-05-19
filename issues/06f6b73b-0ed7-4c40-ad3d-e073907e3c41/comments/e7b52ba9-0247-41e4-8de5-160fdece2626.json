@@ -1,0 +1,10 @@
+{
+  "uuid": "e7b52ba9-0247-41e4-8de5-160fdece2626",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Wave-D3 dispatched 48 per-syscall Tier-5 docs (core-IO, process/signal, io_uring/futex/eventpoll, network, fs/namespace). Each integrates Grsec/PaX-style Reinforcement section. Phase D total: 81/~430 (~19%).",
+  "created_at": "2026-05-19T17:15:21.876045315Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtrU8UZMFtjktzg7E9Btinmh24C0k1+3BcQfFDd/bHUFlgla/eQYYLaB1P3wCBCcglQxBaLqshzCaDal1fnqRBg=="
+}
