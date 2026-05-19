@@ -525,6 +525,29 @@ Tree-log reinforcement:
 - **Per-walk_log_tree level monotonic descent** — defense against per-malformed-log loop.
 - **Per-skip-CoW on memcmp-identical overwrite** — defense against per-needless-write amplification.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **Log-replay PAX_USERCOPY** — replay path reads on-disk log records that originated as inline-data from user buffers; per-key payload copy is bounds-checked against `eb->len` before being applied into the live subvolume.
+- **log_mutex serialization** — per-root `log_mutex` is the only path mutating the log tree; PAX_REFCOUNT on `log_writers` saturates rather than wraps to prevent log-freed-while-writing UAF.
+- **PAX_MEMORY_SANITIZE on log_root** — `btrfs_root` for the log is zeroed on `btrfs_free_log_root_tree` so reuse during a subsequent transaction cannot leak stale tree pointers.
+- **kCFI on walk_log_tree callbacks** — `replay_one_buffer` and `process_func` dispatched via kCFI signatures so a malformed log header cannot redirect the walker.
+- **GRKERNSEC_HIDESYM on log_full_commit** — sticky-fail-commit logging suppresses fs_info pointer disclosure.
+- **PAX_USERCOPY on btrfs_log_inode_parent ioctl path** — bounded copy through fsync caller chain.
+- **PAX_REFCOUNT on subvol root during replay** — each per-subvol `btrfs_root` referenced by a log entry is acquired through saturating refcount so a malicious log cannot decrement a freed root.
+
+Per-doc rationale: the tree-log is the fsync-fast-path log that must survive replay through `replay_one_buffer` walkers, log_mutex-serialized writers, and PinOnly→Replay ordering; user payloads can enter the log via inline-data, so bounded usercopy on replay, refcount saturation on `log_writers` and per-subvol roots, and kCFI on the walk callbacks are required to keep a crafted log from gaining code execution at mount time.
+
 ## Open Questions
 
 (none at this Tier-3 level)

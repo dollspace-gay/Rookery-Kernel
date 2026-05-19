@@ -402,6 +402,19 @@ io_uring-futex reinforcement:
 - **Per-`hlist_del_init` idempotent unlink** — defense against per-double-unlink.
 - **Per-`io_req_async_data_free`/`_clear` exactly-once** — defense against per-async-data UAF.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked copy on `struct futex_waitv` arrays for `FUTEX_WAITV` and on `uaddr2`/`val3` field reads when carried in 128-byte SQEs.
+- **PAX_KERNEXEC** — write-protects the `io_op_defs[IORING_OP_FUTEX_*]` slots and the `futex_q.wake` indirect callback table.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on `io_futex_wait`, `io_futex_wake`, and `io_futex_waitv`.
+- **PAX_REFCOUNT** — saturating trap on `futex_q.requeue_pi_key` refcount and on `req->refs` taken across the `task_work` callback chain.
+- **PAX_MEMORY_SANITIZE** — zeroes `struct io_futex_data` on free via `io_cache_free`; scrubs `futex_q` slab on `hlist_del_init`.
+- **PAX_UDEREF on uaddr** — every `uaddr` SQE field is dereferenced via `futex_get_value_locked` / `get_futex_key` under explicit user-pointer fault; kernel-mode access to `uaddr` is forbidden; defends against per-kernel-pointer-aliased futex tag.
+- **PAX_RAP / kCFI** — forward-edge CFI on `futex_q.wake` (`futex_wake_fn`) dispatch invoked from io_uring task-work.
+- **GRKERNSEC_HIDESYM** — strips `io_futex_*` and `futex_q` helpers from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — restricts `pr_debug` futex traces and `WARN_ON_ONCE(futex_q)` shouts to CAP_SYSLOG.
+- **FUTEX_PRIVATE_FLAG mandatory** — io_uring futex ops require `FUTEX_PRIVATE_FLAG` in the issued `futex_op`; cross-process / shared-mm futexes are rejected at prep with `-EINVAL`; defends against per-cross-namespace futex side-channel and per-shared-page futex-key collision attacks across rings.
+
 ## Open Questions
 
 (none at this Tier-3 level)

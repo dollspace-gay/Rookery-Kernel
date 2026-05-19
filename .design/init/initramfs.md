@@ -523,6 +523,20 @@ initramfs reinforcement:
 - **Per-`panic_show_mem` on built-in initramfs failure** — defense against per-boot-with-corrupted-image proceeding silently.
 - **Per-`pr_warn_once` from `wait_for_initramfs` pre-rootfs_initcalls** — defense against per-silent-deadlock-or-stale-FS access.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked `copy_from_user`/`copy_to_user` on every cpio-header field (`c_namesize`, `c_filesize`, `c_check`) read from the initramfs blob during `unpack_to_rootfs`.
+- **PAX_KERNEXEC** — `init.data` cpio-decoder dispatch table marked read-only after `unpack_to_rootfs` returns; rejects late patching of `actions[]`.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on every `do_collect` / `do_header` / `do_copy` state transition during decompression.
+- **PAX_REFCOUNT** — saturating wraparound trap on the `initramfs_pages` accounting counter and on `wait_for_initramfs` completion refcount.
+- **PAX_MEMORY_SANITIZE** — wipes the decompression scratch buffer (`buf`) and the `header_buf` between cpio records; `free_initrd_mem` always poisons with `POISON_FREE_INITMEM`.
+- **PAX_UDEREF** — initramfs is built from kernel memory only; defends against per-bootloader-supplied user-mapped initrd by faulting any user-space deref before `phys_to_virt` translation.
+- **PAX_RAP / kCFI** — forward-edge CFI on the decoder action pointers (`do_start`, `do_collect`, `do_skip`) called via `state = actions[state]()`.
+- **GRKERNSEC_HIDESYM** — strips initramfs internal symbols from `/proc/kallsyms`; defends against per-decoder-state inference for ROP-chain construction.
+- **GRKERNSEC_DMESG** — gates `printk(KERN_INFO "Unpacking initramfs...")` and per-file decode traces behind CAP_SYSLOG.
+- **CPIO signature verify** — when `CONFIG_INITRAMFS_SIG=y`, the trailer hash is verified against a kernel-embedded key before any cpio record is committed to `rootfs`; verify failure ⟹ `panic_show_mem` per Hardening contract.
+- **Decompress sandbox** — `decompress_method` invocation is wrapped with `set_memory_nx` on the decompressor scratch arena; output ring is bounded by `INITRAMFS_MAX_SIZE`; per-record bounds-check defends against decompression-bomb expansion past `memblock`-reported initrd extent.
+
 ## Open Questions
 
 - Per-`CONFIG_INITRAMFS_PRESERVE_MTIME=n` builds, `do_utime` / `do_utime_path` / `dir_add` / `dir_utime` are no-ops; Rookery follows the same Kconfig contract. Decide whether to make mtime preservation mandatory in Rookery to reduce variance — TBD with maintainer.

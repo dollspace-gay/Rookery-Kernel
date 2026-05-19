@@ -520,6 +520,19 @@ provided-buffers reinforcement:
 - **Per-RW_ONCE on slot.addr/slot.len reads in select / peek** — defense against per-tearing under concurrent userspace stores between tail-publish and head-advance (best-effort).
 - **Per-IOU_PBUF_RING_INC partial retire respects min_left_sub_one** — defense against per-too-small-residual buffer re-use.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY on provided-buffer ring** — bounds-checked copy on the user-mapped `io_uring_buf_ring` head/tail/mask and on every `slot.addr` / `slot.len` field cracked open for receive selection.
+- **PAX_KERNEXEC** — write-protects `io_buffer_select`, `io_buffer_recycle`, and the kbuf op table; rejects late patching of the buffer-select hot path.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on `io_provide_buffers`, `io_register_pbuf_ring`, and `io_buffer_select`.
+- **PAX_REFCOUNT** — saturating trap on `bl->refs` (per-bgid buffer list) and on the `io_buffer.list` chain held under `ctx->uring_lock`.
+- **PAX_MEMORY_SANITIZE** — zeroes `struct io_buffer_list` and `struct io_buffer` slab objects on free; scrubs unregistered pbuf-ring backing pages before unpin.
+- **PAX_UDEREF** — every provided-buffer-ring slot is read with `READ_ONCE` against the kernel-side `kvaddr` mapping; ioctl-style `addr` writes from user are user-pointer-faulted at prep.
+- **PAX_RAP / kCFI** — forward-edge CFI on `io_kbuf_recycle`/`io_kbuf_drop` callbacks invoked from per-op cleanup.
+- **GRKERNSEC_HIDESYM** — strips kbuf helpers and `bl->head`/`bl->ring` pointers from kallsyms-leaking debug paths.
+- **GRKERNSEC_DMESG** — restricts `pr_warn` buffer-ring shrink/exhaustion traces to CAP_SYSLOG.
+- **BID/BGID bounds** — `bid` is masked by `bl->mask` (power-of-2 ring); `bgid` is `< IORING_MAX_REG_BUFFERS`; both bounds are checked in `__io_remove_buffers` and `io_buffer_select` under `ctx->uring_lock`; defends against per-BID-aliasing exhaustion and per-BGID OOB write to `ctx->io_bl[]`.
+
 ## Open Questions
 
 (none at this Tier-3 level)

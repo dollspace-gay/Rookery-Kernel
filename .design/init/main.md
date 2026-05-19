@@ -548,6 +548,20 @@ Boot-driver reinforcement:
 - **Per-`pti_finalize` after `free_initmem`** — defense against per-PTI page-table referencing freed pages.
 - **Per-bootconfig `xbc_calc_checksum` validation** — defense against per-corrupt bootconfig blob.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked copy on the `boot_command_line` parse path and on the `envp_init[]` / `argv_init[]` arrays handed to `run_init_process`.
+- **PAX_KERNEXEC** — `mark_readonly()` is the canonical Rookery hook for write-protecting `.rodata`, `.text`, and the initcall tables; called after `free_initmem` and before `pti_finalize`.
+- **PAX_RANDKSTACK** — armed inside `arch_call_rest_init` so the first user-mode `kernel_init` thread inherits stack-offset randomization from boot zero.
+- **PAX_REFCOUNT** — saturating wraparound trap on `init_task.usage`, on `system_state` transitions, and on every `__initcall_*` invocation count when audit is enabled.
+- **PAX_MEMORY_SANITIZE** — `free_initmem` and `free_initrd_mem` use `POISON_FREE_INITMEM`; `mark_readonly` rejects any RW alias to freed init pages.
+- **PAX_UDEREF** — enabled from `setup_arch` onward; `start_kernel` traps any user-pointer deref before `userspace_init` completes.
+- **PAX_RAP / kCFI** — forward-edge CFI on `initcall_entry_t` dispatch (`do_one_initcall` indirect call) and on the `init_filename`-resolved `run_init_process` exec hand-off.
+- **GRKERNSEC_HIDESYM** — strips initcall and start-kernel symbols from `/proc/kallsyms`; combined with `kptr_restrict=2` in early-boot sysctl seed.
+- **GRKERNSEC_DMESG** — restricts the `Booting Linux on physical CPU ...` and initcall-trace lines to CAP_SYSLOG once `setup_log_buf` has handed off.
+- **GRKERNSEC_KERN_LOCKDOWN at start_kernel** — lockdown level is decided in `start_kernel` (after `lockdown_init` and before `rest_init`); confidentiality vs. integrity tier is fixed before any user code runs, defends against per-late-policy lockdown bypass.
+- **Initcall sequence integrity** — `__initcall_start..__initcall_end` is checksummed (and on `CONFIG_RANDOMIZE_INITCALLS` the seed is recorded) before `do_initcalls`; mismatch ⟹ panic.
+
 ## Open Questions
 
 (none at this Tier-3 level)

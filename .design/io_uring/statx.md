@@ -205,6 +205,19 @@ STATX reinforcement:
 - **Per-do_statx credential invariant** — runs under submitter task creds (io-wq inherits), defense against per-privilege-escalation through ring polling.
 - **Per-user buffer copy_to_user EFAULT bounded** — defense against per-kernel-OOPS on stat buffer fault.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — the path string (`sqe->addr` → kernel filename) and the user `statx` buffer pointer (`sqe->off`) are copied through SMAP-enforced accessors with exact size; the kernel `struct statx` is written via the hardened `copy_to_user` variant that audits a STATX_BASIC_STATS-sized whitelist.
+- **PAX_KERNEXEC** — `vfs_statx` dispatch is `__ro_after_init`; per-fs `getattr` op pointer is read-only.
+- **PAX_RANDKSTACK** — io_uring statx prep runs with full stack randomization; no path-buffer aliasing across `cond_resched`.
+- **PAX_REFCOUNT** — `filename->refcnt`, dentry refs picked up via `lookup_at`, and submitter cred refs route through saturating atomics.
+- **PAX_MEMORY_SANITIZE** — on cancellation, `REQ_F_NEED_CLEANUP` triggers `putname()` and the request slab is zero-poisoned before free; `struct kstatx` on stack is overwritten before return.
+- **PAX_UDEREF** — every SMAP-gated user pointer (path, statx buf) honours STAC/CLAC bracketing.
+- **PAX_RAP / kCFI** — `inode_operations->getattr` indirect call carries a kCFI tag.
+- **GRKERNSEC_HIDESYM on st_ino/dev** — when `GRKERNSEC_HIDESYM` is enforced AND submitter lacks CAP_SYS_ADMIN, `st_ino`, `st_dev`, and `STATX_MNT_ID` are zeroed to prevent inode-number/device-ID leak from privileged mounts (matches the `/proc/self/fdinfo` hidesym policy).
+- **GRKERNSEC_DMESG** — statx ENOENT/EACCES storms are ratelimited; per-ring rate cap.
+- **statx mask reservation** — `stx_mask` reserved bits are validated to zero in prep; unrequested fields in the output buffer are zeroed before copy-out (no slab content leaks via uninitialized statx fields).
+
 ## Open Questions
 
 (none at this Tier-3 level)

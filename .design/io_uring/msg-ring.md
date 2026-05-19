@@ -422,6 +422,19 @@ MSG_RING reinforcement:
 - **Per-io_uring_sync_msg_ring SEND_FD reject** — defense against per-no-source-ring fd-grab undefined behavior.
 - **Per-IORING_SETUP_IOPOLL target trylock with -EAGAIN punt** — defense against per-IOPOLL ring lock contention stall.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY on MSG_DATA** — bounds-checked copy on the `user_data` / `len` / `flags` fields and on the SEND_FD `src_fd` interpreted via the source ring's fixed-file table.
+- **PAX_KERNEXEC** — write-protects `io_msg_ring_data`, `io_msg_send_fd`, and the cross-ring task-work entry points after init.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on every `io_msg_ring` issue path, on the remote-post task-work, and on the SEND_FD `fd_install` callback.
+- **PAX_REFCOUNT** — saturating trap on the `percpu_ref_get` taken on the target ctx and on `tw_complete` `_put` symmetry; on the source ring's `file->f_count` taken by `grab_file`.
+- **PAX_MEMORY_SANITIZE** — zeroes `io_msg` slab/stack frame on tw_complete; scrubs the source-side `req` once posted to the target.
+- **PAX_UDEREF** — the SEND_FD path dereferences source-ring file table entries via kernel pointer only; user payload (`addr3`) is faulted at prep.
+- **PAX_RAP / kCFI** — forward-edge CFI on the target-side `tw_complete` callback (`io_msg_tw_fd_complete`, `io_msg_tw_complete`).
+- **GRKERNSEC_HIDESYM** — strips msg-ring symbols and source/target ctx pointers from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — restricts cross-ring delivery `pr_debug` traces to CAP_SYSLOG.
+- **Cross-ring CAP_SYS_NICE** — issuing IORING_OP_MSG_RING against a target ring owned by a different task is gated by CAP_SYS_NICE; defends against per-target-ring CQE-storm DoS and per-cross-uid completion injection without explicit privilege.
+
 ## Open Questions
 
 (none at this Tier-3 level)

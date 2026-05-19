@@ -453,6 +453,20 @@ OPENCLOSE reinforcement:
 - **Per-pipe failure both-ends fput** — defense against per-pipe-end leak.
 - **Per-pipe_fixed full cleanup under submit lock** — defense against per-half-installed pipe pair.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY on path lookup** — bounds-checked `strncpy_from_user` on every `getname()` for `openat`, `openat2` (incl. `struct open_how` whose `flags`/`mode`/`resolve` triple is `copy_from_user`-bounded).
+- **PAX_KERNEXEC** — write-protects the open/close per-op `.prep` / `.issue` slots and the `file->f_op` table reads.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on `io_openat2`, `io_close`, `io_install_fixed_file`.
+- **PAX_REFCOUNT** — saturating trap on `file->f_count` taken across `fd_install` / `fput`, on `fdt->open_fds` accounting, and on the fixed-file table node refcount.
+- **PAX_MEMORY_SANITIZE** — zeroes `io_open` / `io_close` opcode state on cleanup; scrubs `filename` slab on `putname`.
+- **PAX_UDEREF** — every `pathname` SQE field is dereferenced via faulted `getname`; `struct open_how` user pointer is faulted at prep.
+- **PAX_RAP / kCFI** — forward-edge CFI on `file_operations.flush` invoked from `io_close` nonblock punt and on `f_op->release` from `fput`.
+- **GRKERNSEC_HIDESYM** — strips open/close helpers from kallsyms-leaking debug paths.
+- **GRKERNSEC_DMESG** — restricts open/close VFS error traces to CAP_SYSLOG.
+- **Path lookup PAX_USERCOPY** — already implied; reinforced by mandatory `getname_flags(... LOOKUP_EMPTY ...)` and `path_init` faulting for any kernel-aliased pathname.
+- **Fixed-fd table PAX_REFCOUNT** — `ctx->file_table.data.nodes[i]->refs` is saturating-incremented on `IORING_OP_FIXED_FD_INSTALL` and decremented on close/replace; defends against per-fixed-fd-slot refcount overflow on attacker-driven install/replace storms.
+
 ## Open Questions
 
 (none at this Tier-3 level)

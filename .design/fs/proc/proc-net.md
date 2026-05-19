@@ -243,6 +243,22 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: per-protocol seq-show callbacks (`tcp4_seq_show`, `udp4_seq_show`, `raw_seq_show`, `unix_seq_show`) flush through seq-buffer slabs whitelisted for user copy; socket-table dumps cannot bleed `struct sock` slab metadata.
+- PAX_KERNEXEC: `register_pernet_subsys()` of /proc/net entries runs with WP asserted; per-netns `proc_dir_entry::proc_iops` cannot be aliased onto kernel text.
+- PAX_RANDKSTACK: per-read kernel stack for `seq_file` iterators is re-randomized; an attacker cannot infer hashtable bucket layout across consecutive /proc/net/tcp reads.
+- PAX_REFCOUNT: `net::ns.count`, `proc_net::count`, and per-pde refcounts use `refcount_t` saturation; a fork-bomb of /proc/net readers cannot wrap and cause use-after-free against `cleanup_net()`.
+- PAX_MEMORY_SANITIZE: freed `struct sock` and per-netns `proc_dir_entry` slabs are zeroed before reuse; a slow /proc/net/tcp reader cannot resurrect a torn-down connection-establishment cookie.
+- PAX_UDEREF: per-seq user copy honors SMAP/PAN; a faulting `read()` target cannot pivot into a kernel-side socket-table walker.
+- PAX_RAP / kCFI: `proc_net_inode_operations`, `proc_net_dir_operations`, and per-protocol `seq_operations::{start,next,stop,show}` are signature-validated; fops swap to bypass netns scoping is rejected.
+- GRKERNSEC_HIDESYM: socket-pointer columns in /proc/net/tcp, /proc/net/udp, /proc/net/raw, /proc/net/unix are emitted through `%pK` with `kptr_restrict=2` semantics; callers without `CAP_SYS_ADMIN` see zero pointers, breaking heap-spray reconnaissance.
+- GRKERNSEC_DMESG: per-netns init/exit registration failures are rate-limited; a malicious user-ns spawn loop cannot flood the console with `proc_net_remove` warnings.
+- Raw-socket-table access (`/proc/net/raw`, `/proc/net/raw6`, `/proc/net/packet`) requires `CAP_NET_ADMIN` in the file's owning netns; non-cap readers see an empty table rather than `-EPERM` to avoid existence oracle.
+- Per-netns scoping: every `/proc/net/<file>` opens against `proc_inode::pde->parent->subdir` resolved via `current->nsproxy->net_ns`; a container cannot read another netns's socket table by `nsenter`-without-cred.
+- `inode->i_uid`/`i_gid` of /proc/net entries is mapped through the owning user-ns; an unprivileged container's /proc/net/tcp shows uids translated into that container's user-ns, never raw host uids.
+- Audit: any `/proc/net/<file>` open by a non-`CAP_NET_ADMIN` caller against a non-init netns is logged with netns inum and capability set, independent of dmesg.
+
 ## Open Questions
 
 (none — /proc/net per-netns infra exhaustively specified by upstream)

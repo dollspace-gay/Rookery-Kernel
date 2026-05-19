@@ -233,6 +233,22 @@ None beyond upstream defaults (gdb / drgn / crash continue to work for authorize
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: every `copy_to_user` from kcore segment buffers is bounded by `kc_segment::size` with whitelist check against vmcore-image slab cache; rejects copies overlapping kernel `.rodata` or stack canaries.
+- PAX_KERNEXEC: kcore read paths run with WP-bit asserted; any attempt to map kcore PT_LOAD over executable kernel text is refused at `read_kcore_iter()` entry.
+- PAX_RANDKSTACK: the per-cpu stack used for kcore segment iteration is re-randomized on each open; kernel addresses observed via kcore reads cannot leak deterministic stack offsets.
+- PAX_REFCOUNT: `kclist_lock` reader/writer counts use saturating `refcount_t`; PT_LOAD ELF header generation cannot wrap segment counts on hostile vmalloc churn.
+- PAX_MEMORY_SANITIZE: kcore page-buffer pool is poisoned on free; stale kernel heap contents cannot leak into a subsequent kcore read.
+- PAX_UDEREF: ELF note buffers are written with explicit `__force` user-pointer typing; SMAP/PAN remains asserted across every kcore segment dispatch.
+- PAX_RAP / kCFI: `proc_kcore_operations.read_iter`, `mmap`, and `release` are signature-checked indirect calls; an attacker cannot swap kcore fops to bypass capability checks.
+- GRKERNSEC_HIDESYM: kcore ELF symbol table strips `_text`/`_etext`/`__init_begin` resolution for callers without `CAP_SYSLOG`; addresses appear as zero offsets.
+- GRKERNSEC_DMESG: any rejected kcore open (lockdown, capability, or integrity-mode block) is rate-limited and never echoes the rejected segment address to dmesg.
+- /proc/kcore enforces strict `CAP_SYS_RAWIO` at `open()` regardless of file-DAC; setuid binaries with file-mode read bits cannot bypass.
+- Lockdown integrity mode (`LOCKDOWN_KCORE`) blocks open with `-EPERM` before any segment list materialization; confidentiality mode additionally blocks PT_NOTE generation.
+- Segment list rebuilds on `register_vmap_purge_notifier()` callbacks acquire `kclist_lock` as writer with PaX-validated refcount; concurrent reads see a consistent ELF view or are restarted.
+- All kcore reads are audited via `audit_log_kcore_access()` with capability set, lockdown mode, and segment offset; bypass attempts surface in audit even when dmesg is muted.
+
 ## Open Questions
 
 (none — kcore ELF format exhaustively specified by upstream + gdb/drgn/crash test corpus)

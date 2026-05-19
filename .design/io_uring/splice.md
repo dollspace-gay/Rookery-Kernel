@@ -339,6 +339,20 @@ Splice/Tee reinforcement:
 - **Per-len == 0 short-circuit** — defense against per-VFS edge-case zero-len divergence.
 - **Per-off == -1 sentinel ⟹ NULL** — defense against per-loff_t -1 reaching VFS as a real offset.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — splice SQE fields are read through the user-mapped SQ, which is mmap'd; the `sqe->splice_off_in`, `splice_fd_in`, `len`, and `off_in/_out` reads must be one-shot snapshots through SMAP-enforced accessors, never re-read post-validation.
+- **PAX_KERNEXEC** — splice op table is `__ro_after_init`; no runtime patching of `do_splice` dispatch.
+- **PAX_RANDKSTACK** — `io_splice` runs under full stack randomization; no stack-pointer caching across the pipe-side blocking point.
+- **PAX_REFCOUNT** — both `file_in` and `file_out` use the hardened `fget`/`fput` refcount path; on `SPLICE_F_FD_IN_FIXED` the registered-files node refcount is the saturating wrapper.
+- **PAX_MEMORY_SANITIZE** — splice does not own a kmalloc'd per-op buffer (pipe pages are the medium); on cancellation the request slab is zero-poisoned before kmem_cache_free.
+- **PAX_UDEREF** — SQE field reads on the user-mapped SQ pass through SMAP gates; pipe-side `iov_iter` setup uses the hardened accessor variants.
+- **PAX_RAP / kCFI** — `file->f_op->splice_read` / `splice_write` indirect calls carry kCFI type tags; mismatched f_op (e.g., character-device without splice support) traps rather than silently zero-returning.
+- **GRKERNSEC_HIDESYM** — splice failure paths must not emit `file_in`/`file_out` kernel pointers into audit.
+- **GRKERNSEC_DMESG** — EOPNOTSUPP/EINVAL diagnostics on the splice fast path are ratelimited; bulk-splice failure storms cannot drown out dmesg.
+- **fd permission boundary** — both endpoints honour FMODE_READ/FMODE_WRITE; the pipe-side validation refuses non-pipe-on-pipe-side (one end must be a pipe in vanilla splice); grsec adds a refuse-cross-mount-namespace check when both endpoints are real files and CAP_SYS_ADMIN is absent.
+- **Pipe-side validation** — splice into a pipe whose `i_pipe->files == 0` after read-side close traps instead of proceeding; defense against TOCTOU pipe-reader exit.
+
 ## Open Questions
 
 (none at this Tier-3 level)

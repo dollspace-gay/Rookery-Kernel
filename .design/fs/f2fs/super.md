@@ -660,6 +660,23 @@ F2FS-super reinforcement:
 - **Per-NEED_FSCK propagated to next mount via CP_FSCK_FLAG** — defense against per-suppressed-corruption.
 - **Per-write back-up SB first then primary in commit_super** — defense against per-double-faulted SB.
 
+## Grsecurity/PaX-style Reinforcement
+
+The f2fs superblock and checkpoint surfaces are a privileged write boundary: a forged CKPT pack can pivot the segment manager onto attacker-chosen sit/nat/ssa blocks. The following PaX/grsecurity-style controls augment the in-tree mount and CP defenses above.
+
+- **PAX_USERCOPY** — `f2fs_sb_info`, `f2fs_checkpoint`, and `f2fs_nm_info` slabs declare zero-byte usercopy whitelists; sysfs and `f2fs_ioctl` paths that surface SB fields use bounded copies into stack scratch buffers.
+- **PAX_KERNEXEC** — CKPT write-back, NAT/SIT bitmap flush, and feature-flag dispatch tables are placed in `__ro_after_init` text; W^X is enforced over the recovery-time fixup pages.
+- **PAX_RANDKSTACK** — mount, remount, and the recovery worker enter with randomized kernel stacks so attempts to groom the `f2fs_sb_info` super.private locals are starved of layout knowledge.
+- **PAX_REFCOUNT** — `sbi->s_active`, `cp_rwsem` waiter counts, and `nm_i->nat_cnt[]` use saturating atomics that BUG on wrap, closing UAF windows around `f2fs_put_super` and CP discard.
+- **PAX_MEMORY_SANITIZE** — discarded CKPT pages, NAT/SIT journal entries, and freed `f2fs_io_info` records are poisoned so residual block addresses cannot be mined post-umount.
+- **PAX_UDEREF** — every `f2fs_ioctl` opcode (defrag, gc, atomic write, compression) crosses the boundary under uderef, refusing forged pointers and stack-pivot tricks.
+- **PAX_RAP / kCFI** — the per-feature dispatch (`f2fs_compress_ops`, `f2fs_quota_ops`, `f2fs_xattr_handler`) is typed-call-site-verified to defeat a corrupted feature flag steering execution.
+- **GRKERNSEC_HIDESYM** — `__f2fs_*`, `do_checkpoint`, and the per-superblock `sbi->s_*` pointers are stripped from `/proc/kallsyms` for non-CAP_SYSLOG callers.
+- **GRKERNSEC_DMESG** — `f2fs_handle_error`, `f2fs_warn`, and CP-fail prints are gated behind CAP_SYSLOG, denying unprivileged corruption oracles.
+- **CKPT double-buffer signature** — both pack-0 and pack-1 are sealed with a HMAC tied to the on-disk SB UUID, and the recovery path refuses to roll forward on signature mismatch even when the magic and CRC validate.
+- **F2FS_FEATURE_VERITY / ENCRYPT enforcement** — when these feature bits are set in the SB, the mount path makes them mandatory: any inode flag that would bypass verity/encrypt is refused with `EPERM` rather than silently downgraded.
+- **Per-quota and per-namespace mount option lockdown** — `quota`, `inline_xattr`, `compress_mode`, and `atgc` flips after first mount require CAP_SYS_ADMIN in the init namespace and are denied for unprivileged user-namespace mounts.
+
 ## Open Questions
 
 (none at this Tier-3 level)

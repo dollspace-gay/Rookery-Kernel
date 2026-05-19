@@ -447,6 +447,23 @@ File-locking reinforcement:
 - **Per-FMODE_READ/WRITE check** — defense against per-RDONLY-fd write-lock escalation.
 - **Per-security_file_lock LSM hook** — defense against per-policy bypass of lock state.
 
+## Grsecurity/PaX-style Reinforcement
+
+The POSIX/BSD/OFD file-locking core is a process-spanning shared-state machine: a UAF on `file_lock` or a deadlock-cycle mistake gives a local attacker a denial-of-service vector against root processes (databases, package managers). The following PaX/grsecurity-style controls augment the in-tree locks_owner and deadlock defenses above.
+
+- **PAX_USERCOPY** — `file_lock` and `file_lock_context` slabs declare zero-byte usercopy whitelists; the `GETLK` reply marshalling uses a stack-bounded `flock`/`flock64` scratch.
+- **PAX_KERNEXEC** — `lock_manager_operations` dispatch and the per-fs `fl_lmops` overrides live in `__ro_after_init` text; W^X is enforced over the conflict-detection helpers.
+- **PAX_RANDKSTACK** — `fcntl_setlk`, `fcntl_setlk64`, and `flock` syscalls enter on randomized stacks so the deadlock-cycle walker locals cannot be groomed.
+- **PAX_REFCOUNT** — `fl->fl_refcnt`, the per-context `flc_lock` waiter counts, and the blocker hash chain backrefs are saturating atomics that BUG on wrap.
+- **PAX_MEMORY_SANITIZE** — freed `file_lock` and `file_lock_context` records are poisoned so residual owner pids / lockowner4 strings cannot be mined.
+- **PAX_UDEREF** — `copy_from_user`/`copy_to_user` of `struct flock*` is guarded by uderef; the per-syscall flock parsing refuses kernel-space addresses.
+- **PAX_RAP / kCFI** — `lock_manager_operations->lm_get_owner`, `->lm_lock_expirable`, and the per-fs notify callbacks are typed-call-site-verified.
+- **GRKERNSEC_HIDESYM** — `posix_*lock*`, `flock_lock_file*`, and `__locks_*` are stripped from `/proc/kallsyms` for non-CAP_SYSLOG callers; `/proc/locks` is gated behind CAP_SYS_ADMIN for cross-uid view.
+- **GRKERNSEC_DMESG** — locks warn-prints (deadlock detected, lock leak) are gated behind CAP_SYSLOG.
+- **file_lock refcount strict** — `fl_refcnt` underflow on `locks_release_private` panics rather than warns; the FL_SLEEP cancel path is reference-fenced against `__locks_delete_block`.
+- **Deadlock-detection cycle strict** — the `posix_locks_deadlock` walk is bounded at `MAX_LOCK_DEPTH` with a per-uid cycle-detection counter; a uid that crosses the limit gets `EDEADLK` rather than a soft retry, denying livelock DoS.
+- **OFD locks strict** — F_OFD_SETLK / SETLKW require the same `struct file*` identity at unlock; cross-file-descriptor OFD unlock via fd dup is refused with `EINVAL` to prevent owner spoofing.
+
 ## Open Questions
 
 (none at this Tier-3 level)

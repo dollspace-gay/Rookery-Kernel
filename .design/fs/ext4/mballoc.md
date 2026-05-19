@@ -702,6 +702,23 @@ mballoc reinforcement:
 - **Per-mb_optimize_scan XArray bounds** — defense against per-OOB index from corrupted group_info.
 - **Per-bb_counters audit at unload** — defense against per-leak of buddy state across umount.
 
+## Grsecurity/PaX-style Reinforcement
+
+The mballoc allocator path is a high-value target for filesystem-level escalation: corrupt buddy state lets an attacker hand the same blocks to two inodes, and a forged `ext4_prealloc_space` can be aimed at root-reserved extents. The following PaX/grsecurity-style controls layer on top of the in-tree hardening above.
+
+- **PAX_USERCOPY** — every `mb_buddy_bmap`, `ext4_group_info`, and `ext4_prealloc_space` slab is declared with a usercopy whitelist of zero bytes; any leak into user-supplied buffers via the rare ioctl probe paths is refused.
+- **PAX_KERNEXEC** — the buddy bitmap manipulation hot path runs with W^X-only text; the mb_optimize_scan dispatch tables are placed in `__ro_after_init` and reverified after boot.
+- **PAX_RANDKSTACK** — `ext4_mb_regular_allocator` and `ext4_mb_new_blocks` enter on a randomized kernel stack, so stack-grooming attacks against the goal/criteria locals are starved of layout knowledge.
+- **PAX_REFCOUNT** — `pa->pa_count`, `grp->bb_counters[]`, and the per-block-group `bb_free_root` reference count are all saturating atomics that BUG on wrap, preventing UAF on prealloc list discard.
+- **PAX_MEMORY_SANITIZE** — freed `ext4_prealloc_space` and discarded buddy pages are poisoned, so a later attacker cannot mine residual goal/length hints to predict allocator decisions.
+- **PAX_UDEREF** — the few mballoc tunables exposed via `/proc/fs/ext4/<dev>/mb_*` cross the user/kernel boundary under uderef so a forged pointer cannot be smuggled in.
+- **PAX_RAP / kCFI** — the `ext4_allocation_context.ac_op` dispatch and the per-group `bb_check_counter` callbacks are typed-call-site-verified; a corrupted criteria pointer cannot redirect into a ROP gadget.
+- **GRKERNSEC_HIDESYM** — `ext4_mb_*` symbols and the per-bg `bb_bitmap_loaded` arrays are stripped from `/proc/kallsyms` for non-CAP_SYSLOG callers, removing the gratis allocator map.
+- **GRKERNSEC_DMESG** — mballoc warn-prints (group corruption, optimize-scan retries, prealloc list audit) are gated behind CAP_SYSLOG so a non-root caller cannot harvest layout oracles via dmesg.
+- **Per-bg locality enforcement** — group-relative allocation under PAX_REFCOUNT-guarded `bb_free` ensures cross-group escalation across uid namespaces is refused even on benign-looking goal hints.
+- **mb_optimize_scan XArray hardening** — the XArray index bounds are PAX_USERCOPY-checked and the per-criteria order arrays are sealed `__ro_after_init` once mount completes.
+- **Prealloc PAX_REFCOUNT** — `pa_count`, `pa_inode->i_prealloc_lock` users, and the per-cpu locality list inserts are refcount-saturating so a double-discard cannot leak blocks back to a hostile group.
+
 ## Open Questions
 
 (none at this Tier-3 level)

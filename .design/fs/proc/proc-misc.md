@@ -414,6 +414,22 @@ proc-misc reinforcement:
 - **Per-`PROC_ENTRY_PERMANENT` proc_ops flag for /proc/stat, /proc/cpuinfo** — defense against per-late-unregister race.
 - **Per-`show_irq_gap` zeros-array bounded write** — defense against per-OOB-write in IRQ-gap fill.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: every per-misc-file `seq_printf`/`seq_write` flushes through `seq_buf` slab-whitelisted into user space; /proc/loadavg, /proc/uptime, /proc/version, /proc/cpuinfo and /proc/meminfo cannot exfiltrate adjacent allocator metadata.
+- PAX_KERNEXEC: misc-show callbacks (`loadavg_proc_show`, `uptime_proc_show`, `version_proc_show`, `meminfo_proc_show`) execute with WP asserted; a stray `seq_printf` argument-list mismatch cannot patch kernel text.
+- PAX_RANDKSTACK: per-open kernel stack for misc seq-iterators is re-randomized; cpuinfo timing oracles cannot infer fixed stack offsets across reads.
+- PAX_REFCOUNT: `pde_users` and `proc_inode::ent` refcounts on each misc entry use `refcount_t` with saturation; concurrent `pde_remove` cannot underflow against unbounded /proc readers.
+- PAX_MEMORY_SANITIZE: seq-buffer slabs (`seq_buf`, kmalloc-1k power-of-two) are poisoned on free so a subsequent /proc/meminfo read cannot recover a prior /proc/cpuinfo dump from a recycled page.
+- PAX_UDEREF: `seq_read_iter`'s final user copy honors SMAP/PAN; a faulting userspace mapping cannot trick the kernel into a write-side oracle.
+- PAX_RAP / kCFI: each misc PDE installs its `proc_ops` via signature-validated registration; an attacker cannot swap `loadavg_proc_show` for `version_proc_show` to bypass capability gating.
+- GRKERNSEC_HIDESYM: `/proc/version` masks any kernel pointer (`%pK`) for callers without `CAP_SYSLOG`; build-id, GCC version string, and link timestamp are emitted, raw symbol addresses are not.
+- GRKERNSEC_DMESG: rejected misc opens (lockdown, capability) are rate-limited so a fuzzer cannot flood console.
+- Per-file CAP gating: /proc/kallsyms requires `CAP_SYSLOG` for non-zero address resolution; /proc/slabinfo requires `CAP_SYS_ADMIN` for write of `force_rcu` toggles; /proc/buddyinfo and /proc/zoneinfo expose only ns-visible zones under user-ns scoping.
+- /proc/uptime jitter: idle-time accumulator is read with `seqcount_t` retry under PaX-validated barriers so wraparound during a torn read yields `-EAGAIN` rather than negative deltas.
+- /proc/version HIDESYM enforcement: UTS namespace strings are bounded by `__NEW_UTS_LEN`; a forged `setdomainname()` cannot inject newline-smuggled console-command sequences into a /proc/version read.
+- Audit: misc-file opens by non-`CAP_SYS_ADMIN` callers under lockdown-confidentiality are logged with the rejected pathname and capability set, independent of dmesg suppression.
+
 ## Open Questions
 
 - /proc/swaps formatting under suspended-swap (swap-area frozen during hibernate): is the row hidden or shown stale?

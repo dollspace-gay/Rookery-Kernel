@@ -531,6 +531,20 @@ SQPOLL reinforcement:
 - **Per-task_work cap 32 (TW_CAP)** — defense against per-task-work-flood blocking submission.
 - **Per-IORING_REGISTER_IOWQ_AFF park-set-unpark** — defense against per-affinity-update mid-flight race.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `io_uring_params.sq_thread_cpu`, `sq_thread_idle`, and `wq_fd` are validated on entry; `cpu` is bounds-checked against the submitter's `cpus_allowed`, and the copy is exact-width (no slack).
+- **PAX_KERNEXEC** — the SQ poll thread's function table is `__ro_after_init`; `io_sq_thread` cannot be patched at runtime.
+- **PAX_RANDKSTACK** — the SQ poll kthread inherits the standard kernel-stack randomization at fork; per-iteration `cond_resched` does not stabilize the stack pointer between submissions.
+- **PAX_REFCOUNT** — `sqd->refs`, the per-ctx attach counter, and `task_struct` references held by the poll thread route through the saturating wrapper.
+- **PAX_MEMORY_SANITIZE** — on `IORING_SETUP_SQPOLL` teardown, the `io_sq_data` slab is zero-poisoned before `kfree`; task pointer fields cleared so a late wakeup traps.
+- **PAX_UDEREF** — params copy from userspace through SMAP-enforced accessors.
+- **PAX_RAP / kCFI** — `io_sq_thread` is the kthread entry; kCFI tag matches the kthread signature so an attacker-controlled function pointer cannot reroute it.
+- **GRKERNSEC_HIDESYM** — sqd/task pointer never appears in dmesg/audit; only PID is logged.
+- **GRKERNSEC_DMESG** — affinity-update failures and CPU-bind rejections are ratelimited per ring.
+- **SQ_THREAD CAP_SYS_NICE** — `IORING_SETUP_SQ_AFF` (pinning to a specific CPU) requires CAP_SYS_NICE under grsec, matching the kernel default; further, `sq_thread_idle == 0` (busy-spin) requires CAP_SYS_NICE to avoid a CPU-monopolizing kthread for unprivileged tasks.
+- **ATTACH_WQ thread-group strict** — `IORING_SETUP_ATTACH_WQ` is refused if the target ring's `sqd->task_pid` is not in the submitter's thread group AND submitter lacks CAP_SYS_ADMIN; defense against cross-thread-group SQE injection via a shared worker thread.
+
 ## Open Questions
 
 (none at this Tier-3 level)

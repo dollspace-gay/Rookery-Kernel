@@ -604,6 +604,20 @@ io_uring/rsrc reinforcement:
 - **Per-aux CQE on node.tag at free** — observable release notification (no silent invalidation).
 - **Per-headpage_already_acct dedup across pages + previously-registered table** — defense against per-double-RLIMIT-charge on aliased huge pages.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `io_rsrc_data` table updates (`struct io_uring_rsrc_update2`, fds array, iovec array) are USERCOPY-allowlisted to exact width; reject `nr > UIO_MAXIOV` and short copies pre-dispatch.
+- **PAX_USERCOPY on fixed-buffer iovecs** — registered iov_base/iov_len pairs are bounded against the submitter's `mm` rlimit; per-buffer page-pin table is allocated from a USERCOPY-flagged kmem cache.
+- **PAX_KERNEXEC** — rsrc free-work callback table is `__ro_after_init`; no runtime patching of `io_rsrc_node` ops.
+- **PAX_RANDKSTACK** — `io_register_rsrc` runs with full stack randomization; no caching of `&iov` across `cond_resched` during long updates.
+- **PAX_REFCOUNT on fixed-file/buffer tables** — `node->refs`, `rsrc_data->refs`, and the `percpu_ref` of the rsrc_node use the saturating wrapper; release on the wrong half (file vs. buffer) saturates rather than wraps.
+- **percpu_ref tracking under grsec** — `percpu_ref_kill` → `rcu_barrier` sequence is auditable; HARDENED-PERCPU mode adds a poisoning step after kill so a late `percpu_ref_get` traps instead of resurrecting.
+- **PAX_MEMORY_SANITIZE** — on REGISTER_BUFFERS_UPDATE and REGISTER_FILES_UPDATE, the freed slot's `node` slab is zero-poisoned (path+tag fields cleared) before kfree; prevents UAF via stale tag-CQE consumer.
+- **PAX_UDEREF** — every rsrc-update arg copy uses SMAP-enforced accessors.
+- **PAX_RAP / kCFI** — `io_rsrc_node->free` is an indirect call; emit kCFI tag matching the `(struct io_ring_ctx *, struct io_rsrc_node *)` signature.
+- **GRKERNSEC_HIDESYM** — node addresses must not appear in rsrc-failure audit lines; tag-emit CQEs are user-data only, never kernel-data.
+- **GRKERNSEC_DMESG** — RLIMIT_MEMLOCK exhaustion warnings on registered-buffer pinning are ratelimited per submitter.
+
 ## Open Questions
 
 (none at this Tier-3 level)

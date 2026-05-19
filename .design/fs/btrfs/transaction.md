@@ -353,6 +353,29 @@ Transaction reinforcement:
 - **Per-fs_state ERROR forces RO** — defense against per-corrupted-write-after-abort.
 - **Per-block_rsv release on end** — defense against per-rsv-leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **Transaction PAX_REFCOUNT** — saturating refcount on `btrfs_trans_handle` and `running_transaction`, blocking ref-overflow attacks across `btrfs_join_transaction` / `btrfs_end_transaction`.
+- **Super-block write barrier integrity** — `write_all_supers` with PREFLUSH+FUA flagged as ROOKERY_BARRIER region; kCFI on the I/O completion callbacks so post-commit super writeout cannot be redirected.
+- **PAX_MEMORY_SANITIZE on trans_handle dealloc** — `trans_handle` carries `block_rsv` and pending-snapshot pointers; on free the struct is zeroed before slab return.
+- **PAX_USERCOPY on ioctl(START_SYNC / WAIT_SYNC)** — bounded copy from user-space transid arg.
+- **GRKERNSEC_HIDESYM on transaction-abort dump** — `BTRFS_FS_ERROR` diagnostic suppresses kernel pointer disclosure.
+- **PAX_REFCOUNT on num_writers** — atomic counter saturates rather than wraps on writer-storm.
+- **kCFI on commit kthread entry** — `transaction_kthread` only entered through signed function pointer.
+
+Per-doc rationale: btrfs transactions arbitrate cross-tree atomicity via `running_transaction`, writer/blocked counters, and a state machine that must monotonically advance to RUNNING → COMMIT_PREP → UNBLOCKED → SUPER_COMMITTED → COMPLETED; refcount saturation, sanitize-on-free, and kCFI on the commit dispatcher and IO completion paths protect the boundary between in-memory commit state and on-disk super writeout.
+
 ## Open Questions
 
 (none at this Tier-3 level)

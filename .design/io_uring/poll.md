@@ -737,6 +737,20 @@ Poll reinforcement:
 - **Per-`io_poll_remove_all` on ctx teardown** — defense against per-leak on ring destroy.
 - **Per-`apoll_cache` (`io_cache_alloc`) GFP_ATOMIC + `kmalloc_obj` fallback** — defense against per-allocation under uring_lock.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked copy on the `events` mask / `addr` user-data fields of `IORING_OP_POLL_ADD` and on `IORING_OP_POLL_REMOVE` match key.
+- **PAX_KERNEXEC** — write-protects `io_poll_wake`, `io_poll_queue_proc`, and the `wait_queue_entry_t.func` slot referenced by every armed poll.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on every `io_poll_add`, `io_poll_remove`, and `io_poll_task_func` entry.
+- **PAX_REFCOUNT** — saturating trap on `req->refs` taken across arm/wake/complete (multishot may bounce many times) and on the wait-queue entry refcount.
+- **PAX_MEMORY_SANITIZE** — zeroes `struct io_poll` and the cached `struct async_poll` on free via `apoll_cache`; scrubs `wait_queue_entry_t` on `list_del_init`.
+- **PAX_UDEREF** — `events`, `addr`, and multishot tag fields are user-faulted at prep; defends against per-kernel-aliased poll mask injection.
+- **PAX_RAP / kCFI** — forward-edge CFI on `wait_queue_entry_t.func` (`io_poll_wake`) dispatched from the file's poll head and on `f_op->poll` indirect call.
+- **GRKERNSEC_HIDESYM** — strips poll helpers and apoll-cache pointers from kallsyms-leaking paths.
+- **GRKERNSEC_DMESG** — restricts `WARN_ON_ONCE` and `pr_debug` poll traces (multishot self-wake, APOLL_MAX_RETRY) to CAP_SYSLOG.
+- **Poll-armed completion REFCOUNT** — every armed poll bumps `req->refs`; the wake handler `io_poll_wake` decrements once on hit and once on disarm; saturating trap defends against per-double-wake refcount-underflow leading to use-after-free on `req`.
+- **Multishot PAX_RAP** — multishot rearm path re-uses the same `wait_queue_entry_t.func` slot through the file's poll head; kCFI tag on `io_poll_wake` ensures an attacker who repoints a wake-queue entry to a same-type function still hits a tag mismatch at the next event.
+
 ## Open Questions
 
 (none at this Tier-3 level)

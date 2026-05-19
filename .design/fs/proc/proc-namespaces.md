@@ -307,6 +307,22 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: `ns_get_path()` and `ns_get_name()` write into seq-buffer slabs whitelisted for user copy; readlink results for `/proc/<pid>/ns/<type>` cannot leak adjacent `nsproxy` heap content.
+- PAX_KERNEXEC: `setns(2)` reassignment of `task_struct::nsproxy` runs under `task_lock()` with WP asserted; an attacker cannot abuse a hostile `ns_common::ops` pointer to redirect into kernel text.
+- PAX_RANDKSTACK: the per-syscall stack frame for `setns()` and `unshare()` is re-randomized so ns-pointer races cannot fingerprint kernel-stack layout.
+- PAX_REFCOUNT: every `ns_common::count` and `nsproxy::count` is `refcount_t` with saturation; an unbounded `pidfd` / `/proc/<pid>/ns/<type>` open population cannot wrap a namespace refcount and cause UAF.
+- PAX_MEMORY_SANITIZE: freed `nsproxy`, `pid_namespace`, `net`, and `user_namespace` slabs are zeroed before reuse; a successor namespace cannot inherit a stale credential pointer through slab reuse.
+- PAX_UDEREF: readlink output is written with SMAP/PAN asserted; a faulting `readlink` target cannot pivot into a kernel-mode write.
+- PAX_RAP / kCFI: `proc_ns_link_inode_operations`, `proc_ns_dir_operations`, and `nsfs_dentry_operations` are signature-validated; namespace fops swap to bypass `setns()` capability checks is rejected.
+- GRKERNSEC_HIDESYM: `ns_common::inum` is the only address-shaped value exposed; the underlying `struct nsproxy` pointer is never serialized; `%pK` is enforced if any per-ns debug field is added.
+- GRKERNSEC_DMESG: `setns(2)` failures (capability, EINVAL on wrong-ns-type) are rate-limited; a fuzzer probing CLONE_NEW* combinations cannot DoS the console.
+- `/proc/<pid>/ns/<type>` open enforces `CAP_SYS_PTRACE` against the target task's user namespace AND `PR_SET_DUMPABLE` of the target; setuid victims cannot be probed by unprivileged ptrace-blocked attackers.
+- `setns(fd, nstype)` validates: (a) capability in target user-ns, (b) `nstype==0` or matches `ns_common::ops->type`, (c) PID-ns reassignment forbidden after `fork()` (only affects children), (d) cgroup-ns reassignment requires `CAP_SYS_ADMIN` over both source and target.
+- `pidfd_open()` retrieves namespace handles without bypassing `ptrace_may_access(PTRACE_MODE_READ_FSCREDS)`; readlink on `/proc/<pid>/ns/*` for a non-dumpable victim returns the same `EACCES` as `/proc/<pid>/maps`.
+- Audit: every `setns()` and `unshare()` is logged with source/target inum, capability set, and the namespace types involved — independent of dmesg.
+
 ## Open Questions
 
 (none — namespace + setns infra exhaustively specified by upstream + container-runtime test corpus)

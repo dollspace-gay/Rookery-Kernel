@@ -503,6 +503,29 @@ Ceph fs-client reinforcement:
 - **Per-test_dummy_encryption immutable on remount** — defense against per-key-substitution.
 - **Per-CAP_SYS_ADMIN for mount** — inherited from VFS.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **cephx-key MEMORY_SANITIZE** — all `ceph_crypto_key` slab allocations zeroed on free so authentication secrets cannot leak via slab reuse into a sibling mount.
+- **libceph osdmap PAX_USERCOPY** — OSD-map blob parsed from server message goes through bounded `ceph_decode_*` helpers; PAX_USERCOPY enforces the parser stays within the message payload bounds.
+- **PAX_REFCOUNT on ceph_fs_client** — saturating refcount on `fs_client` and `ceph_client` so an MDS-message storm cannot wrap `nref` and produce UAF on `kill_sb`.
+- **kCFI on ceph_connection_ops** — message-receive / message-complete callbacks dispatched only via signed function pointer.
+- **PAX_MEMORY_SANITIZE on ceph_mds_session** — caps + capsnaps zeroed on session free.
+- **GRKERNSEC_HIDESYM on libceph debug paths** — osdmap / monmap dumps suppress kernel pointer disclosure.
+- **PAX_USERCOPY on mount-option parsing** — `wsize`/`rsize`/`snapdirname`/`server_path` user copy bounded.
+
+Per-doc rationale: ceph-fs-client trusts the network for osdmap/monmap/MDS messages and holds long-lived cryptographic secrets; sanitize-on-free on cephx keys, bounded usercopy on map parsers, saturating refcount on `fs_client`, and kCFI on connection callbacks are required to prevent cross-mount key leakage and message-driven RCE.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -598,6 +598,22 @@ iomap buffered-I/O reinforcement:
 - **Per-flush_dcache_folio on mapping_writably_mapped** — defense against per-aliased-mapping stale dcache on architectures w/ VIVT.
 - **Per-fault_in_iov_iter_readable before copy_folio_from_iter_atomic** — defense against per-page-fault-under-folio-lock deadlock.
 
+## Grsecurity/PaX-style Reinforcement
+
+The iomap buffered-I/O core is the user/kernel data boundary for ext4/xfs/gfs2/zonefs/btrfs reflink; any iov_iter mismatch or folio-state-poisoning here turns into a data-integrity or info-leak bug. The following PaX/grsecurity-style controls augment the in-tree iomap_iter and folio_state defenses above.
+
+- **PAX_USERCOPY** — `iomap_folio_state` and the per-iter scratch buffers declare zero-byte usercopy whitelists; every `copy_folio_to_iter` / `copy_folio_from_iter_atomic` is bounded against `folio_size()` and refuses partial-folio over-runs.
+- **PAX_KERNEXEC** — `iomap_*_ops` dispatch and the per-folio block-mapping callbacks live in `__ro_after_init` text; W^X is enforced over the per-fs override tables.
+- **PAX_RANDKSTACK** — `iomap_write_iter`, `iomap_read_iter`, and the page-fault-driven `iomap_page_mkwrite` enter on randomized stacks so locals in `iomap_iter` cannot be groomed.
+- **PAX_REFCOUNT** — `folio->_refcount` and the per-folio `iomap_folio_state->read_bytes_pending` / `write_bytes_pending` are saturating atomics that BUG on wrap.
+- **PAX_MEMORY_SANITIZE** — freed `iomap_folio_state` and short-read tail pads are poisoned so residue between read and copy_to_iter cannot leak prior page contents.
+- **PAX_UDEREF** — `iomap_iter` validates that the iov_iter's user pointers reside in user-space before every fault-in and copy.
+- **PAX_RAP / kCFI** — `iomap_ops->iomap_begin` and `->iomap_end` are typed-call-site-verified; a corrupted ops pointer cannot redirect into a gadget.
+- **GRKERNSEC_HIDESYM** — `iomap_*`, `iomap_folio_state`, and per-fs `iomap_ops` instances are stripped from `/proc/kallsyms` for non-CAP_SYSLOG callers.
+- **GRKERNSEC_DMESG** — iomap warn-prints (mapping mismatch, holepunch race, folio state invariant) are gated behind CAP_SYSLOG.
+- **iomap_iter PAX_USERCOPY** — every call into iov_iter from `iomap_write_iter`/`iomap_dio_iter` is wrapped in PAX_USERCOPY checks that re-derive the destination folio offset and length and refuse mismatched iters.
+- **iomap_folio_state validation** — on `iomap_finish_folio_read` / `write`, the per-folio uptodate and dirty bitmaps are reverified against the iomap extent's block count; any mismatch fences the I/O with `EIO` and marks the inode `IOMAP_INVALID`.
+
 ## Open Questions
 
 (none at this Tier-3 level)

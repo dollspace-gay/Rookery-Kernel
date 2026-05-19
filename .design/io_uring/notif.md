@@ -355,6 +355,19 @@ Notification reinforcement:
 - **Per-IO_NOTIF_UBUF_FLAGS includes SKBFL_DONT_ORPHAN** — defense against per-orphan-strip losing notification.
 - **Per-IO_NOTIF_UBUF_FLAGS includes SKBFL_ZEROCOPY_FRAG** — defense against per-skb-copy-elision miss.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked copy on the user-supplied `notif_idx` / `flags` fields that index into the per-context notif slab; SEND_ZC completion `res`/`flags` rendered into the CQE is write-bounded.
+- **PAX_KERNEXEC** — write-protects `io_notif_complete_tw_ext`, `io_tx_ubuf_complete`, and the `ubuf_info_msgzc.ops` callback vector after init.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on every `io_alloc_notif`, `io_notif_flush`, `io_tx_ubuf_complete` entry.
+- **PAX_REFCOUNT** — saturating wraparound trap on `ubuf_info.refcnt` and on `req->refs` taken across the notif task-work chain; on `mm->pinned_vm` accounting via `io_notif_account_mem`.
+- **PAX_MEMORY_SANITIZE** — zeroes `struct io_notif_data` slab on free via `io_cache_free`; scrubs the `ubuf_info_msgzc` allocation on `__io_notif_complete_tw`.
+- **PAX_UDEREF** — notif state is kernel-internal; defends any user-pointer aliasing by trapping the SEND_ZC `notif_idx` user-payload lane at prep.
+- **PAX_RAP / kCFI** — forward-edge CFI on `ubuf_info.ops->complete` (`io_tx_ubuf_complete`) dispatch from the network stack.
+- **GRKERNSEC_HIDESYM** — strips notif helpers and `ubuf_info` pointers from kallsyms-leaking debug paths.
+- **GRKERNSEC_DMESG** — restricts `pr_debug` SEND_ZC and notif-flush traces to CAP_SYSLOG.
+- **Zerocopy notify PAX_REFCOUNT** — `ubuf_info.refcnt` increments on every skb that references the notif fragment and decrements on `skb_zcopy_clear`/`skb_orphan_frags`/skb-free; saturating trap defends against per-skb-clone refcount overflow leading to use-after-free on the user-locked pinned page.
+
 ## Open Questions
 
 (none at this Tier-3 level)

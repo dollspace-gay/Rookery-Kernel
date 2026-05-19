@@ -541,6 +541,20 @@ io_uring/net reinforcement:
 - **Per-bundle finish drops F_BUFFERS_COMMIT-pending state on retry** — defense against per-double-commit of provided buffer.
 - **Per-zc-notif accounted memory via io_notif_account_mem** — defense against per-unaccounted-locked-pages.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked copy on `struct msghdr` / `struct iovec` / `struct sockaddr_storage` carried in net SQEs; on the `cmsg` iterator for SCM control data.
+- **PAX_KERNEXEC** — write-protects the per-net-op `.prep` / `.issue` pointers and the `sock->ops` table touched by SEND/RECV/CONNECT/ACCEPT/BIND/LISTEN.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on every `io_send`, `io_recvmsg`, `io_connect`, `io_accept`, `io_send_zc` entry.
+- **PAX_REFCOUNT** — saturating trap on `sock->sk_refcnt`, on `ubuf_info.refcnt` for SEND_ZC, and on `req->refs` taken across the net retry path.
+- **PAX_MEMORY_SANITIZE** — zeroes `io_async_msghdr` / `io_async_rw` slab on free; scrubs the `msghdr` and `iov` stack frames between retries.
+- **PAX_UDEREF** — every `msg_name` / `msg_iov` / `msg_control` user pointer is faulted at prep; defends against per-kernel-pointer-aliased msghdr field.
+- **PAX_RAP / kCFI** — forward-edge CFI on `sock->ops->sendmsg` / `->recvmsg` / `->connect` indirect dispatch from io_uring net issue.
+- **GRKERNSEC_HIDESYM** — strips io_uring net helpers and `sock`/`sk` pointers from kallsyms-leaking debug.
+- **GRKERNSEC_DMESG** — restricts socket-layer error and SEND_ZC trace lines to CAP_SYSLOG.
+- **Socket op CAP_NET_ADMIN** — raw-socket / packet-socket / SO_BINDTODEVICE issuance through io_uring inherits the same CAP_NET_ADMIN gate as the synchronous syscall path; defends against per-io_uring-bypass of raw-socket privilege.
+- **SEND_ZC notif ubuf_info refcount** — every `IORING_OP_SEND_ZC` allocates a `struct io_notif` with `ubuf_info.refcnt = 1`; refcount drops only via `skb_zcopy_clear`/`skb_orphan_frags_rx`; SKBFL_DONT_ORPHAN + SKBFL_ZEROCOPY_FRAG are mandatory (already in Hardening); defends against per-orphan-strip notification loss and per-double-completion of zc CQE.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -528,6 +528,29 @@ Coredump reinforcement:
 - **Per-zap_threads atomic under siglock** — defense against per-thread-spawn-race during zap.
 - **Per-wait_task_inactive(TASK_ANY) on every dumper-next** — defense against per-live-thread mutating mm during dump_user_range.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **core_pattern restrict** — write-access to `/proc/sys/kernel/core_pattern` gated on CAP_SYS_ADMIN + namespace ownership; pipe-helper path requires `%P`/`%F` token validation.
+- **suid_dumpable=0 default** — Rookery flips the upstream default so suid binaries do not produce a core image at all unless `fs.suid_dumpable` is explicitly set to 1 or 2.
+- **RLIMIT_CORE strict** — `dump_emit` honors the bounded write limit; PAX_REFCOUNT on the dump_file refuses to keep going on a -EFBIG.
+- **PAX_USERCOPY on dump_emit** — every user→kernel copy in `copy_from_user_to_buf` bounded against the registered VMA range from `cprm.mm_flags` snapshot.
+- **kCFI on coredump format handlers** — `binfmt_elf::core_dump`, `binfmt_elf_compat`, `binfmt_aout::core_dump` dispatched only via signed function pointer.
+- **PAX_MEMORY_SANITIZE on coredump_params** — `cprm` struct zeroed on coredump exit so signal-context state cannot leak.
+- **GRKERNSEC_DMESG on pipe-helper failures** — coredump_setup errors suppressed to dmesg-restrict so unprivileged readers can't oracle the helper config.
+
+Per-doc rationale: coredump runs in fatal-signal context with the dying process's mm still partially live and dispatches into format-specific dumpers and (for `|pipe`) into user-mode helpers; bounded usercopy on `dump_emit`, restricted `core_pattern` writes, `suid_dumpable=0` default, and kCFI on format handlers stop a malicious binary from steering its own dump into a privileged location or hijacking the dumper.
+
 ## Open Questions
 
 (none at this Tier-3 level)

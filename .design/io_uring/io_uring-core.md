@@ -293,6 +293,20 @@ io_uring-specific reinforcement:
 - **Per-buffer-ring head/tail validated** — defense against malicious user advancing tail past valid range.
 - **IO_LINK chain depth bounded** — defense against pathological chain causing stack overflow on per-link complete.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY on SQE** — bounds-checked copy on every `struct io_uring_sqe` read from the user-mapped SQ ring; 128-byte SQEs validated against `IORING_SETUP_SQE128`; rejects half-page-straddling SQEs.
+- **PAX_KERNEXEC** — write-protects `io_op_defs[]`, `io_cqring_overflow_kill`, and `io_uring_fops`; rejects late patching of submit/complete dispatch tables.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on every `io_submit_sqes`, `io_issue_sqe`, `io_req_task_submit`, and `__io_run_local_work` entry.
+- **PAX_REFCOUNT** — saturating trap on `ctx->refs`, `tctx->inflight_tracked`, `req->refs`, and `node->refs` (registered-resource node).
+- **PAX_MEMORY_SANITIZE** — zeroes `io_kiocb` slab on free; scrubs the per-context `submit_state.req_cache` and the `cqe_cached` window across `io_submit_state_end`.
+- **PAX_UDEREF** — the SQ-ring and CQ-ring kernel pages are accessed via `READ_ONCE`/`WRITE_ONCE` against `ctx->rings` (kernel mapping), with user pointer dereference traps for `IORING_REGISTER_*` payloads.
+- **PAX_RAP / kCFI** — forward-edge CFI on per-op `.prep` / `.issue` / `.cleanup` dispatch from `io_op_defs[opcode]`.
+- **GRKERNSEC_HIDESYM** — strips io_uring core symbols and `ctx`/`tctx` pointers from `/proc/kallsyms` and from any fdinfo render path.
+- **GRKERNSEC_DMESG** — restricts io_uring `pr_warn`/`pr_debug` traces (SQPOLL spin, completion overflow) to CAP_SYSLOG.
+- **Ring mmap CAP_SYS_NICE** — `IORING_OFF_SQ_RING` / `IORING_OFF_CQ_RING` / `IORING_OFF_SQES` mmap is gated by CAP_SYS_NICE policy in security-tier configurations; defends against per-unprivileged ring-mmap allocation pressure.
+- **SQ_THREAD CAP_SYS_NICE** — `IORING_SETUP_SQPOLL` continues to require CAP_SYS_NICE; CPU-affinity pin (`sq_thread_cpu`) cross-checked against `ctx->cpu_allowed` mask before kthread bind.
+
 ## Open Questions
 
 (none at this Tier-3 level)

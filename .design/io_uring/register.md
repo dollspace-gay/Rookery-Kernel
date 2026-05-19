@@ -535,6 +535,20 @@ io_uring_register reinforcement:
 - **Per-blind-dispatch allowlist** — defense against per-leakage of ring-scoped opcodes into fd==-1 path.
 - **Per-WRITE_ONCE on ctx.bpf_filters after BPF_FILTER install** — defense against per-tearing-load by submission path.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `io_uring_register` copies opcode-specific argument structs (file FDs table, buffer iovecs, eventfd, restrictions, PERSONALITY creds) from user to a stack/heap object; whitelist sizes per-opcode and reject short/long copies before dereferencing.
+- **PAX_USERCOPY on IORING_REGISTER_FILES table** — the `__s32 *fds` array and `io_uring_rsrc_register` payload land in a heap object that must be USERCOPY-allowlisted; per-entry width is exact (`sizeof(__s32)` for files, `sizeof(struct io_uring_rsrc_update)` for update), no slack.
+- **PAX_KERNEXEC** — register handlers do not patch text; ensure no `set_memory_rw` on register-table dispatch arrays; the per-opcode function table is `__ro_after_init`.
+- **PAX_RANDKSTACK** — REGISTER syscall enters with full stack randomization; per-opcode prep must not cache stack pointers across schedule (no aliasing of `&argv` after `cond_resched`).
+- **PAX_REFCOUNT** — `ctx->refs`, personality `xa_node` refs, restriction-set refcount, BPF filter program refs all routed through hardened atomic; saturation traps before wrap.
+- **PAX_MEMORY_SANITIZE** — on `IORING_UNREGISTER_*`, slab-poison the table memory (creds, restrictions, bpf-filter handle) before `kfree`; do not leave cred pointers reachable through freed slab.
+- **PAX_UDEREF** — every register-arg dereference uses the SMAP-enforced accessors; no raw `__get_user` shortcuts on register fast paths.
+- **PAX_RAP / kCFI** — per-opcode dispatch is a function-pointer call; emit kCFI prologue/epilogue, type-stamp the register-op signature, refuse mismatched indirect calls.
+- **GRKERNSEC_HIDESYM** — error paths must not leak kernel-pointer values (e.g., `xa_node` address) into the dmesg/audit record for register failures.
+- **GRKERNSEC_DMESG** — register-time failures emit at most one ratelimited line per ctx; redact PIDs/UIDs of remote ringfd issuers if `grsec_resource_logging` is off.
+- **Per-op CAP gating** — RESTRICTIONS/PERSONALITY/MAP_BUFFERS each require a CAP check against submitter creds at register-time (no deferral to issue-time); UNREGISTER mirrors the CAP check to refuse stealth-disarm of a privileged restriction.
+
 ## Open Questions
 
 (none at this Tier-3 level)

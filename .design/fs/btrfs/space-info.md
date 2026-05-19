@@ -669,6 +669,29 @@ Space-info reinforcement:
 - **Per-remove_ticket holds space_info.lock + ticket.lock** — defense against per-concurrent-error race.
 - **Per-priority_tickets drained before tickets** — defense against per-priority-inversion (FLUSH_LIMIT/EVICT starvation).
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **Ticket-handler PAX_REFCOUNT** — saturating refcount on `reserve_ticket` references to block per-ticket wake-after-free when async-reclaim races signal-driven `-EINTR` cleanup.
+- **btrfs_can_overcommit() gating** — overcommit decision is locked behind `space_info.lock`, with DATA short-circuited to false; PAX_REFCOUNT prevents stale `space_info` deref during sysfs sweep.
+- **kCFI on flush-state dispatcher** — `flush_space` switch dispatches to delayed-items, delalloc, refs, chunk-alloc, ipuTs, commit, zone-reset; each callee enforced via kCFI signatures so a corrupted `flush_state` cannot redirect to arbitrary text.
+- **PAX_MEMORY_SANITIZE on ticket teardown** — on-stack ticket struct includes `ticket.lock` + `ticket.bytes`; zeroing on remove guards against information-leak via stack reuse for subsequent reserve callers.
+- **GRKERNSEC_HIDESYM on btrfs_dump_space_info** — ENOSPC diagnostics never leak `fs_info` / `space_info` kernel pointers into dmesg.
+- **GRKERNSEC_PROC_USER on sysfs space_info nodes** — `total_bytes`/`bytes_may_use` counters restricted to root + fs-admin to deny user-space ENOSPC oracle.
+- **PAX_REFCOUNT on space_info.list** — saturating add/release across `btrfs_init_space_info` and unmount-path teardown.
+
+Per-doc rationale: space-info is the per-class accounting and ENOSPC-flushing arbiter; reserve tickets on caller stacks, flush-state dispatch tables, and overcommit budgeting all sit in the trust boundary between block-group accounting and waiter wakeups, so refcount saturation, kCFI on dispatchers, and sanitize-on-free are required to stop ticket-wake UAF, dispatcher hijack, and ENOSPC-channel leaks.
+
 ## Open Questions
 
 - Should Rookery model `BTRFS_RESERVE_FLUSH_EMERGENCY` as a separate code-path or as a fallback flag on the existing reserve_bytes path? Upstream uses a single branch inside reserve_bytes (REQ-29 step 11) but a typed-API variant could surface the safety implications more clearly.

@@ -343,6 +343,20 @@ io_uring/fdinfo reinforcement:
 - **Per-128B-SQE wrap-at-sq_mask rejected** — defense against per-corrupted-ring half-read.
 - **Per-`__cold` annotation** — defense against per-icache-pollution of hot dispatch by diagnostic code.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked `seq_printf` argument formatting on every CQE/SQE field rendered into the `/proc/<pid>/fdinfo/<n>` buffer.
+- **PAX_KERNEXEC** — write-protects the `io_uring_fops.show_fdinfo` pointer and the `fdinfo_fmt_*` helper table.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on `io_uring_show_fdinfo` so the formatted state has no fixed-offset structure leakage.
+- **PAX_REFCOUNT** — saturating trap on `ctx->refs` taken across the fdinfo walk (held under `ctx->uring_lock`).
+- **PAX_MEMORY_SANITIZE** — zeroes the seq_file scratch buffer between consecutive fdinfo reads from the same fd.
+- **PAX_UDEREF** — fdinfo reads land via the seq_file VFS path; user dereference is bounded by `seq_read_iter` and traps any direct user pointer in the show path.
+- **PAX_RAP / kCFI** — forward-edge CFI on `show_fdinfo` (`file_operations.show_fdinfo`) indirect call from procfs.
+- **GRKERNSEC_HIDESYM on ring pointers** — kernel pointers (ring_pages, SQ/CQ ring kvaddr, ctx, tctx) are formatted as `%pK` (or wholly suppressed) under `kptr_restrict>=1`; defends against per-procfs KASLR leak.
+- **GRKERNSEC_DMESG** — restricts dmesg-shadow path of fdinfo formatting (debug-mode) to CAP_SYSLOG.
+- **CAP_SYS_PTRACE for cross-uid** — `/proc/<pid>/fdinfo/<n>` open is gated by `ptrace_may_access(PTRACE_MODE_READ_FSCREDS)`; cross-uid (and cross-userns) readers must hold CAP_SYS_PTRACE in the target's userns; defends against per-uid io_uring state harvesting via a writable proc subtree.
+- **Per-seq_file_path escape** — already in Hardening; reinforced by mandatory `%pE` (`escape_mask " \t\n\\"`) on every path component to defend against per-line-injection into procfs scrape output.
+
 ## Open Questions
 
 (none at this Tier-3 level)

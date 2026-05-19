@@ -524,6 +524,20 @@ Cancel reinforcement:
 - **Per-IO_WQ_CANCEL_RUNNING fall-through to poll-disarm** — defense against per-poll-armed-running zombie.
 - **Per-in_cancel atomic counter** — defense against per-task-work re-entering cancel after exec/exit.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked copy on `struct io_uring_sync_cancel_reg` and on the `addr` / `addr_len` user-supplied match key.
+- **PAX_KERNEXEC** — write-protects the cancel-dispatch jump table and the per-opcode `.cancel` callbacks after init.
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on `io_async_cancel`, `io_sync_cancel`, and `io_try_cancel`.
+- **PAX_REFCOUNT** — saturating wraparound trap on `ctx->cancel_seq` and on `tctx->cached_refs` consumed during cancel walks.
+- **PAX_MEMORY_SANITIZE** — zeroes the `io_cancel_data` stack frame on exit; scrubs `match.seq` after dedup test.
+- **PAX_UDEREF** — explicit user-pointer fault on the SQE `addr` field interpreted as user-data and on `IORING_ASYNC_CANCEL_USERDATA` payloads.
+- **PAX_RAP / kCFI** — forward-edge CFI on `io_cancel_req_match` callback (`cancel_match_t`) and on the per-op `.cancel` indirect dispatch.
+- **GRKERNSEC_HIDESYM** — strips `io_uring_try_cancel_requests` and cancel-helper symbols from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — gates `IO_WQ_CANCEL_*` ftrace and `pr_debug` cancel traces behind CAP_SYSLOG.
+- **SYNC_CANCEL CAP_SYS_NICE** — `IORING_REGISTER_SYNC_CANCEL` is a blocking primitive against an arbitrary task; require CAP_SYS_NICE (parity with SQPOLL CPU-pinning) to defend against per-unprivileged-task cancel-storm DoS.
+- **cancel_seq dedup** — `ctx->cancel_seq` is monotonic per cancel-walk; `req->work.cancel_seq` is compared under `ctx->timeout_lock` to ensure each in-flight req is visited at most once per pass; defends against per-O(n^2) walk explosion and per-double-cancel task-work injection.
+
 ## Open Questions
 
 (none at this Tier-3 level)

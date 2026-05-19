@@ -418,6 +418,19 @@ FS-op reinforcement:
 - **Per-mkdirat mode passed unmodified** — defense against per-umask-already-applied double-mask.
 - **Per-symlinkat new_dfd from sqe.fd (not sqe.len)** — defense against per-SQE-field-confusion bug.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY on path/dirent** — bounds-checked `strncpy_from_user` for every `getname()` call (`renameat`, `unlinkat`, `mkdirat`, `symlinkat`, `linkat`); `struct linux_dirent64` write-back to user during readdir is `copy_to_user`-checked.
+- **PAX_KERNEXEC** — write-protects the per-op `.prep` / `.issue` pointers in `io_op_defs` for the fs family (rename/unlink/mkdir/symlink/link).
+- **PAX_RANDKSTACK** — per-call stack-offset randomization on every `do_renameat2`, `do_unlinkat`, `do_mkdirat`, `do_symlinkat`, `do_linkat` entry from io_uring.
+- **PAX_REFCOUNT** — saturating trap on `filename->refcnt` carried across prep→issue and on `mnt->mnt_count` taken by `user_path_at`.
+- **PAX_MEMORY_SANITIZE** — `putname()` poisons the `__getname` slab object on free, defending against per-stale-path-leak across requests.
+- **PAX_UDEREF** — explicit user-pointer fault on every `oldpath` / `newpath` / `target` SQE field before `getname` translation.
+- **PAX_RAP / kCFI** — forward-edge CFI on `iput`/`mnt_drop_write` indirect callbacks and on the prep/issue dispatch.
+- **GRKERNSEC_HIDESYM** — strips `io_renameat`, `io_unlinkat`, `io_linkat` symbols from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — restricts VFS-layer rename/unlink failure traces to CAP_SYSLOG.
+- **GRKERNSEC_CHROOT family** — enforces the chroot-jail audit hooks on every fs op: `gr_chroot_*` denies cross-chroot rename/link/unlink, denies symlink-target escape, denies `..`-traversal out of root; ties to `GRKERNSEC_CHROOT_DENY_CHMOD`-style policy bits for io_uring-issued mode bits.
+
 ## Open Questions
 
 (none at this Tier-3 level)

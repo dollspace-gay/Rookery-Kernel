@@ -200,6 +200,21 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: `do_syslog(SYSLOG_ACTION_READ*)` bounds every `copy_to_user` against the printk ring-buffer `text_buf` slab whitelist; reads cannot bleed adjacent allocator metadata into userspace.
+- PAX_KERNEXEC: the kmsg reader path runs with WP enforced; no console-driver patching is possible through a kmsg read fault handler.
+- PAX_RANDKSTACK: the per-read kernel stack frame for `devkmsg_read`/`syslog_print` is re-randomized; replayed reads cannot fingerprint stack layout via timing.
+- PAX_REFCOUNT: `struct printk_ringbuffer` descriptor refcounts and `prb_desc::state_var` use saturating counters; an unbounded reader population cannot wrap and free a live descriptor.
+- PAX_MEMORY_SANITIZE: aged ring-buffer slots are zeroed before recycling; a slow reader cannot recover ancient privileged log fragments that were already consumed.
+- PAX_UDEREF: kmsg output buffers are written with `__force __user` typing and SMAP/PAN asserted on every byte; kernel-format-string bugs cannot bypass user/kernel split.
+- PAX_RAP / kCFI: `kmsg_fops.read`, `poll`, and `open` are signature-validated indirect dispatches; fops table tampering cannot redirect kmsg reads to an attacker handler.
+- GRKERNSEC_HIDESYM: kernel pointers in logged messages are forced through `%pK` with `kptr_restrict=2` semantics for `/proc/kmsg` consumers lacking `CAP_SYSLOG`.
+- GRKERNSEC_DMESG: `/proc/kmsg` open requires `CAP_SYSLOG` unconditionally — `dmesg_restrict` cannot be relaxed to `0` once the lockdown policy is active; non-cap readers receive `-EPERM` with no leaked record sequence.
+- Buffer-overrun rate-limit: a faulting reader looping on `SYSLOG_ACTION_READ` is rate-limited via `__ratelimit(&printk_ratelimit_state)` so a hostile process cannot amplify console pressure or starve `kthreadd`.
+- Sequence-number monotonicity: `prb_first_valid_seq()` is read under RCU with a PaX-validated barrier; a wrap attempt during reader overrun yields `-EPIPE` rather than silent re-reads of dropped records.
+- Audit: every `/proc/kmsg` open and `SYSLOG_ACTION_CLEAR` is logged with subject capability set and the rejected/accepted action code, independent of dmesg suppression.
+
 ## Open Questions
 
 (none — /proc/kmsg semantics exhaustively specified by upstream + decades of klogd interop)

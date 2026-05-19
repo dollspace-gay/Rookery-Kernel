@@ -630,6 +630,29 @@ Buffer-head reinforcement:
 - **Per-WB_SYNC_NONE trylock + redirty fallback** — defense against per-writeback-livelock with reclaim.
 - **Per-FS_ENCRYPTION fscrypt_set_bio_crypt_ctx in submit_bh path** — defense against per-plaintext-leak on encrypted block writeback.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **bh refcount PAX_REFCOUNT** — saturating `b_count` so a `__brelse` storm against an attacker-controlled bh chain cannot wrap to zero while the buffer is still on `i_private` lists.
+- **bh-LRU per-cpu integrity** — `bh_lru` is per-cpu sized at `BH_LRU_SIZE = 16`; CPU-hot-unplug path uses `buffer_exit_cpu_dead` under preempt-disable to walk and free; PAX_REFCOUNT prevents the dying CPU's LRU from racing reclaim.
+- **kCFI on b_end_io callbacks** — completion callbacks (`end_buffer_read_sync`, `end_buffer_write_sync`, fs-specific completion handlers) dispatched only through signed function pointer.
+- **PAX_MEMORY_SANITIZE on free_buffer_head** — bh is zeroed on slab return so subsequent allocation cannot leak stale `b_bdev` / `b_private`.
+- **GRKERNSEC_HIDESYM on submit_bh BUG paths** — buffer_error panic dumps suppress `bh.b_data` kernel pointer.
+- **PAX_USERCOPY on block_read_full_folio / block_write_full_folio** — folio-backed user mappings via filemap have bh chain validated against folio bounds.
+- **PAX_REFCOUNT on max_buffer_heads accounting** — global bh-counter saturates instead of wraps under explicit attacker pressure.
+
+Per-doc rationale: the buffer-head layer is the glue between folios and block devices, with completion callbacks fired from IRQ context and per-cpu LRUs that survive CPU teardown; refcount saturation on `b_count` and `max_buffer_heads`, sanitize-on-free, and kCFI on `b_end_io` handlers prevent reclaim/UAF races and crafted-bio dispatcher hijack.
+
 ## Open Questions
 
 (none at this Tier-3 level)

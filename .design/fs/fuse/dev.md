@@ -653,6 +653,23 @@ FUSE-device reinforcement:
 - **Per-args->page_replace required for cs->move_folios** — defense against per-folio-steal where caller never opted in.
 - **Per-recursive-mount guard via super_block flags (covered in inode.c)** — defense against per-stack-overflow on cross-mount FUSE.
 
+## Grsecurity/PaX-style Reinforcement
+
+The `/dev/fuse` interface is one of the most dangerous user-to-kernel surfaces in the tree: a malicious userspace daemon already speaks a complex protocol that drives VFS state. The following PaX/grsecurity-style controls augment the in-tree fuse_req/fuse_conn defenses above.
+
+- **PAX_USERCOPY** — `fuse_conn`, `fuse_req`, and `fuse_iqueue` slabs declare zero-byte usercopy whitelists; the read/write copy paths (`fuse_dev_do_read`, `fuse_dev_do_write`) use explicitly bounded `copy_to/from_iter` scratch buffers.
+- **PAX_KERNEXEC** — the `fuse_dev_fops` and per-opcode dispatch tables live in `__ro_after_init`; the FUSE_INIT minor/version negotiation handlers are reverified after boot.
+- **PAX_RANDKSTACK** — every `read(/dev/fuse)` and `write(/dev/fuse)` syscall enters on a randomized kernel stack, so attempts to align `fuse_copy_state` locals are blind.
+- **PAX_REFCOUNT** — `fc->count`, `req->count`, `req->ref`, and the per-fud `fud->count` are saturating atomics that BUG on wrap, closing UAF on the FR_FINISHED → end path.
+- **PAX_MEMORY_SANITIZE** — finished `fuse_req`, `fuse_args_pages`, and aborted notification buffers are poisoned so stale request headers cannot be mined.
+- **PAX_UDEREF** — every `fuse_dev_ioctl` opcode (CLONE, BACKING_OPEN/CLOSE) crosses the boundary under uderef; the cs->buf scatter-gather pointers are validated as user-space addresses.
+- **PAX_RAP / kCFI** — the per-opcode `fuse_lowlevel_ops` table and the notification dispatcher (`fuse_notify_*`) are typed-call-site-verified; a forged opcode cannot redirect into a ROP gadget.
+- **GRKERNSEC_HIDESYM** — `fuse_dev_*`, `fuse_request_*`, and `struct fuse_conn` symbols are stripped from `/proc/kallsyms` for non-CAP_SYSLOG callers.
+- **GRKERNSEC_DMESG** — fuse_warn / abort prints (protocol violation, timeout) are gated behind CAP_SYSLOG so a malicious daemon cannot harvest oracles via dmesg.
+- **/dev/fuse CAP_SYS_ADMIN gate** — opening `/dev/fuse` requires CAP_SYS_ADMIN in the user namespace that owns the eventual mount; the CLONE ioctl additionally requires same-fc CAP_SYS_ADMIN to prevent cross-uid fud injection.
+- **fuse_req refcount strict** — `req->ref` underflow on `request_end` panics rather than warns; the FR_PRIVATE_LIST and FR_PENDING transitions are reference-fenced.
+- **FUSE_INIT handshake validation** — the FUSE_INIT response is verified against a strict allow-list of negotiated flags; unknown bits or any caller-requested flag the kernel did not advertise causes the connection to abort with `EPROTO` before the first FUSE_LOOKUP.
+
 ## Open Questions
 
 - Whether to model `FUSE_IO_URING` (io_uring command path) within this Tier-3 or split to a sibling `fuse/uring.md`. Current document treats it as out of scope at the dev-fop layer.

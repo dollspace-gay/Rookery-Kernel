@@ -379,6 +379,20 @@ Opdef-table reinforcement:
 - **Per-is_128 only on 128-byte-SQE opcodes** — defense against per-SQE-size confusion.
 - **Per-async_size pre-allocated by prep** — defense against per-issue-time async-OOM mid-op.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked copy on every SQE field consumed by `.prep` callbacks; the per-op `.prep` signature is uniform so the `copy_from_user` width is statically verifiable per opcode.
+- **PAX_KERNEXEC** — once init is complete, the `io_op_defs[]` table is `__ro_after_init`; rejects late patching of per-op `.prep` / `.issue` / `.cleanup` / `.fail` / `.iopoll` pointers.
+- **PAX_RANDKSTACK** — per-op dispatch path benefits from per-call stack-offset randomization on `io_issue_sqe`.
+- **PAX_REFCOUNT** — saturating trap on `req->refs` taken across the per-op state machine (`prep → issue → complete`).
+- **PAX_MEMORY_SANITIZE** — `.cleanup` callbacks zero per-op state (`io_kiocb` opcode-specific union) before slab return.
+- **PAX_UDEREF** — every per-op prep dereferences user pointers via faulted accessors; the `is_128`-only check (already in Hardening) ensures no overread into adjacent SQE slot.
+- **PAX_RAP / kCFI** — forward-edge CFI on every `io_op_def.prep` / `.issue` / `.cleanup` / `.fail` / `.iopoll` indirect call; per-op signature mismatch traps at dispatch time.
+- **GRKERNSEC_HIDESYM** — strips `io_op_defs[]` and per-op helpers from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — restricts per-op `pr_debug` and `WARN_ON_ONCE` traces to CAP_SYSLOG.
+- **CONSTIFY (read-only after init)** — `io_op_defs[]` is declared `const` and mapped read-only by `mark_readonly`; defends against per-runtime jump-table overwrite primitives.
+- **PAX_RAP per-op-def table** — pairs CONSTIFY with kCFI-typed function pointers so an attacker overwriting a per-op slot with a same-type function still hits a kCFI tag mismatch on the first invocation.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -564,6 +564,20 @@ zonefs-superblock reinforcement:
 - **Per-truncate-mutex held for inode_zone_mgmt** — defense against per-concurrent-truncate-vs-zone-op race.
 - **Per-write-pointer drift refresh on IO error** — defense against per-host-vs-device-wp divergence.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-checked copy on `blk_zone` reports crossing user/kernel and on `struct zonefs_zone_info` traversal during mount/parse.
+- **PAX_KERNEXEC** — write-protects the read-only `zonefs_dir_inode_operations` and `zonefs_file_operations` tables after init; rejects late patching of dir/file op vectors.
+- **PAX_RANDKSTACK** — per-syscall stack-offset randomization across `zonefs_iomap_begin`, `zonefs_file_write_iter`, and the report-zones callbacks.
+- **PAX_REFCOUNT** — saturating `atomic_t` wraparound trap on `zi->i_wr_refcnt` (open-for-write counters per sequential zone) and on the shared `sb->s_active`.
+- **PAX_MEMORY_SANITIZE** — auto-zeroes `struct zonefs_zone_group` and `struct zonefs_zone` allocations on free, scrubs the report-zones reply buffer after parse.
+- **PAX_UDEREF** — explicit user-pointer dereference faulting for `ZONEFS_IOC_*` ioctl payloads (zone-info, zone-action).
+- **PAX_RAP / kCFI** — forward-edge CFI on the `blk_zone_report_cb_t` callback dispatch (`zonefs_get_zone_info_cb`) and on iomap op vectors.
+- **GRKERNSEC_HIDESYM** — strips zonefs symbol leakage from `/proc/kallsyms` and from `dmesg` zone-state traces.
+- **GRKERNSEC_DMESG** — restricts the verbose `zonefs: zone %u state %s -> %s` transition logs to CAP_SYSLOG; defends against per-information-disclosure of ZBC zone layout.
+- **ZBC zone-state validation** — every `BLK_ZONE_COND_*` transition cross-checked against the device report cache; rejects host-software-attempted state coercion (e.g. EMPTY⇄FULL forge) before write-pointer use.
+- **Sequential-write enforcement** — `zonefs_write_checks` mandates `iocb->ki_pos == zi->i_wpoffset` for SEQ_WRITE_REQUIRED zones; `iov_iter_count` must align to `bdev_zone_write_granularity`; rejects out-of-order writes with `-EINVAL` before block-layer descent.
+
 ## Open Questions
 
 (none at this Tier-3 level)

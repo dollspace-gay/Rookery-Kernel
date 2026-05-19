@@ -742,6 +742,23 @@ FUSE inode + super reinforcement:
 - **Per-killsb rwsem on mounts list** — defense against per-mount-list mutation race.
 - **Per-fuse_abort_conn on umount_begin** — defense against per-hanging-mount on userspace-server crash.
 
+## Grsecurity/PaX-style Reinforcement
+
+FUSE inode lifecycle bridges an untrusted userspace daemon and the VFS dcache: every attribute and xattr observed on a FUSE inode is server-controlled, so attribute caching is a privilege boundary. The following PaX/grsecurity-style controls augment the in-tree NOSEC and idmap defenses above.
+
+- **PAX_USERCOPY** — `fuse_inode`, `fuse_mount`, and the per-inode write_files/queued_writes counters are slab-sealed with zero-byte usercopy whitelists; attribute marshalling uses bounded scratch buffers.
+- **PAX_KERNEXEC** — `fuse_super_operations`, `fuse_dir_inode_operations`, and `fuse_file_inode_operations` are `__ro_after_init`; W^X is enforced over the per-mount feature-bit-driven op overrides.
+- **PAX_RANDKSTACK** — `fuse_iget`, `fuse_alloc_inode`, and `fuse_change_attributes_common` enter on randomized kernel stacks so the attribute-update path resists local groom attacks.
+- **PAX_REFCOUNT** — `fc->count`, `fm->count`, `fi->iocachectr`, and `fi->writectr` use saturating atomics that BUG on wrap, closing UAF on `fuse_evict_inode`.
+- **PAX_MEMORY_SANITIZE** — freed `fuse_inode` and the per-mount option strings are poisoned so post-umount mining of UUID/options is denied.
+- **PAX_UDEREF** — every mount-option parse (`fuse_parse_param`) and remount path uses uderef when touching user-supplied option strings.
+- **PAX_RAP / kCFI** — the per-feature-bit override of inode_operations (idmap, POSIX-ACL, passthrough) is typed-call-site-verified.
+- **GRKERNSEC_HIDESYM** — `fuse_iget`, `fuse_change_attributes*`, and `struct fuse_mount` are stripped from `/proc/kallsyms` for non-CAP_SYSLOG callers.
+- **GRKERNSEC_DMESG** — fuse_inval / attribute mismatch warn-prints are gated behind CAP_SYSLOG, denying server-side oracle harvesting.
+- **fuse_conn attribute TTL strict** — `fi->i_time` is clamped to a per-fc maximum (sysctl `fs.fuse.max_attr_timeout`) so a hostile server cannot pin stale attributes indefinitely; expired attributes refresh under FORCE.
+- **Mount-options policy strict** — `allow_other`, `default_permissions`, `allow_root`, `fsuid=`, and `fsgid=` are CAP_SYS_ADMIN-gated in the initial userns; user-namespace mounts force `default_permissions` and refuse `allow_other`.
+- **xattr namespace gating** — `security.*` and `system.posix_acl_*` xattrs from the server are validated against the active LSM and the per-mount allowlist; unknown `security.*` writes from the daemon are dropped rather than installed.
+
 ## Open Questions
 
 - DAX-mode interaction with FUSE_PASSTHROUGH: are they mutually exclusive at INIT level? (Currently the kernel allows neither flag to gate the other.)
