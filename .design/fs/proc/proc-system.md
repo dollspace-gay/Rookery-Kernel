@@ -399,6 +399,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+/proc/{hostname,version,uptime,loadavg,meminfo,cmdline,kallsyms,kcore,kpagecount,kpageflags,...} are system-wide oracles; grsec floors most of them at `CAP_SYSLOG` or `kernel_admin`. Rookery contract:
+
+- **PAX_USERCOPY** — every seq_file emitter copies via `seq_*` APIs that track buffer size; `simple_read_from_buffer` is bounded by the source allocation.
+- **PAX_KERNEXEC** — per-file `proc_ops` vtables are `static const`; the registration table in `proc_root_init` is `__ro_after_init`.
+- **PAX_RANDKSTACK** — emitter paths run under randomized kstack offset; per-build kstack-shape primitives are denied.
+- **PAX_REFCOUNT** — per-pde refcount and per-seq_file ref saturate; aggregator paths use atomic_t with overflow trap.
+- **PAX_MEMORY_SANITIZE** — `/proc/kcore`, `/proc/kallsyms`, `/proc/kpagecount`, `/proc/kpageflags` scratch and seq buffers zeroed on free; partial kallsyms output and per-page metadata cannot bleed.
+- **PAX_UDEREF** — emitters write through seq_buf user-domain APIs; `/proc/kcore` ELF generation never deref's an unchecked target.
+- **PAX_RAP/kCFI** — `proc_ops.proc_read`/`proc_read_iter`/`proc_lseek` are CFI-typed; per-file vtable identity is `__ro_after_init`.
+- **GRKERNSEC_HIDESYM** — `/proc/kallsyms` zeroes all addresses for non-CAP_SYSLOG readers; `/proc/version` strips compile-host/path; `/proc/modules` zeroes addresses; `kptr_restrict` is treated as a floor.
+- **GRKERNSEC_DMESG** — `/proc/kmsg` and ring buffer access require CAP_SYSLOG; cross-ref `proc-kmsg.md` for ringbuffer policy.
+- **/proc/hostname PAX_USERCOPY** — read emits hostname via `seq_escape_str` with bounded length (`__NEW_UTS_LEN`); write (`/proc/sys/kernel/hostname` via sysctl path) is CAP_SYS_ADMIN gated.
+- **/proc/version PAX_USERCOPY** — emitted as a single constant string from `linux_proc_banner`; no format-string consumer of user data.
+- **/proc/kcore CAP_SYS_RAWIO + CAP_SYSLOG** — both required for any read; `mmap` denied; LSM `security_locked_down(LOCKDOWN_KCORE)` enforced as floor.
+- **/proc/kallsyms CAP_SYSLOG** — non-CAP_SYSLOG readers see `0000000000000000` regardless of `kptr_restrict`, matching grsec hide-sym default.
+
+Rationale: system-wide procfs is the original target of `GRKERNSEC_HIDESYM` — kallsyms + version + kcore + module list compose a single-reader full-kASLR-break primitive; the Rookery contract pins every emitter to CAP_SYSLOG (or stricter) at the upstream code path.
+
 ## Open Questions
 
 (none — system-wide procfs entries exhaustively specified by upstream + decades of distro tooling)

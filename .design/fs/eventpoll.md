@@ -310,6 +310,28 @@ eventpoll-specific reinforcement:
 - **Per-eventpoll PM wakeup_source registration** — defense against suspend-while-pending events causing missed-wake.
 - **NAPI busy-poll budget bounded** — defense against busy-loop spinning per-CPU > softirq-budget.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `epoll_wait` / `epoll_pwait` / `epoll_pwait2` event-array writeback so the kernel never writes past the user-declared `maxevents`.
+- **PAX_KERNEXEC** — W^X for any executable mapping reachable from the wakeup callback chain.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on every `epoll_*` entry so wait-queue layout is unpredictable to the userspace caller.
+- **PAX_REFCOUNT** — saturating refcount on `struct eventpoll`, on each `epitem`, and on the per-uid epoll watch counter so `EMFILE`-class wraps cannot occur.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `struct epoll_event` scratch buffers and for `epitem` slab on RCU grace.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on the sigmask copy-in path of `epoll_pwait`.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on the file `poll`/`poll_wait` vtable so a planted `f_op->poll` cannot redirect into attacker memory at wake time.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding for epoll fdinfo entries (`tfd:`, `data:`, kernel addresses).
+- **GRKERNSEC_DMESG** — syslog restriction on watch-limit / depth diagnostics.
+- **EPOLLEXCLUSIVE wake-stampede prevention** — `WQ_FLAG_EXCLUSIVE` is honored end-to-end so a single accept-socket wake never fans out to N worker threads.
+- **EPOLL nesting depth bound** — `EP_MAX_NESTS = 4` cap on epoll-on-epoll graphs at `epoll_ctl(EPOLL_CTL_ADD)` time, refused with `ELOOP`.
+- **POLLFREE release/acquire** — `eventpoll_release_file` issues a `POLLFREE` wake under release semantics so a racing `close()` cannot leave a wait_queue entry pointing into freed file memory.
+- **EPOLLONESHOT atomic disable** — single-shot disarm happens under `ep->lock` before the user wakeup so double-delivery on rapid `close+fire` is impossible.
+- **Per-uid `max_user_watches`** — `percpu_counter` enforced quota survives user-namespace traversal and resists fork-bomb-style watch exhaustion.
+- **NAPI busy-poll budget cap** — `EPIOCSPARAMS` requires `CAP_NET_ADMIN` for oversize budgets so unprivileged tasks cannot pin a CPU under softirq starvation.
+
+Per-doc rationale: epoll is a long-lived kernel-side fan-in for file events, so its `epitem` lifetime crosses every other subsystem's `f_op->release`; PaX/grsec reinforcement guarantees that the userspace ABI (`epoll_wait` / `EPOLL_CTL_*`) cannot be turned into a vehicle for refcount wraps, missed POLLFREE fences, or wait-queue UAFs even when the target fd belongs to a buggy or hostile driver.
+
 ## Open Questions
 
 (none at this Tier-3 level)

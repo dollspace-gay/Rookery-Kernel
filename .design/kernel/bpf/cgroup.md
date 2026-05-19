@@ -732,6 +732,21 @@ BPF-cgroup reinforcement:
 - **Per-cgroup_storage indexed by (cgroup_inode_id, attach_type)** — defense against per-cross-attach storage leak: each (cgroup, attach_type) gets its own storage entry; list-cg owns lifetime.
 - **Per-percpu_ref refcnt** — defense against per-release-while-walking: cgroup_bpf_offline → percpu_ref_kill ensures all readers drain before cgroup_bpf_release.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `copy_from_user` on every cgroup-BPF context (sockopt buf, sysctl new_val, sockaddr) against the per-prog `ctx_size` and slab whitelist; reject if length crosses PAGE_SIZE.
+- **PAX_KERNEXEC** — keep `cgroup_bpf_attach_ops`, the per-attach-type `bpf_cgroup_link_lops`, and the `cgroup_bpf` effective-prog dispatch arrays in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on every cgroup-BPF run point (`__cgroup_bpf_run_filter_*`); the on-stack `bpf_sockopt_kern`/`bpf_sysctl_kern` are stable disclosure targets.
+- **PAX_REFCOUNT** — saturating refcount on `struct bpf_cgroup_link`, `struct bpf_prog`, and the cgroup `percpu_ref`; wraparound MUST panic.
+- **PAX_MEMORY_SANITIZE** — zero `bpf_cgroup_storage` and `bpf_sockopt_kern.optval_end - optval` scratch on release; never recycle prior cgroup's per-cpu storage.
+- **PAX_UDEREF** — strict user/kernel separation when reading sockopt/sysctl user buffers from the cgroup-BPF context.
+- **PAX_RAP / kCFI** — type-check every `cgroup_bpf_link_lops->update_prog`/`detach`, the `bpf_prog_run`/`bpf_func` dispatch, and the `BPF_LSM_CGROUP` shim trampolines.
+- **GRKERNSEC_HIDESYM** — hide `cgroup_bpf_*`, `__cgroup_bpf_run_filter_*`, and per-attach-type symbols from non-root kallsyms.
+- **GRKERNSEC_DMESG** — restrict dmesg so per-attach error spew (which echoes cgroup ids and prog tags) is not harvestable.
+- **Per-cgroup BPF attach** — `CAP_NET_ADMIN`/`CAP_SYS_ADMIN`/`CAP_BPF` MUST be re-checked against the *current* creds at every `BPF_PROG_ATTACH`/`BPF_LINK_CREATE`, not the cgroupfs-open creds; a SCM_RIGHTS-passed cgroup fd MUST NOT escalate attach rights.
+- **`BPF_F_ALLOW_MULTI` strict** — when `BPF_F_ALLOW_MULTI` is set, every per-cgroup prog list ordering MUST be stable across `cgroup_bpf_inherit`; ancestor progs run first, descendant progs last, and a child cgroup MUST NOT override an ancestor's `BPF_F_ALLOW_OVERRIDE=0` attachment. Under grsec, any inheritance anomaly triggers `audit_panic`.
+- **Rationale** — cgroup-BPF runs attacker-influenced programs in the critical path of every socket/sockopt/sysctl in the cgroup; PAX_USERCOPY on the sockopt/sysctl buffers, PAX_RAP on the LSM-cgroup shim trampolines, and strict ALLOW_MULTI inheritance close the historical class of cgroup-BPF UAF (link/cgroup release race) and policy-inversion (descendant overriding ancestor) bugs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -540,6 +540,24 @@ swiotlb-specific reinforcement:
 - **Per-CONFIG_SWIOTLB_DYNAMIC transient-pool RCU-free** — `swiotlb_dyn_free` via `call_rcu` after `del_pool`; defense against in-flight `find_pool` racing pool free.
 - **Tracepoint `swiotlb_bounced` for every bounce** — operator can correlate bounce frequency to workload; defense against silent perf cliff.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounce-buffer staging area is treated as a usercopy hot path; any copy that touches `io_tlb_default_mem` is bounds-checked against slot index/length.
+- **PAX_KERNEXEC** — swiotlb dispatch table and pool descriptors are W^X; `struct io_tlb_mem` cannot be patched at runtime.
+- **PAX_RANDKSTACK** — randomize the kernel stack across `swiotlb_tbl_map_single` / `swiotlb_bounce` entry to harden against ROP off the bounce path.
+- **PAX_REFCOUNT** — saturating atomics on per-pool `used`, `transient_nslabs`, and dynamic-pool refcounts; overflow on slot accounting traps instead of silently freeing live slots.
+- **PAX_MEMORY_SANITIZE** — scrub bounce slots on `swiotlb_release_slots` (both directions) so residual DMA payloads cannot leak to the next consumer.
+- **PAX_UDEREF** — strict user/kernel pointer split on the sync-back path; the bounce buffer never aliases a usercopy target.
+- **PAX_RAP / kCFI** — type-signed indirect calls when restricted-DMA child pools register custom alloc/free hooks.
+- **GRKERNSEC_HIDESYM** — hide `io_tlb_default_mem`, `swiotlb_*` symbols from non-root `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — gate "swiotlb buffer is full" and slot-exhaustion messages behind CAP_SYSLOG; otherwise they are an oracle for bounce-buffer pressure.
+- **Bounce-buffer PAX_MEMORY_SANITIZE on both directions** — scrub on both `DMA_TO_DEVICE` release (deny rebound leak) and `DMA_FROM_DEVICE` release (deny DMA-stale leak); not only the dirty direction.
+- **Restricted-DMA pool registration CAP_SYS_ADMIN** — installing or rebinding a DT `restricted-dma-pool` at runtime requires CAP_SYS_ADMIN; unprivileged drivers cannot pivot a device into a custom pool.
+- **swiotlb=force boot guard** — `swiotlb=force` requires verified-boot signed cmdline; an attacker cannot toggle the system into universal-bounce mode to widen the attack surface.
+- **Slot index validation** — every `swiotlb_release_slots` re-validates `index < nslabs` and `pad_slots == head` under PAX_REFCOUNT semantics, panicking on inconsistency rather than corrupting the bitmap.
+- **Transient-pool RCU grace** — `call_rcu` free of transient pools is paired with a PAX_REFCOUNT-guarded pool refcount, so a racing `find_pool` cannot resurrect a freed pool.
+- **Rationale**: swiotlb is the canonical DMA bounce path and therefore the cleanest pivot between device-controlled bytes and kernel memory. Saturating slot accounting, scrubbed bounce slots in both directions, and CAP_SYS_ADMIN-gated restricted-pool installation close the residual leakage and pivot vectors that plain Linux leaves open.
+
 ## Open Questions
 
 (none at this Tier-3 level)

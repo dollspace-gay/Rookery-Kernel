@@ -592,6 +592,22 @@ BPF-hashmap reinforcement:
 - **Per-check_and_free_fields on prealloc reuse** — defense against per-stale-special-fields (spin_lock, kptr, timer) reuse.
 - **Per-BUILD_BUG_ON fnode/hash_node overlap** — defense against per-layout-drift breaking transition prealloc→bucket.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `bpf_map_lookup_elem` / `bpf_map_update_elem` copy-in/out of the per-element value buffer crosses the user/kernel slab boundary; whitelist the per-map `value_size` window so a verifier-side `key_size`/`value_size` confusion cannot drag adjacent bucket metadata across the boundary.
+- **PAX_KERNEXEC** — verifier-emitted JIT pages for inlined `map_gen_lookup` stubs must stay W^X; refuse rwx for the hashmap lookup trampoline even when CONFIG_BPF_JIT_ALWAYS_ON is unset.
+- **PAX_RANDKSTACK** — `htab_map_update_elem` runs from BPF prog context (kprobe/tracepoint) with arbitrary user-driven stack depth; randomized kstack offset blunts ROP gadgets pivoting through the bucket-locked critical section.
+- **PAX_REFCOUNT** — `bpf_map->refcnt` / `htab->n_buckets` / `extra_elems` counters are hot fast-path; refcount_t with saturating overflow trap prevents underflow-to-free during concurrent fd-close + map-in-map detach.
+- **PAX_MEMORY_SANITIZE** — `htab_elem_free` (and the prealloc reuse path through `check_and_free_fields`) must zero the value region before returning to bpf_mem_cache so a subsequent prog reading stale kptr/timer fields cannot resurrect freed kernel pointers.
+- **PAX_UDEREF** — `copy_from_bpfptr` on update/lookup arguments dereferences a userspace `bpfptr_t`; ensure SMAP/PAN is engaged across the whole htab fast path, not just the syscall entry.
+- **PAX_RAP/kCFI** — `htab_ops.map_lookup_elem` / `_update_elem` / `_delete_elem` are indirect-called from the verifier-issued tail jumps; require matching type-id so a freed map cannot have its ops vector swapped for an attacker-chosen htab variant.
+- **GRKERNSEC_HIDESYM** — `bpf_map_show_fdinfo` and `BPF_OBJ_GET_INFO_BY_FD` must elide kernel pointers (bucket array address, prealloc area base) from non-CAP_SYSLOG readers; pin-by-id should only reveal id, not heap layout.
+- **GRKERNSEC_DMESG** — htab WARN_ON paths (rqspinlock timeout in destroy, prealloc fnode/hash_node overlap BUILD_BUG_ON) must not splat raw bucket pointers into dmesg readable by non-CAP_SYSLOG.
+- **Bucket-locked CAP_BPF gate** — `htab_map_alloc` should refuse from a non-CAP_BPF / non-token context even when called via bpf-LSM hooks; defense against per-namespace CAP_BPF granting unbounded htab allocation.
+- **LRU eviction bounded** — `BPF_MAP_TYPE_LRU_HASH` eviction loop must cap the per-update scan at `LRU_LOCAL_LIST_LENGTH * nr_cpus` to prevent an attacker flooding keys to force unbounded eviction work inside a critical section.
+- **BPF_F_NO_PREALLOC quota** — when no-prealloc is set the per-element bpf_mem_alloc charge must go through memcg with a per-cgroup BPF map ceiling so a CAP_BPF user in a container cannot exhaust host slab via runaway insertions.
+- **Rationale** — the hashmap is the most common BPF data structure exposed to user-controlled key/value content; grsec hardening here narrows the attack surface from "any CAP_BPF holder can corrupt arbitrary kernel slab via crafted bucket layout" to "must defeat W^X, refcount saturation, kCFI, and memcg quota simultaneously" before reaching usable memory-corruption primitives.
+
 ## Open Questions
 
 (none at this Tier-3 level)

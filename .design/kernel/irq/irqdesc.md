@@ -145,6 +145,24 @@ irqdesc-specific reinforcement:
 - **Per-IRQ chip_data + handler_data** opaque pointer ownership tracked via `PhantomData<dyn Any>` in Rust wrapper to prevent type confusion.
 - **Per-IRQ depth saturation** — `disable_irq` on already-disabled IRQ saturates depth at u32::MAX (no overflow); reciprocal `enable_irq` on depth==0 logs WARN (defense against driver enable/disable mismatch).
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — copy-out of `/proc/irq/N/smp_affinity`, `/proc/interrupts`, and `/sys/kernel/irq/N/*` is bounds-checked.
+- **PAX_KERNEXEC** — `irq_desc_tree`, sparse irqdesc radix-tree nodes, and the bitmap allocator are in const/`__ro_after_init` storage where applicable.
+- **PAX_RANDKSTACK** — randomize kernel stack at every `handle_irq_desc` entry.
+- **PAX_REFCOUNT** — saturating atomics on `irq_desc.kobj` refcount, `desc->threads_active`, and `desc->depth` (saturate at u32::MAX rather than wrap).
+- **PAX_MEMORY_SANITIZE** — scrub `irq_desc` and `irq_common_data` on `free_desc` so chip_data/handler_data pointers are cleared before the slab returns.
+- **PAX_UDEREF** — strict user/kernel split when parsing /proc/irq writes (`affinity_set`, `nodeaffinity_set`).
+- **PAX_RAP / kCFI** — type-signed indirect calls for `desc->handle_irq`, `desc->irq_data.chip->*`, and `irq_desc_kobj_type` ops.
+- **GRKERNSEC_HIDESYM** — hide `irq_desc_tree`, `sparse_irqs`, `allocated_irqs` bitmap, and `irq_to_desc` from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict "spurious interrupt" / "IRQ %d: nobody cared" diagnostics to CAP_SYSLOG.
+- **irq_desc PAX_REFCOUNT** — the kobj refcount tied to `Arc<IrqDesc>` lifetime uses saturating atomics; underflow on `free_desc` panics rather than returning the slab to an attacker.
+- **/proc/irq/N CAP_SYS_ADMIN write** — `smp_affinity`, `smp_affinity_list`, and `node_affinity` writes require CAP_SYS_ADMIN in the init userns; an unprivileged userns cannot steer interrupts.
+- **Bitmap allocator hardened** — `irq_alloc_descs` validates the bitmap range under PAX_USERCOPY-class checks and refuses overlap with the per-CPU IPI range.
+- **Type-confused chip_data rejected** — Rust wrapper's `PhantomData<dyn Any>` panics on mismatched downcast; in C, the chip_data accessor checks chip identity before returning the pointer.
+- **kobject release synchronization** — `release_desc` runs under sysfs `kn->active` to prevent /proc/irq/N userspace races with `irq_free_desc`.
+- **Rationale**: irq_desc is the per-line metadata that hosts the indirect-call vtables, threading state, and the public /proc/irq surface. Saturating refcounts plus CAP_SYS_ADMIN gating on affinity writes plus const radix-tree storage eliminate the cross-ns affinity-pivot and refcount-underflow classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

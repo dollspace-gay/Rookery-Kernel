@@ -465,6 +465,25 @@ Transition reinforcement:
 - **Per-klp_synchronize_transition (schedule_on_each_cpu)** — defense against per-RCU-not-watching CPU reading stale func_stack.
 - **Per-stack_entries per-CPU buffer + preempt-disabled** — defense against per-concurrent reentrancy corrupting scratch.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `/proc/PID/patch_state` and per-patch sysfs files use bounded seq_file emission.
+- **PAX_KERNEXEC** — transition state machine code and `klp_func_stack` arrays are in const/`__ro_after_init` storage where applicable.
+- **PAX_RANDKSTACK** — randomize kernel stack on every task that goes through `klp_check_stack` and on klp_complete_transition entry.
+- **PAX_REFCOUNT** — saturating atomics on transition-time module refcounts, klp_patch refs, and per-task transition pinning counters.
+- **PAX_MEMORY_SANITIZE** — scrub the per-CPU `stack_entries` scratch buffer on each `klp_check_stack` exit.
+- **PAX_UDEREF** — strict user/kernel split on the fake-signal nudge path; signal queue manipulation stays in kernel pointers only.
+- **PAX_RAP / kCFI** — type-signed indirect calls for `klp_check_stack`'s stack-unwind callback and the per-arch unwinder ops it consumes.
+- **GRKERNSEC_HIDESYM** — hide `klp_transition_patch`, `klp_target_state`, `klp_check_stack`, and the per-CPU `stack_entries` symbol from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict transition WARN/info ("livepatch: signaling remaining tasks", forced-revert spew) to CAP_SYSLOG.
+- **Per-task TIF_PATCH_PENDING discipline** — TIF_PATCH_PENDING is set/cleared only under `tasklist_lock` with PAX_REFCOUNT-safe `klp_patch` reference; fork inherits the bit so newborn tasks never escape an in-progress transition.
+- **klp_check_stack atomic** — the stack-walk runs with preempt disabled and a per-CPU scratch buffer; if the unwinder is unreliable for the arch (`!HAVE_RELIABLE_STACKTRACE`), the transition is refused outright rather than degrading to a "best effort" check.
+- **Fake-signal nudge bounded** — `SIGNALS_TIMEOUT` triggers a one-shot wakeup; force is the only escalation, and it requires CAP_SYS_MODULE in init_user_ns.
+- **PF_KTHREAD wake-up gated** — kthreads are woken via `wake_up_state(TASK_INTERRUPTIBLE|TASK_UNINTERRUPTIBLE)`; the wake is bounded to a single pass per `signals_timeout`.
+- **Offline-CPU idle immediate flip** — offline CPUs have their idle task flipped synchronously under cpus_read_lock; cannot defer past CPU re-online to bypass the transition.
+- **klp_synchronize_transition fan-out** — `schedule_on_each_cpu` waits for every CPU including RCU-not-watching ones; partial completion is impossible.
+- **Rationale**: the transition is the window during which two versions of every patched function are live simultaneously. PAX_RAP-typed unwinder callbacks, atomic per-task TIF bookkeeping, and refusing transitions on archs without reliable stacktrace prevent the "consistency-model bypass" class where an attacker drives a task through an inconsistent state.
+
 ## Open Questions
 
 (none at this Tier-3 level)

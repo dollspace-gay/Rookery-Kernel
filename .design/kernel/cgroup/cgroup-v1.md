@@ -441,6 +441,23 @@ cgroup-v1 reinforcement:
 - **Per-call_usermodehelper UMH_WAIT_EXEC bounded** — defense against per-release-agent-hang DoS.
 - **Per-attach_task_all under CGRP_ATTACH_LOCK_GLOBAL** — defense against per-partial-migration race.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — cgroup-v1 file ops (`cgroup_tasks_write`, `cgroup_procs_write`, `release_agent_write`) copy attacker-supplied buffers through `copy_from_user`; whitelist `PAGE_SIZE - 1` upper bound and reject the moment a multi-page write would cross the slab boundary.
+- **PAX_KERNEXEC** — `cgroup1_ops` cftypes indirect-call surface (`->write`, `->seq_show`, `->read_u64`) lives in `.rodata`; refuse rwx so a kernel-write primitive cannot rewrite `release_agent_write` to skip the CAP_SYS_ADMIN check.
+- **PAX_RANDKSTACK** — `cgroup1_mount` / `cgroup_attach_task_all` run from `mount(2)` with attacker-driven options; randomized kstack offset disrupts ROP through the legacy parse + bind path.
+- **PAX_REFCOUNT** — `cgroup_root->cgrp.refcnt`, `css_set->refcount`, and pidlist `l->use_count` are refcount_t with saturating overflow; defense against fd-storm underflow racing `cgroup1_release_agent` against root teardown.
+- **PAX_MEMORY_SANITIZE** — pidlist destroy (`pidlist_destroy_work_fn`) and `cgroup_destroy_root` must zero the pidlist array and `release_agent_path` buffer before slab/kfree return; defense against post-free PID leakage to a fresh allocation in the same cgroup hierarchy.
+- **PAX_UDEREF** — `release_agent_write`'s `kstrtouint`/`strscpy_pad` of attacker-supplied path keeps SMAP/PAN engaged across the whole copy; ditto for `cgroup_release_agent_path` reader on remount.
+- **PAX_RAP/kCFI** — `kernfs_ops->write` and `cftype->write` indirect calls must verify kCFI tag; defense against legacy `tasks`/`cgroup.procs` writer being swapped for a non-cgroup-v1 stub.
+- **GRKERNSEC_HIDESYM** — `cgroup_show_options` and `/proc/<pid>/cgroup` must not leak `cgroup_root *` kernel pointers; v1 hierarchy ids are user-facing, but the underlying struct address must be hidden from non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — `WARN_ON` paths in `cgroup_legacy_check_for_release` and `release_agent` UMH must not splat raw kernel pointers into dmesg readable by non-CAP_SYSLOG.
+- **Legacy hierarchies CAP_SYS_ADMIN strict** — `cgroup1_mount` and every `cgroup_subsys.legacy_cftypes.write` callback must enforce `ns_capable(user_ns, CAP_SYS_ADMIN)` against the userns owning the cgroup_root, never the init userns; defense against per-userns cgroup-v1 mount granting host-cgroup writes.
+- **`release_agent` gate** — `release_agent_write` must refuse if the cgroup is mounted inside a non-init userns OR if `cgroup_no_v1=release_agent` boot flag set; UMH `call_usermodehelper(release_agent_path, ..., UMH_WAIT_EXEC)` runs with init creds and must never be controllable from a container.
+- **`cgroup_no_v1=` hard-disable** — boot flag must hard-disable both the controller bind AND the legacy `tasks` file; Rookery rejects late-mount-time enablement of disabled controllers.
+- **`attach_task_all` under CGRP_ATTACH_LOCK_GLOBAL** — partial-migration race already mitigated upstream; harden by adding rqspinlock timeout WARN so an attacker holding the lock cannot stall the migration indefinitely.
+- **Rationale** — cgroup-v1 is the largest legacy attack surface still in the kernel; `release_agent` historically yielded multiple container-escape CVEs (CVE-2022-0492 and family). The grsec regime forces an attacker to defeat W^X on cftype dispatch + kCFI on kernfs_ops + CAP_SYS_ADMIN strict-userns gate + release_agent boot lockdown + refcount saturation before reaching a usable v1-mediated host primitive.
+
 ## Open Questions
 
 - Should Rookery deprecate v1 mount entirely behind a Kconfig (forcing v2-only) given upstream's repeated calls to retire v1? Default: keep behind `CONFIG_CGROUP_V1` gated by `cgroup_no_v1=all`.

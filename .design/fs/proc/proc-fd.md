@@ -270,6 +270,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+/proc/<pid>/fd is a cross-uid disclosure surface (fd numbers, target paths, dup-source inodes) that grsec historically restricted to gradm `debugger` role; Rookery encodes the equivalent contract:
+
+- **PAX_USERCOPY** — readlink + fdinfo seq buffers bounded against per-allocation slab size; no copy_to_user past `PATH_MAX`.
+- **PAX_KERNEXEC** — `proc_fd_inode_operations` and `proc_fd_dir_operations` are `static const`; per-fd-type `show_fdinfo` dispatch table is `__ro_after_init`.
+- **PAX_RANDKSTACK** — kernel-stack offset randomized so per-fd open paths cannot anchor a kstack-grooming primitive.
+- **PAX_REFCOUNT** — `get_task_struct`, `get_files_struct`/`put_files_struct`, and per-`struct file` refs use saturating refcount.
+- **PAX_MEMORY_SANITIZE** — freed fdinfo seq buffers zeroed; per-fd path strings (potentially sensitive ipc/anon_inode names) cannot bleed.
+- **PAX_UDEREF** — readlink and fdinfo emitters treat seq buffers as user-domain on copy_to_user; no kernel-pointer dereference smuggled via fd-path formatting.
+- **PAX_RAP/kCFI** — `proc_fdinfo_inode_operations.show_fdinfo` function pointer is CFI-typed; per-fd-type vtable cannot be hijacked.
+- **GRKERNSEC_HIDESYM** — `/proc/<pid>/fdinfo/<n>` strips kernel addresses (per-driver private state, anon_inode private_data ptrs) for non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — fd-walk denial paths never log target paths to dmesg.
+- **/proc/<pid>/fd CAP_SYS_PTRACE for cross-uid** — fd readdir + readlink for `pid != current` require `ptrace_may_access(target, PTRACE_MODE_READ_FSCREDS)`; mirrors grsec `GRKERNSEC_PROC_USER` lockdown for fd introspection.
+- **Per-fdinfo CAP_SYS_PTRACE gate** — fdinfo seq_show for cross-uid targets follows the same gate, so `pos`/`flags`/`mnt_id` of another process's fd is unreachable to unprivileged readers.
+- **PR_SET_DUMPABLE=0** — when the target has cleared dumpable, `/proc/<pid>/fd` directory access is denied even to same-uid readers (matches grsec `GRKERNSEC_PROC_USERGROUP` interaction).
+
+Rationale: fd-table enumeration is the cheapest oracle for "what is process X talking to" — sockets, pipes, perf_event, io_uring rings, ebpf maps — and grsec specifically targeted this with `GRKERNSEC_PROC_ADD` because lsof-style reconnaissance feeds nearly every local LPE chain.
+
 ## Open Questions
 
 (none — /proc/<pid>/fd + /fdinfo semantics exhaustively specified by upstream + lsof + systemd test corpus)

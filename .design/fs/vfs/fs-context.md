@@ -192,6 +192,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+`fs_context` is the modern-mount-API root: every fsopen(2)/fsconfig(2)/fsmount(2) flows through here and receives user-supplied parameter strings. grsec/PaX floor:
+
+- **PAX_USERCOPY** — `fs_parameter.string`/`fs_parameter.blob` are `getname`/`memdup_user` bounded; per-FS `parse_param` receives a kernel-owned, length-checked `fs_parameter` so copy_from_user occurs once at the boundary.
+- **PAX_KERNEXEC** — per-FS `fs_context_operations` vtable and `fs_parameter_spec[]` are `static const`; per-FS lookup table `__ro_after_init`.
+- **PAX_RANDKSTACK** — mount/parse paths run under randomized kstack; parameter-walk loop cannot anchor a kstack-shape primitive.
+- **PAX_REFCOUNT** — `fs_context.fc_refcnt` is saturating refcount; `get_fs_context`/`put_fs_context` audited.
+- **PAX_MEMORY_SANITIZE** — `fs_context.fs_private`, `fc_log` entries, and per-parameter scratch zeroed on free; any temporarily stored secret material (NFS sec=, SMB password=, fscrypt key descriptor) cannot bleed.
+- **PAX_UDEREF** — every parameter path uses `getname`/`memdup_user_nul`; raw `__user` deref forbidden by `__must_check` at the boundary.
+- **PAX_RAP/kCFI** — `fs_context_operations.{free,dup,parse_param,parse_monolithic,get_tree,reconfigure}` and `fs_parameter_spec.type` dispatch are CFI-typed and `__ro_after_init`.
+- **GRKERNSEC_HIDESYM** — `fc_log` (mount-failure messages surfaced to userspace via fsinfo) is scrubbed of kernel pointers; per-FS `errorf`/`invalf` helpers strip `%p`/`%px`.
+- **GRKERNSEC_DMESG** — mount-failure messages route through `fc_log` to the caller's fd, not to dmesg; multiplexed concurrent mount failures cannot DoS the kernel log.
+- **fc_log bounded** — `fc_log` capped at 8 messages of `LOG_MAX_PER_LINE` (PAGE_SIZE) bytes; oldest entries dropped on overflow; per-message kvmalloc bounded to defeat parameter-error-flood DoS.
+- **fs_parameter spec strict** — `fs_parameter_spec[]` is validated at FS-type registration time via `fs_validate_description`; unknown parameter types, duplicate keys, or out-of-range enums cause registration failure rather than runtime confusion.
+- **Per-`fc_phase` state-machine enforcement** — every `fc_phase` transition is validated against the legal state graph; `parse_param` cannot be called after `get_tree`, `reconfigure` cannot precede `superblock_creating`; out-of-order calls return `-EINVAL` immediately.
+- **mount(8)-legacy `parse_monolithic` MEMORY_SANITIZE** — the legacy `mount(2)` string buffer (used by `parse_monolithic`) is zeroed on `put_fs_context`; secret-bearing options (NFS sec=krb5p, cifs password=) sanitized at boundary.
+
+Rationale: fs_context is the universal mount-time parser; mount-time CVEs historically combined parameter-parse bugs (TOCTOU between parse and apply) with secret leaks (password=/key= options surviving in slabs). The Rookery contract handles both classes at the fs_context layer rather than re-validating in every per-FS parser.
+
 ## Open Questions
 
 (none — modern mount API semantics are exhaustively specified by upstream)

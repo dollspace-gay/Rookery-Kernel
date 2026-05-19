@@ -442,6 +442,22 @@ audit_watch reinforcement:
 - **Per-audit_exe_compare tsk==current guard** — defense against per-cross-task mm dereference.
 - **Per-call_rcu for entry free** — defense against per-RCU-reader UAF during filter list traversal.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — every watch-path string staged from netlink (`audit_to_watch` parsing the user-supplied buffer) MUST be slab-whitelisted; reject if length exceeds `PATH_MAX`.
+- **PAX_KERNEXEC** — keep `audit_watch_fsnotify_ops`, `audit_watch_group->ops`, and the watch-list head pointers in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on `audit_add_watch`/`audit_update_watch`; the on-stack `kern_path` and parent-name buffers are stable disclosure targets.
+- **PAX_REFCOUNT** — saturating refcount on `struct audit_watch`, `audit_parent`, and the underlying `fsnotify_mark`; wraparound MUST panic.
+- **PAX_MEMORY_SANITIZE** — zero `audit_watch->path` and `audit_parent->wdata.name` on free; never recycle a prior policy's watched path bytes.
+- **PAX_UDEREF** — strict user/kernel separation when parsing the watch path from netlink; the kernel MUST NOT deref a smuggled kernel pointer.
+- **PAX_RAP / kCFI** — type-check the `fsnotify_ops` table (`handle_event`, `free_mark`, `freeing_mark`) and the `audit_watch_log_rule_change` callback.
+- **GRKERNSEC_HIDESYM** — hide `audit_add_watch`, `audit_update_watch`, `audit_watch_handle_event` from non-root kallsyms.
+- **GRKERNSEC_DMESG** — restrict dmesg so per-event watch-firing spew (which echoes paths and inode numbers) is not harvestable.
+- **`fsnotify_mark` PAX_REFCOUNT** — explicit saturating wrapper around `fsnotify_get_mark`/`fsnotify_put_mark` for audit's marks; the mark vs `freeing_mark` race is the canonical UAF surface and MUST NOT wrap.
+- **Audit-rule TOCTOU mitigation** — between `kern_path_parent` and `inotify_find_inode`-equivalent attach, an attacker may swap the parent dentry (bind-mount, rename); auditsc MUST re-validate `parent->inode` under `audit_filter_mutex` and refuse the rule if the inode changed — never silently watch the new inode.
+- **`AUDIT_INO_UNSET`/`AUDIT_DEV_UNSET` strict** — after `audit_remove_watch`, the watch MUST observably emit one final `CONFIG_CHANGE` record; a silent removal under grsec policy escalates to `audit_panic`.
+- **Rationale** — audit-watch hangs fsnotify marks off attacker-influenced paths and must survive concurrent rename/unlink/bind-mount; PAX_REFCOUNT on `fsnotify_mark` plus the TOCTOU re-validation close the historical class of watch-attaches-wrong-inode bugs and freed-mark UAFs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

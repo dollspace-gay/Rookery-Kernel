@@ -769,6 +769,26 @@ SMB client connect reinforcement:
 - **Per-`allow_kernel_signal(SIGKILL)`** — defense against per-cifsd unkillable-on-shutdown.
 - **Per-`SERVER_IS_CHAN` primary-ref accounting** — defense against per-primary-leak when last channel goes away.
 
+## Grsecurity/PaX-style Reinforcement
+
+SMB client connect is a high-value remote-attacker-controlled surface: the server can supply hostile responses to session-setup, tree-connect, and DFS referrals. Rookery applies the grsec/PaX floor:
+
+- **PAX_USERCOPY** — `cifs_mount_data` and `smb3_fs_context` parse paths bound every `copy_from_user` against the per-field allocation; mount-options scratch is sized at allocation.
+- **PAX_KERNEXEC** — `smb_version_operations`, `smb_version_values`, and per-dialect vtables are `static const`; dialect dispatch is `__ro_after_init`.
+- **PAX_RANDKSTACK** — connect-thread stack offset randomized; per-mount kstack-shape leaks denied.
+- **PAX_REFCOUNT** — `TCP_Server_Info.srv_count`, `cifs_ses.ses_count`, `cifs_tcon.tc_count`, `cifs_sb.sb_active` all saturating-refcount.
+- **PAX_MEMORY_SANITIZE** — `kfree_sensitive` on session_key, password, and per-channel-signing-key; mount-options scratch zeroed; SMB session-setup credential buffers cannot bleed via slab reuse.
+- **PAX_UDEREF** — mount-option parser treats userspace mount-data as `void __user *`; every field consumed via `copy_*_user` or `strncpy_from_user`.
+- **PAX_RAP/kCFI** — `smb_version_operations.*` are CFI-typed; per-dialect handlers (`smb2_ops`, `smb3_ops`, `smb311_ops`) must match the canonical signature.
+- **GRKERNSEC_HIDESYM** — connect failures and reconnect diagnostics never emit kernel pointers; `cifs_dbg` macros strip `%p`/`%px` to hashed pointer for non-CAP_SYSLOG dmesg consumers.
+- **GRKERNSEC_DMESG** — server name + IP logged at most rate-limited via `pr_warn_once`; reconnect storm cannot DoS dmesg.
+- **SMB session-setup credential MEMORY_SANITIZE** — every secret material slab (NTLMv2 hash, GSS context, kerberos ticket, AES-CMAC subkey) zeroed on free via `kfree_sensitive`; per-channel-signing-key isolated and zeroed on channel teardown.
+- **SMB 3.1.1 pre-auth integrity verify** — the pre-auth integrity hash (computed over Negotiate/SessionSetup PDUs) is verified server-side response against client-tracked transcript before tree-connect; mismatched hash terminates the connection (defends against SMB3 downgrade and PDU-injection attacks).
+- **DFS target list PAX_USERCOPY bound** — DFS referral response parse caps target count and per-target name length; malformed referrals cannot OOM the mount path.
+- **Per-credit-clamp `[20, 60000]`** — hostile server cannot grant unbounded credits to balloon kernel allocation; layered with `MAX_COMPOUND` for chained PDUs.
+
+Rationale: SMB has been a recurring kernel CVE source (CVE-2022-47939, CVE-2023-32250 etc.) precisely because server-controlled buffers reach kernel slab allocators; the grsec-equivalent contract here is to combine `PAX_MEMORY_SANITIZE` (no key bleed) with `PAX_USERCOPY` (every server-controlled length bound at allocation) at the connect/session-setup chokepoint.
+
 ## Open Questions
 
 (none at this Tier-3 level)

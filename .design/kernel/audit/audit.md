@@ -290,6 +290,23 @@ audit-specific reinforcement:
 - **Per-record fields sanitized for control-chars** — defense against attacker-input embedding fake-record-boundary in audit log.
 - **Per-rule LSM compile-time validate** — defense against LSM rule referencing non-existent label.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check every `copy_from_user`/`copy_to_user` on `struct audit_status`, `audit_features`, `audit_tty_status`, and the variable-length netlink payload against the slab whitelist.
+- **PAX_KERNEXEC** — keep `audit_ops`, `audit_nlmsg_ops`, `audit_filter_list[]`, and `audit_failure_action` dispatch in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on `audit_receive_msg` and `audit_log_*` entry; the staged `audit_buffer` is otherwise a stable disclosure target.
+- **PAX_REFCOUNT** — saturating refcount on `audit_buffer`, `audit_context`, `audit_skb` queue items; wraparound MUST panic.
+- **PAX_MEMORY_SANITIZE** — zero `audit_buffer->skb->data` on free; never recycle prior record bytes (which carry uids, paths, syscall args) into a fresh record.
+- **PAX_UDEREF** — strict user/kernel separation when parsing netlink payloads; the kernel MUST NOT deref smuggled kernel pointers from `nlmsg_data`.
+- **PAX_RAP / kCFI** — type-check `audit_failure` indirect calls, LSM `security_netlink_send` hooks, and the per-record format callbacks.
+- **GRKERNSEC_HIDESYM** — hide `audit_log_*`, `audit_receive`, and `kauditd_thread` from non-root kallsyms.
+- **GRKERNSEC_DMESG** — restrict dmesg so audit-overflow / lost-record spew (which echoes the lost record's prefix) cannot be harvested by unprivileged probers.
+- **`AUDIT_GET`/`AUDIT_SET` require `CAP_AUDIT_CONTROL`** — re-gate on current creds at netlink message dispatch, not the socket-creation creds; a SCM_RIGHTS-passed audit socket MUST NOT escalate.
+- **Rate-limit** — enforce per-uid and per-namespace `audit_rate_limit` on `audit_log_start`; an attacker who can spam audit records (e.g., via deliberately failing syscalls) can DoS the audit pipeline and force `audit_panic` under strict failure policy.
+- **`AUDIT_LOCKED` immutability** — once `audit_enabled == 2` (locked), every subsequent `AUDIT_SET` that would change `enabled`/`failure`/`pid` MUST return -EPERM regardless of caps; this is the canonical "tamper-evident" boundary.
+- **Multicast read socket** — restrict `AUDIT_NLGRP_READLOG` membership to `CAP_AUDIT_READ`; PAX_RAP must verify the broadcast `sk_filter` is the audit one.
+- **Rationale** — audit is the trust root for every other security subsystem; PAX_REFCOUNT + PAX_MEMORY_SANITIZE close the audit_buffer UAF/leak class, CAP_AUDIT_CONTROL re-gating closes the SCM_RIGHTS-laundered netlink class, and rate-limiting + `AUDIT_LOCKED` close the DoS-and-tamper class.
+
 ## Open Questions
 
 (none at this Tier-3 level)

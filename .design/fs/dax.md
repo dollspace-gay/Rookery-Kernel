@@ -661,6 +661,27 @@ DAX reinforcement:
 - **Per-device-dax (`S_ISCHR`) short-circuit in `dax_lock_folio`** — defense against per-spurious-xa_lock on a dax_dev without page-cache.
 - **Per-`folio.share` refcount + `dax_folio_make_shared`** — defense against per-CoW-reflink-leak / per-double-free in reverse-map.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `dax_iomap_iter` / `copy_mc_to_user` paths so pmem MCE-injected bytes cannot overrun a slab object boundary.
+- **PAX_KERNEXEC** — W^X for any executable mapping; DAX-backed text pages are mapped `PROT_EXEC` only when the underlying FS_VERITY descriptor matches.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `mmap(MAP_SYNC)` / `fsync` so DAX fault paths leak no stack layout.
+- **PAX_REFCOUNT** — saturating refcount on `struct dax_device`, on each DAX `xa_entry` type tag (`DAX_ZERO_PAGE`/`DAX_PMD`/`DAX_LOCKED`), and on the per-folio `folio.share` counter so reflink-CoW cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for any DAX page returning to the freelist via `dax_zero_iter`, including PMD-sized teardown.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access; `dax_iomap_fault` rejects faults whose `vmf->address` is not user-space.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `struct dax_operations` (`direct_access`, `zero_page_range`, `recovery_write`) and on `iomap_ops` vtables so pmem driver tables cannot be hijacked.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in `/proc/<pid>/maps` and `numa_maps` for DAX-backed VMAs.
+- **GRKERNSEC_DMESG** — syslog restriction on pmem-MCE recovery diagnostics, which otherwise expose PFN layout.
+- **pmem-MCE poison-list isolation** — `dax_recovery_write` validates that the target PFN is on the poison list before clearing, refusing arbitrary clears.
+- **MAP_SYNC validation** — `dax_iomap_fault` rejects `MAP_SYNC|MAP_SHARED_VALIDATE` on filesystems lacking `FS_DAX_SYNC` so a stale FS cannot silently downgrade to non-sync semantics.
+- **DAX entry-type tag invariants** — every `xa_load` of the DAX radix is checked against `dax_is_value()` / `dax_is_locked()` / `dax_is_pmd()` mutual exclusion before deref.
+- **`dax_lock_folio` device-dax short-circuit** — character-device DAX never enters `xa_lock` paths shared with FS-DAX, preventing a confused-deputy on shared lock state.
+- **CAP_SYS_RAWIO gate on `/dev/daxN.M`** — character-device DAX open requires CAP_SYS_RAWIO so unprivileged code cannot directly map raw pmem.
+
+Per-doc rationale: DAX bypasses the page cache and hands user mappings directly to persistent memory PFNs, so every classical "page-cache ate the bad bit" defense is absent; PaX/grsec reinforcement matters more here than in any other FS because a single mis-tagged radix entry, a single missed `folio.share` increment, or a single unvalidated `MAP_SYNC` flag becomes a permanent corruption written to media.
+
 ## Open Questions
 
 (none at this Tier-3 level)

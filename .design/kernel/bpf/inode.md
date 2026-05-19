@@ -459,6 +459,22 @@ bpffs reinforcement:
 - **Per-LINK BPF_OBJ_GET requires O_RDWR** — defense against per-readonly-link-misuse (links inherently need update/detach permissions).
 - **Per-`S_ISVTX` (sticky bit) always set on bpffs root** — defense against per-cross-uid unlink of another user's pinned object.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `BPF_OBJ_PIN` / `BPF_OBJ_GET` thread a user-supplied `pathname` through `getname` and back into `kern_path_create`; whitelist the strncpy_from_user / d_path window so an attacker cannot use a crafted bpffs path argument to leak adjacent dentry / mount fields across the user boundary.
+- **PAX_KERNEXEC** — bpffs inode ops vector (`bpf_dir_iops`, `bpf_prog_iops`, `bpf_map_iops`, `bpf_link_iops`) lives in `.rodata`; enforce W^X so a heap-overflow into an adjacent superblock cannot rewrite `.lookup` to a controlled function pointer.
+- **PAX_RANDKSTACK** — the pin/unpin path runs under VFS locks with arbitrary user-controlled component depth; randomized kstack offset shrinks the ROP window across the `vfs_mkobj` → `bpf_iop_mkdir`/`bpf_mkobj` callchain.
+- **PAX_REFCOUNT** — `inode->i_private` holds raw `bpf_map`/`bpf_prog`/`bpf_link` refs counted by refcount_t; saturating overflow trap prevents `BPF_OBJ_GET` storm racing against `BPF_OBJ_PIN` unlink from underflowing to a fresh-but-freed object.
+- **PAX_MEMORY_SANITIZE** — bpffs inode evict (`bpf_evict_inode`) must zero `inode->i_private` after the drop-ref so a subsequent slab reuse of the same `struct inode` cannot expose the freed bpf object pointer to a lookup racing the unlink.
+- **PAX_UDEREF** — `BPF_OBJ_PIN`/`_OBJ_GET` argument vectors live in userspace `bpf_attr`; SMAP/PAN must be active across the whole `bpf_obj_pin_uattr` → `bpf_obj_do_pin` chain, not just at syscall entry.
+- **PAX_RAP/kCFI** — `inode_operations->lookup` / `->mkdir` / `->unlink` indirect calls from VFS must verify the kCFI tag matches `bpf_dir_iops`; defense against confused-deputy where a corrupted mount could swap the iops vector for one accepting non-bpffs payloads.
+- **GRKERNSEC_HIDESYM** — `seq_show_fdinfo` for bpffs pinned objects must hide the underlying `struct bpf_map *` / `struct bpf_prog *` kernel pointers from non-CAP_SYSLOG readers; expose id only.
+- **GRKERNSEC_DMESG** — bpffs WARN_ON paths (orphaned inode, ref imbalance on evict) must not leak raw kernel pointers into dmesg readable by non-CAP_SYSLOG.
+- **bpffs CAP_BPF mount gate** — `bpf_fill_super` should refuse mount unless the caller holds CAP_BPF in the userns owning the mount, even when `fsopen` is permitted; defense against per-namespace bpffs being used as a side-channel pinning surface.
+- **BPF_OBJ_PIN PAX_USERCOPY path-walk window** — the `pathname` copy from user must be sized against PATH_MAX with strict overflow rejection so an oversized pin path cannot drive a slab overflow in `getname_flags`.
+- **Reserved-name dot-prefix lockdown** — `bpf_lookup` already rejects `.`-containing names; harden by also refusing components matching `populate_bpffs` reserved prefixes (`.preserve_static_offset`, etc.) to prevent namespace poisoning even from CAP_BPF.
+- **Rationale** — bpffs is the persistence layer for BPF objects across process lifetimes; without grsec gating an attacker who briefly obtains CAP_BPF can pin a prog/map under a long-lived bpffs path and keep its kernel state alive after cap drop. The combined W^X + kCFI + refcount-saturation regime forces an attacker to break multiple independent mitigations before they can convert a bpffs race into kernel control.
+
 ## Open Questions
 
 (none at this Tier-3 level)

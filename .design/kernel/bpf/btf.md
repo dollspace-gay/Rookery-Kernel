@@ -308,6 +308,22 @@ BTF reinforcement:
 - **Per-resolve_size memoized** — defense against per-recompute-DOS.
 - **Per-DECL_TAG / TYPE_TAG semantic-validation** — defense against per-typo annotation acceptance.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `copy_from_user(btf_data, ..., size)` against `BTF_MAX_SIZE` and the slab whitelist; reject any blob whose header `hdr_len`/`type_off`/`str_off` arithmetic crosses the allocation.
+- **PAX_KERNEXEC** — keep `btf_kind_ops[]`, `btf_func_proto_*`, the kfunc id-set tables, and `vmlinux_btf` pointer in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on `btf_parse`/`btf_validate`/`btf_resolve` to defeat disclosure of the staged `struct btf_verifier_env`.
+- **PAX_REFCOUNT** — saturating refcount on `struct btf`, per-module BTF, and every `btf_id_set8` table entry; wraparound MUST panic.
+- **PAX_MEMORY_SANITIZE** — zero `btf->data`, `btf->types`, and `btf->resolved_sizes`/`resolved_ids` on free; never let prior BTF blob bytes leak into a recycled load.
+- **PAX_UDEREF** — strict user/kernel separation while parsing the user-supplied BTF blob; the kernel MUST NOT deref a smuggled kernel pointer from `btf_header`.
+- **PAX_RAP / kCFI** — type-check every indirect call resolved by BTF (kfunc dispatch, `bpf_struct_ops` vtable, `fmod_ret` trampolines); a BTF-resolved indirect call MUST match the BTF-declared `FUNC_PROTO`.
+- **GRKERNSEC_HIDESYM** — hide `btf_parse_*`, `btf_resolve_*`, and kfunc symbols from non-root kallsyms; BTF symbol disclosure is a kfunc-id-spoof oracle.
+- **GRKERNSEC_DMESG** — restrict dmesg so BTF verifier spew (which echoes attacker-supplied type names and offsets) is not harvestable.
+- **BTF blob PAX_USERCOPY** — the `btf->data` staging buffer MUST be allocated from a usercopy-whitelisted cache because it is later re-read for type-id resolution and `btf_show_*` snprintf paths.
+- **`btf_validate` signature** — under grsec, kernel BTF (`vmlinux_btf`, module BTF) MUST carry an integrity signature checked at load; an unsigned module BTF triggers `audit_panic`. User BTF (`BPF_BTF_LOAD`) MUST set `kernel_btf == false` and is never trusted for `bpf_struct_ops` or trampoline resolution.
+- **kfunc allowlist** — every kfunc reachable from a BPF program MUST appear in a per-subsystem `BTF_ID_SET8` allowlist with explicit `KF_*` flags; `KF_TRUSTED_ARGS` is mandatory for any kfunc taking a kernel pointer, and PAX_RAP must verify the call-site type before dispatch.
+- **Rationale** — BTF is the type-resolution oracle for the entire BPF subsystem (verifier, kfuncs, tracing, struct_ops); a tampered or type-confused BTF blob is a direct kernel R/W primitive. PAX_USERCOPY + PAX_RAP + btf_validate + kfunc allowlist close the historical class of BTF-driven type confusion (e.g., the recurring `bpf_struct_ops` and CO-RE relocation CVEs).
+
 ## Open Questions
 
 (none at this Tier-3 level)

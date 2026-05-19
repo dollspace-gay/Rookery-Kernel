@@ -671,6 +671,22 @@ Auditsc reinforcement:
 - **Per-AUDIT_EOE terminator** — defense against per-auditd partial-event-flush (event boundary signal).
 - **Per-audit_log_n_untrustedstring hex-escape** — defense against per-userspace-content terminal-injection in log.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — every per-syscall `copy_from_user` that auditsc *records* (sockaddr, execve argv/envp, mmap args) MUST stage into a usercopy-whitelisted `audit_aux_data_*` slab; reject any record whose source crosses the slab boundary.
+- **PAX_KERNEXEC** — keep `audit_context_ops`, the per-aux-type dispatch table (`audit_log_execve_info`, `audit_log_d_path`, etc.), and `audit_filter_syscall` in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on `__audit_syscall_entry`/`__audit_syscall_exit`; the on-stack `audit_names[]` array and per-aux scratch are otherwise stable disclosure targets.
+- **PAX_REFCOUNT** — saturating refcount on `struct audit_context` (per task) and on every `audit_aux_data_*` chain; wraparound MUST panic.
+- **PAX_MEMORY_SANITIZE** — zero `audit_context->names[]`, `aux`, `aux_pids`, and the per-syscall `argv`/`envp` staging buffers on `audit_free_context()`; never let a prior process's execve argv leak into a recycled context.
+- **PAX_UDEREF** — strict user/kernel separation while staging argv/envp/sockaddr from userspace; the per-aux capture path MUST NOT deref a kernel pointer.
+- **PAX_RAP / kCFI** — type-check `audit_filter_rules`, every LSM `security_audit_rule_match`, and the per-aux `audit_log_*` dispatch.
+- **GRKERNSEC_HIDESYM** — hide `__audit_syscall_*`, `audit_filter_syscall`, `audit_log_execve_info` from non-root kallsyms.
+- **GRKERNSEC_DMESG** — restrict dmesg so auditsc rate-limit or OOM spew (which echoes per-syscall context) is not harvestable.
+- **`audit_context` PAX_REFCOUNT** — explicit saturating wrapper; the entry-time alloc vs exit-time free race during task teardown is the canonical UAF surface.
+- **Syscall-audit context PAX_USERCOPY** — `audit_aux_data_execve` (argv/envp) and `audit_aux_data_sockaddr` MUST be allocated from usercopy-whitelisted caches because they are later read back into `audit_log_n_untrustedstring`; an OOB read here is a direct kernel-memory disclosure into the audit log.
+- **PER_NAMES bound** — clamp `audit_context->name_count` to `AUDIT_NAMES` before any `getname` recording; an attacker who triggers many `path_lookup` calls per syscall (e.g., a path with many symlink hops) can otherwise OOM the context.
+- **Rationale** — auditsc reaches into nearly every syscall and stages attacker-controlled bytes (paths, argv, sockaddrs) into long-lived per-task context that is then read back into the audit log; PAX_USERCOPY + PAX_REFCOUNT close the historical class of audit_context UAFs and the disclosure-via-audit-log class (multiple CVEs around execve argv recording).
+
 ## Open Questions
 
 (none at this Tier-3 level)

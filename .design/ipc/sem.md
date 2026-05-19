@@ -527,6 +527,22 @@ Sem-array reinforcement:
 - **Per-`__randomize_layout`** — defense against per-known-offset attacks.
 - **Per-ipc_namespace isolation** — defense against per-cross-ns semaphore access.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `copy_from_user(sops, ..., nsops * sizeof(struct sembuf))`, `copy_semundo_from_user`, and `copy_semid_{to,from}_user` against the slab whitelist for `sem_array`/`sem_undo`; reject any copy that crosses SEMOPM.
+- **PAX_KERNEXEC** — keep `sem_ops`, LSM `security_sem_*` vtables, and per-namespace IPC `ipc_ids.ops` in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on `semop`/`semtimedop`/`semctl` entry; the per-call `struct sembuf fast_sops[SEMOPM_FAST]` is a juicy stack-disclosure target.
+- **PAX_REFCOUNT** — saturating refcount on `struct sem_array` (via `ipc_rcu`) AND on `struct sem_undo`; wraparound MUST panic, not silently UAF.
+- **PAX_MEMORY_SANITIZE** — zero `sem_undo->semadj[]` and `sem_array->sems[]` on free; never recycle a prior uid's undo deltas.
+- **PAX_UDEREF** — strict user/kernel separation when dereferencing `void __user *array` and `struct sembuf __user *tsops`.
+- **PAX_RAP / kCFI** — type-check the LSM hooks and indirect `ipc_obtain_object_check` callbacks; mismatch panics.
+- **GRKERNSEC_HIDESYM** — hide `do_semtimedop`, `sem_lock`, `freeary`, and `exit_sem` from non-root `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — restrict dmesg so per-op locking-debug spew cannot reveal sem_array addresses.
+- **`sem_undo` PAX_REFCOUNT** — explicit saturating wrapper around `sem_undo_list` refcount; the `exit_sem` path is the canonical UAF surface (task exit racing with `IPC_RMID`).
+- **SEMOPM cap** — reject `nsops > ns->sc_semopm` *before* allocation; do not rely on later kmalloc to fail (attacker can pin many oversize requests to OOM the namespace).
+- **SEM_UNDO transactional** — `SEM_UNDO` op MUST be all-or-nothing per `semop` call: if any sub-op fails or sleeps and is cancelled, every `semadj` mutation MUST be unwound atomically; partial undo state is the recurring exploit primitive.
+- **Rationale** — SysV semaphores carry two long-lived refcounted objects (`sem_array` and `sem_undo`) that outlive the calling task and span `exit_sem()`; PAX_REFCOUNT plus the SEM_UNDO transactional rule close the historical class of `freeary`/`exit_sem` races and undo-list double-frees.
+
 ## Open Questions
 
 (none at this Tier-3 level)

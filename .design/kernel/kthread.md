@@ -722,6 +722,25 @@ Kthread reinforcement:
 - **Per-kthread `blkcg_css` strict get/put in `associate_blkcg`** — defense against per-blkcg-css refcount leak.
 - **Per-`kthread_destroy_worker` flush-then-stop-then-free ordering** — defense against per-pending-work-after-free.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — kthread comm/name buffers in /proc copy paths are bounds-checked; format strings to `kthread_create` are vetted (no `%n`).
+- **PAX_KERNEXEC** — kthread worker dispatch tables and threadfn function-pointer arrays are W^X.
+- **PAX_RANDKSTACK** — each kthread bringup re-seeds the per-task stack offset; long-lived kthreads also re-randomize on `kthread_park`/`unpark` cycles.
+- **PAX_REFCOUNT** — saturating atomics on `kthread->refcount`, `kthread_worker` refs, `work->canceling`, and `mmgrab`/`mmdrop_lazy_tlb` pair counters.
+- **PAX_MEMORY_SANITIZE** — scrub `struct kthread` and detached worker structures on free.
+- **PAX_UDEREF** — strict user/kernel split when `kthread_use_mm` temporarily borrows a user mm; the borrow is bounded by `unuse_mm`.
+- **PAX_RAP / kCFI** — type-signed indirect calls for `kthread->threadfn`, `worker->func`, `work->func`, and delayed-work timer callbacks.
+- **GRKERNSEC_HIDESYM** — hide `kthreadd`, `kthread_create_list`, `kthread_create_info` and worker pools from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict kthread bringup/teardown WARN output to CAP_SYSLOG.
+- **PF_KTHREAD strict** — kthreads carry `PF_KTHREAD` from creation; signal delivery, ptrace_attach, /proc/PID/mem write, and seccomp install are all denied against PF_KTHREAD tasks unconditionally.
+- **kthread_use_mm CAP_SYS_ADMIN** — using a foreign mm (`kthread_use_mm`) from a kthread that did not originally own the mm requires CAP_SYS_ADMIN in the mm-owner's userns; io_uring SQPOLL and vhost are the canonical signed users.
+- **kthread_bind hardened** — `kthread_bind`/`kthread_bind_mask` set PF_NO_SETAFFINITY and reject post-start rebind; cpuset writes cannot move a kernel-internal kthread off its assigned CPU.
+- **kthread_stop/park ordering** — `kthread_stop` sets TIF_NOTIFY_SIGNAL + SHOULD_STOP under saturating refcount; the kthread descriptor cannot be freed until the threadfn observes the stop signal.
+- **Worker pool destroy** — `kthread_destroy_worker` enforces flush → stop → free under `worker->lock`; any racing `kthread_queue_work` after destroy is rejected with WARN, not silently leaked.
+- **mm switch membarrier hardened** — `membarrier_update_current_mm` runs on every kthread mm transition under `task_lock + local_irq_disable` so private-expedited and global-expedited barriers cannot observe an inconsistent `tsk->mm`.
+- **Rationale**: kthreads run in kernel mode with no userspace caller for the LSM to gate; their threadfn pointer and per-work callbacks are an indirect-call cluster. PAX_RAP-typed threadfns plus PF_KTHREAD-blocked external poking and CAP_SYS_ADMIN-gated foreign-mm borrows prevent the kthread surface from becoming a userspace-controlled kernel-mode callback factory.
+
 ## Open Questions
 
 (none at this Tier-3 level)

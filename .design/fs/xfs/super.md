@@ -333,6 +333,26 @@ xfs-super reinforcement:
 - **Per-meta-uuid separate from fs-uuid** — defense against per-uuid-rewrite causing scrub-confusion.
 - **Per-sb LSN tracked** — defense against per-revert older sb-copy used.
 
+## Grsecurity/PaX-style Reinforcement
+
+XFS superblock is the trust anchor for the entire filesystem; a single bad sb propagates through every allocator and journal replay. Rookery applies grsec/PaX floor:
+
+- **PAX_USERCOPY** — sb-derived sizes used in `copy_to_user`/`copy_from_user` (xattr, ACL, mount-stat output) are bound-checked against the validated sb fields, not the on-disk raw values.
+- **PAX_KERNEXEC** — `xfs_super_operations`, `xfs_fs_type`, and per-feature dispatch tables are `static const`; per-format-version dispatch `__ro_after_init`.
+- **PAX_RANDKSTACK** — mount/unmount and journal-replay paths run under randomized kstack offset.
+- **PAX_REFCOUNT** — `xfs_mount.m_active_trans`, per-inode + per-AG refcounts, and `xfs_buf.b_hold` are saturating refcount.
+- **PAX_MEMORY_SANITIZE** — `xfs_mount` allocation and per-AG `xfs_perag` slabs zeroed on free; on-disk sb scratch buffers sanitized so stale superblock copies cannot bleed.
+- **PAX_UDEREF** — mount-option parser uses `fs_parameter` boundary; `_IOC_*` ioctl paths use `copy_*_user`; raw `__user` deref forbidden.
+- **PAX_RAP/kCFI** — `xfs_super_operations.{alloc_inode,destroy_inode,write_inode,evict_inode,put_super,sync_fs,freeze_fs,unfreeze_fs,statfs,remount_fs,show_options}` are CFI-typed and `__ro_after_init`.
+- **GRKERNSEC_HIDESYM** — sb-corruption diagnostics (`xfs_warn`, `xfs_alert`) strip kernel pointers; per-buffer addresses scrubbed for non-CAP_SYSLOG dmesg consumers.
+- **GRKERNSEC_DMESG** — `xfs_alert` rate-limited; sb-corruption flood from a hostile image cannot DoS dmesg.
+- **XFS V5 superblock CRC32C verify** — every sb read (primary + per-AG secondary) validates CRC32C against `sb_crc` field; mismatch is a mount-fail (not warn) for V5; V4 mount denied entirely (read-only legacy support guarded by explicit mount option + CAP_SYS_ADMIN).
+- **Log-recovery LSN integrity** — every recovered log record's LSN compared against `sb_lsn`; out-of-range or non-monotonic LSN aborts recovery; matches grsec "no silent corruption" floor and defeats crafted-image LSN-rewind attacks.
+- **Per-feature-bit allow-list** — `xfs_sb_has_compat_feature`/`xfs_sb_has_ro_compat_feature`/`xfs_sb_has_incompat_feature` evaluated against a kernel-side `__ro_after_init` known-features mask; unknown INCOMPAT bits fail-closed.
+- **Mount CAP_SYS_ADMIN floor** — all XFS-specific mount options (logbsize, sunit, swidth, allocsize, attr2, ikeep, ...) require CAP_SYS_ADMIN; matches grsec mount-option lockdown.
+
+Rationale: XFS has been a sustained CVE source (CVE-2018-13095, CVE-2021-4155, and numerous fuzzer-found mount-time bugs); the common vector is a malformed on-disk superblock or log reaching kernel decode without CRC/LSN validation. Rookery's contract pins both gates at the sb-load boundary so corrupt images fail-closed before any allocator state is constructed.
+
 ## Open Questions
 
 (none at this Tier-3 level)

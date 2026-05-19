@@ -483,6 +483,25 @@ Livepatch-core reinforcement:
 - **Per-MODULE_NAME_LEN/KSYM_NAME_LEN BUILD_BUG_ON** — defense against per-sscanf-overflow in symbol parsing.
 - **Per-replace-mode NOP synthesis** — defense against per-old-patch function leaks when atomic-replace skips them.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — copy-in of `klp_patch` metadata via the patch module's init data is bounds-checked; sysfs read paths emit bounded strings.
+- **PAX_KERNEXEC** — the patch trampoline area, ftrace ops list, and `klp_patch_func` arrays are W^X; the only writer is a controlled `text_poke_bp` sequence.
+- **PAX_RANDKSTACK** — randomize kernel stack on `sys_init_module` for livepatch modules and on every klp_enable/disable entry.
+- **PAX_REFCOUNT** — saturating atomics on `klp_patch` kobject refs, `module->refcnt` (extended hold across transition), and per-func enabled counters.
+- **PAX_MEMORY_SANITIZE** — scrub the relocation staging area on `clear_relocate_add` when a patch module goes away.
+- **PAX_UDEREF** — strict user/kernel split on sysfs `/sys/kernel/livepatch/*/enabled` writes.
+- **PAX_RAP / kCFI** — type-signed indirect calls for `func->new_func`, `klp_ftrace_handler`, and ftrace ops chain entries that livepatch installs.
+- **GRKERNSEC_HIDESYM** — hide `klp_patches`, `klp_mutex`, `klp_ftrace_ops`, and per-patch symbol resolution helpers from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict livepatch transition/forced-revert diagnostics to CAP_SYSLOG.
+- **klp_patch CAP_SYS_MODULE + signature verify** — loading a livepatch module requires CAP_SYS_MODULE in init_user_ns *and* a valid module signature against the platform keyring; `module.sig_enforce=1` is non-overridable under hardened configs.
+- **ftrace patching W^X** — the ftrace text-poke uses `text_poke_bp` (int3-then-write-then-int3-clear) so the target text never goes writable; the trampoline pages are mapped X-only.
+- **kallsyms_lookup_size_offset == 0 rejected** — a patched function with zero-size resolution returns -ENOENT before any text poke; prevents stack-check bypass via fake symbol size.
+- **No livepatch on noinstr / __init / __exit** — patch site validation rejects functions marked noinstr or already freed init/exit text; ftrace stub presence is mandatory.
+- **module_put deferred under force** — `klp_force_transition` retains module refs even after revert so an in-flight ftrace handler cannot land in unmapped text.
+- **Atomic-replace synthesizes NOP for skipped funcs** — `klp_replace` mode adds NOP patch_funcs for previously-patched functions not in the new patch, preventing stale-handler retention.
+- **Rationale**: livepatch literally rewrites kernel function entry points; an unsigned or unprivileged loader here is RCE. Mandatory signature verification, X-only trampolines via text_poke_bp, and refusing to patch noinstr/init text close the "load a patch module to rewrite syscall_table" class entirely.
+
 ## Open Questions
 
 (none at this Tier-3 level)

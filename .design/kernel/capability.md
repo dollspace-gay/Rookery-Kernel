@@ -380,6 +380,23 @@ Capability reinforcement:
 - **Per-`ptracer_capable` `NOAUDIT` + ptracer-cred snapshot** — defense against per-tracer-cred-uplift between attach and access.
 - **Per-`no_file_caps` boot option** — defense (operator escape hatch) against per-file-cap-misconfiguration on legacy installs.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `capget` / `capset` copy `__user_cap_data_struct` arrays of `_LINUX_CAPABILITY_U32S_3 * 2` u32s; whitelist the exact per-version size (V1=1, V2=2, V3=2) so an attacker cannot use a forged `header.version` to drag adjacent task_struct fields across the user boundary.
+- **PAX_KERNEXEC** — `security_capable` / `security_capget` / `security_capset` LSM hook dispatch via `call_int_hook` is indirect; enforce W^X on the LSM hook list page so a kernel-write primitive cannot rewrite the hook chain to skip the commoncap gate.
+- **PAX_RANDKSTACK** — `cap_*` checks fire from every privileged syscall entry at attacker-controlled depth; randomized kstack offset disrupts ROP through the giant `ns_capable` → `security_capable` → `cap_capable` chain.
+- **PAX_REFCOUNT** — `struct cred->usage` and `struct user_namespace->ns.count` are refcount_t with saturating overflow; defense against fd-storm + setuid-loop underflow racing `commit_creds` against `__put_cred`.
+- **PAX_MEMORY_SANITIZE** — `put_cred_rcu` callback must zero the `struct cred` (cap_inheritable/permitted/effective/bset/ambient bitfields) before slab return; defense against UAF residual exposing a freed task's full capability set to a new cred allocation.
+- **PAX_UDEREF** — `capget`/`capset` user pointer dereferences must engage SMAP/PAN across the whole `cap_validate_magic` → `copy_to/from_user` window; never enable AC for more than the single copy.
+- **PAX_RAP/kCFI** — LSM `capable` / `capget` / `capset` hooks are indirect-called from `security_*` wrappers; require matching kCFI tag so a corrupted LSM hook list cannot route capability checks through an attacker-chosen stub.
+- **GRKERNSEC_HIDESYM** — `/proc/<pid>/status` `Cap*:` lines and `getauxval(AT_SECURE)` must not leak kernel pointers; existing capability bitfields are user-facing but the surrounding cred struct address must stay hidden from non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — `cap_validate_magic`'s `-EINVAL` path on bad version must not splat raw user pointers or kernel cred addresses into dmesg readable by non-CAP_SYSLOG.
+- **CAP_SETPCAP strict** — `cap_capset` must refuse expansion of `permitted` outside the caller's own bset even when CAP_SETPCAP is held; Rookery enforces upstream's "CAP_SETPCAP allows setting the bset of children, not raising the caller's own permitted set" rule with no exceptions.
+- **`file_caps_enabled` boot toggle** — `no_file_caps` cmdline must hard-disable `get_vfs_caps_from_disk` and force the setuid-root pre-fcaps semantics for legacy mounts; defense against per-mount fcap parsing on untrusted media.
+- **`no_new_privs` propagation** — `PR_SET_NO_NEW_PRIVS` must be enforced through `cap_bprm_creds_from_file` so an exec into a setuid/fcap binary cannot regain caps even with valid xattr; `nnp` flag is inherited unconditionally to children.
+- **`ptracer_capable` cred snapshot** — `ptracer_capable` already snapshots tracer creds; harden by requiring `same-user-ns OR CAP_SYS_PTRACE-in-init-ns` to defeat cred-uplift between attach and access.
+- **Rationale** — capabilities are the kernel's primary post-uid privilege model; a single bypass (cred UAF, hook list corruption, bset confusion) collapses the whole gate. The grsec regime forces an attacker to defeat refcount saturation + LSM kCFI + cred sanitize + nnp propagation + setpcap strict-check simultaneously before reaching arbitrary cap uplift.
+
 ## Open Questions
 
 (none at this Tier-3 level)

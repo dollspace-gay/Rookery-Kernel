@@ -232,6 +232,23 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — rstat readers (`cpu.stat`, `memory.stat`, `io.stat`, `cgroup.stat`) `seq_printf` per-cgroup aggregated values into a user-readable buffer; whitelist the per-controller output schema so a kernel-write primitive cannot widen the seq_file extent to drag adjacent per-cpu rstat state across the user boundary.
+- **PAX_KERNEXEC** — `css_rstat_flush` per-controller dispatch (`cgroup_subsys.css_rstat_flush`) is indirect-called from `cgroup_rstat_flush_locked`; require W^X on the subsys ops table and refuse rwx for the per-controller flush trampoline.
+- **PAX_RANDKSTACK** — `cgroup_rstat_flush` runs from `read(2)` with attacker-driven cgroup depth; randomized kstack offset disrupts ROP through the `css_rstat_updated_list` walk.
+- **PAX_REFCOUNT** — `cgroup->rstat_flush_next` chain count and per-CPU `cgroup_rstat_cpu->updated_next` lifetime are protected by the `cgroup_rstat_lock` + per-cpu `updated_lock`; harden the css refcount surrounding `cgroup_rstat_exit` with saturating overflow trap.
+- **PAX_MEMORY_SANITIZE** — `cgroup_rstat_exit` must zero the per-cpu `cgroup_rstat_cpu` array (`bsync`, `bstat`, `subtree_bstat`, `last_bstat`) before kfree; defense against post-free residual exposing CPU-time / IO-byte telemetry to a fresh cgroup at the same per-cpu offset.
+- **PAX_UDEREF** — rstat `seq_show` callbacks never touch userspace directly (seq_file mediates), but the seq_buf write barrier must keep SMAP/PAN engaged through the controller's `printf` formatting.
+- **PAX_RAP/kCFI** — per-controller `css_rstat_flush` indirect call must verify kCFI tag at the cgroup-core dispatch site; defense against a corrupted subsys vector routing flush through an attacker-chosen stub.
+- **GRKERNSEC_HIDESYM** — `cgroup.stat` and per-controller stat readers must expose aggregated counters only; refuse to leak per-cpu `cgroup_rstat_cpu *` pointers or `updated_next` linked-list addresses through any error path.
+- **GRKERNSEC_DMESG** — `WARN_ON` on `cgroup_rstat_lock` contention or `cgroup_rstat_flush_irqsafe` reentry must not splat raw cgroup / per-cpu pointers into dmesg readable by non-CAP_SYSLOG.
+- **Per-cgroup stats CAP_SYS_NICE gate** — read of high-resolution per-cgroup stats (sub-second `cpu.stat` deltas, ns-resolution `io.stat`) should require `ns_capable(user_ns, CAP_SYS_NICE)`; defense against side-channel attacks using rstat granularity to fingerprint sibling-cgroup workloads.
+- **Lock-free per-cpu update discipline** — `cgroup_rstat_updated` uses per-cpu `updated_lock` + lockless `updated_next` chain; any extension that introduces cross-cpu lock acquisition during the update fast path is forbidden under grsec mode (would create a per-cgroup soft-DoS primitive).
+- **Per-cgroup flush ceiling** — `cgroup_rstat_flush` walk must be bounded by `cgroup_max_depth` so an attacker creating a deeply-nested hierarchy cannot stall a stat read under `cgroup_rstat_lock`.
+- **`rstat_flush_irqsafe` irq-disable window minimal** — the irq-disabled section in `cgroup_rstat_flush_locked` must release the lock periodically (every N cgroups walked); defense against attacker driving long flushes that starve unrelated IRQ handlers.
+- **Rationale** — rstat is the kernel's central per-cgroup statistics aggregator; high-resolution access from an attacker grants both a side-channel (fingerprint sibling workloads) and a soft-DoS (stall flushes under contended cgroup_rstat_lock). The grsec regime forces an attacker to defeat W^X on subsys flush + kCFI on flush dispatch + CAP_SYS_NICE on high-res read + memory sanitize on css_free + bounded-walk depth before reaching either a fingerprint or a stall primitive.
+
 ## Open Questions
 
 (none — rstat framework exhaustively specified by upstream)

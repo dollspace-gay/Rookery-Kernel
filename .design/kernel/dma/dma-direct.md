@@ -199,6 +199,24 @@ DMA-direct reinforcement:
 - **Per-coherent-alloc respects gfp** — defense against per-atomic-context sleeping.
 - **Per-32-bit-device on 64-bit-mem warning** — defense against per-config silent bounce-waste.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `dma_direct_alloc` returns a kernel virtual address that drivers may eventually mmap to userspace through `dma_direct_mmap`; whitelist the allocated extent so a driver bug cannot use `remap_pfn_range` to expose adjacent kernel pages across the user boundary.
+- **PAX_KERNEXEC** — `dma_direct_ops` (`dma_direct_alloc`, `_free`, `_map_page`, `_unmap_page`, `_sync_single_for_device`, `_sync_single_for_cpu`) is the fallback dma_map_ops vector; enforce W^X on the ops page and refuse rwx for the per-arch bounce trampoline.
+- **PAX_RANDKSTACK** — `dma_direct_map_page` runs from network/block driver IRQ-disabled context at user-driven packet/bio depth; randomized kstack offset disrupts ROP through the `swiotlb_tbl_map_single` bounce fallback.
+- **PAX_REFCOUNT** — `dev->dma_pools` and `swiotlb` slot accounting use refcount_t with saturating overflow; defense against driver-storm underflow racing dma_direct_free against in-flight map.
+- **PAX_MEMORY_SANITIZE** — `dma_direct_free` and `swiotlb_tbl_unmap_single` must zero the bounce buffer (and the original page if `DMA_ATTR_NO_KERNEL_MAPPING`) before returning to the allocator; defense against post-free residual leaking DMA content (network packets, disk blocks) to next allocator user.
+- **PAX_UDEREF** — `dma_direct_mmap` keeps SMAP/PAN engaged across the user vma fault → `remap_pfn_range` chain; never enable AC outside the page-table update.
+- **PAX_RAP/kCFI** — `dma_map_ops.*` indirect calls (alloc/free/map_page/unmap_page/sync_for_device/sync_for_cpu) must verify kCFI tag at every dispatch from `dma_map_single` / `dma_unmap_single` / `dma_sync_*`.
+- **GRKERNSEC_HIDESYM** — `swiotlb_print_info` and `/proc/swiotlb` (if exposed) must elide the bounce-buffer kernel virtual address from non-CAP_SYSLOG readers; expose only slot count and high-water mark.
+- **GRKERNSEC_DMESG** — `WARN_ON` on `dma_direct_map_page` failure, 32-bit-device-on-64-bit-mem mismatch, and `swiotlb_tbl_map_single` slot exhaustion must not splat raw bounce-buffer pointers into dmesg readable by non-CAP_SYSLOG.
+- **Bounce-buffer PAX_MEMORY_SANITIZE strict** — every `swiotlb_tbl_unmap_single` MUST zero the bounce slot before marking it free even when the direction is DMA_TO_DEVICE; defense against driver bug leaving stale RAM in a slot reused for DMA_FROM_DEVICE.
+- **swiotlb fallback bounded** — `swiotlb_max_size` must be enforced so a single oversized map request cannot consume the entire swiotlb pool and starve sibling devices.
+- **`dma_direct_alloc` GFP_ATOMIC discipline** — atomic-context allocations must use the per-device `atomic_pool`; refusing to sleep is mandatory and must not silently fall back to a sleeping path (which would deadlock under RCU read-side).
+- **32-bit-device on 64-bit-mem warning** — already mitigated upstream; harden by upgrading WARN to `dev_err_once` + iommu-prefer fallback so a misconfigured driver is steered to swiotlb explicitly rather than silently bouncing.
+- **DMA-attr validation** — `attrs` mask must be validated against a fixed allowlist (`DMA_ATTR_*` known set); defense against future-flag laundering granting unintended cache behaviour.
+- **Rationale** — dma-direct is the universal fallback DMA path for devices without an IOMMU; a single bounce-buffer sanitize miss leaks cross-driver content (a network packet bounce slot reused for a disk read exposes packet data to the disk driver). The grsec regime forces an attacker to defeat W^X on dma_map_ops + kCFI on map/unmap dispatch + strict bounce sanitize + swiotlb pool bound + GFP_ATOMIC discipline simultaneously before reaching a cross-device data-leak primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

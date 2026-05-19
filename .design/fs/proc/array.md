@@ -505,6 +505,24 @@ array.c reinforcement:
 - **Per-`try_get_task_stack` / `put_task_stack` symmetry** — defense against per-kstk_eip-after-free.
 - **Per-`seq_put_decimal_ull` numeric emit** — defense against per-format-string injection; no `%s` of task-controlled data.
 
+## Grsecurity/PaX-style Reinforcement
+
+array.c is one of the densest information-disclosure surfaces in /proc; every Tier-1 PaX/grsec feature must be honored when emitting /proc/<pid>/{stat,status,statm}:
+
+- **PAX_USERCOPY** — `seq_buf`/`seq_printf` copy_to_user paths bounded against the seq_file slab object size; no whole-`task_struct` copy can ever leak.
+- **PAX_KERNEXEC** — `proc_pid_status` and per-field emitters live in `__read_only` ops tables; no runtime patching of the status emitter chain.
+- **PAX_RANDKSTACK** — kernel-stack offsets randomized so `wchan`/`kstk_eip` leaks (when permitted) do not anchor a per-build attack.
+- **PAX_REFCOUNT** — `get_task_struct` / `put_task_struct`, `get_task_mm` / `mmput`, `try_get_task_stack` / `put_task_stack` are saturating-refcount audited.
+- **PAX_MEMORY_SANITIZE** — `task_struct.comm[]` and signal/cred snapshots zeroed on free so stale comm bytes never bleed into a later /proc reader.
+- **PAX_UDEREF** — every `proc_pid_status` field path treats the seq_file buffer as user-domain memory; no kernel-pointer dereference smuggled into the format string.
+- **PAX_RAP/kCFI** — per-pid_entry `proc_show` function pointers are CFI-typed; `tgid_base_stuff` table is `__ro_after_init` to defeat hijack.
+- **GRKERNSEC_HIDESYM** — `/proc/<pid>/{stat,status,statm}` strip raw kernel addresses (`wchan`, `kstk_eip`, `start_code`, `start_stack`) for non-CAP_SYSLOG callers regardless of `kptr_restrict`.
+- **GRKERNSEC_DMESG** — array.c never logs task identifiers to dmesg on /proc read; ptrace-deny diagnostics route to audit via `ptrace_may_access(... | NOAUDIT)` only.
+- **/proc/<pid>/syscall CAP_SYS_PTRACE** — emitter rejects readers that fail `ptrace_may_access(target, PTRACE_MODE_READ_FSCREDS)`, mirroring grsec `GRKERNSEC_PROC_USER`.
+- **/proc/<pid>/{stat,status,statm} HIDESYM** — esp/eip/arg_start..env_end gated behind the same ptrace check, even when `kptr_restrict=0`, so unprivileged readers never observe live ASLR addresses.
+
+Rationale: array.c is the canonical source the grsec patch series targeted (the original `pax_useroffset` and `GRKERNSEC_PROC_ADD` chains land here); the upstream `ptrace_may_access` gates encode a strict subset of that policy, and the contract above commits Rookery to the stricter grsec-equivalent behavior by default.
+
 ## Open Questions
 
 - Per-arch `arch_proc_pid_thread_features` content (x86 emits nothing; arm64 emits MTE/SVE) — defer per-arch fields to per-arch crate when arm64/risc-v added.

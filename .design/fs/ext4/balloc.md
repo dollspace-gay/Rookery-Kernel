@@ -482,6 +482,29 @@ Balloc-specific reinforcement:
 - **Per-fault-injection EXT4_SIM_BBITMAP_CRC / _EIO honored** — defense against per-fragile fault-handling paths.
 - **Per-FLEX_BG bitmap-validation skip preserves correctness** — defense against per-flex-bg false-positive corruption.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `EXT4_IOC_*` ioctls that surface block-bitmap stats.
+- **PAX_KERNEXEC** — W^X for any executable mapping reachable from balloc.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `ext4_mb_*` entry points called from `write` / `fallocate`.
+- **PAX_REFCOUNT** — saturating refcount on `struct ext4_group_info`, on the `buffer_head` of every bitmap, and on `s_freeclusters_counter` so percpu drift cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the freed group-info slab and bitmap scratch pages.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on the ioctl surface.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on the journal callback (`ext4_mb_release_blocks_on_commit`).
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in `/proc/fs/ext4/<dev>/mb_groups`.
+- **GRKERNSEC_DMESG** — syslog restriction on bitmap-corruption diagnostics that otherwise leak block-group geometry.
+- **Bitmap CRC verification** — `ext4_validate_block_bitmap` recomputes the CRC32C over the on-disk bitmap before any allocation decision; mismatch flags the group `EXT4_GROUP_INFO_BBITMAP_CORRUPT` and excludes it.
+- **CAP_SYS_RESOURCE on root-pool dipping** — `ext4_has_free_clusters` allows allocations into `s_r_blocks_count` only for `CAP_SYS_RESOURCE` or for the explicit fs-owning uid (`s_resuid`/`s_resgid`), so unprivileged tasks cannot exhaust emergency reserve.
+- **FLEX_BG bitmap-validation skip is bounded** — when a flex-group's metadata is colocated, the per-leader CRC is still verified; only the trailing per-group CRC is skipped.
+- **`init_block_bitmap` under `buffer_locked(bh)`** — lazy-init path holds the buffer lock so a concurrent reader cannot observe a half-initialized bitmap.
+- **`should_retry_alloc` bounded to 3** — persistent ENOSPC cannot livelock the writeback path or pin CPU.
+- **`EXT4_FREECLUSTERS_WATERMARK` precise refresh** — near-ENOSPC the percpu cache is forcibly drained so false-success allocations cannot cross the reserve threshold.
+- **Fault-injection `EXT4_SIM_BBITMAP_CRC` / `_EIO` honored** — corruption simulators are wired through the same refusal paths so verification covers the panic-free branch.
+
+Per-doc rationale: the block allocator is the gatekeeper for every write in ext4; a single missed CRC verify, a single overflow of `s_freeclusters_counter`, or a single unprivileged dip into the root pool turns a quota leak into a remote-DoS or a corruption that persists across reboot. PaX/grsec reinforcement keeps allocation arithmetic saturating, keeps bitmap reads CRC-gated, and keeps the reserve pool capability-bound.
+
 ## Open Questions
 
 - Should Rookery merge `balloc.c` and `bitmap.c` into a single `Balloc` module, or keep CRC helpers separate to mirror upstream file split?

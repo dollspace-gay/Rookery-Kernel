@@ -655,6 +655,23 @@ bpf(2) reinforcement:
 - **Per-`license_is_gpl_compatible` gate on GPL-only helpers** — defense against per-license-laundering of proprietary BPF using GPL kernel helpers.
 - **Per-`is_cgroup_prog_type` + per-`bpf_mprog_supported` flag mask split** — defense against per-flag-confusion between mprog and legacy attach.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `copy_from_bpfptr(&attr, uattr, attr_size)` and the reverse `copy_to_bpfptr` for BPF_*_GET_INFO must whitelist the `bpf_attr` union slot exactly; oversized `attr_size` (legitimately admitted for forward-compat) must trap on the second slab boundary, not silently truncate.
+- **PAX_KERNEXEC** — verifier-emitted JIT pages (`bpf_jit_binary_alloc` → `set_memory_ro` + `set_memory_x`) must enforce strict W^X; refuse rwx even transiently and require explicit `bpf_arch_text_invalidate` before any text patch.
+- **PAX_RANDKSTACK** — `__sys_bpf` is entered from arbitrary user context with attacker-controlled `cmd`; randomized kstack offset disrupts ROP across the giant `switch (cmd)` dispatch fan-out.
+- **PAX_REFCOUNT** — `bpf_prog->aux->refcnt`, `bpf_map->refcnt`, `bpf_link->refcnt` are all refcount_t with saturating overflow; defense against fd-storm underflow across BPF_PROG_GET_FD_BY_ID / BPF_MAP_GET_FD_BY_ID.
+- **PAX_MEMORY_SANITIZE** — `bpf_prog_free_deferred` and `bpf_map_free_deferred` must zero verifier state (`prog->aux->func_info`, `prog->aux->btf`, map value extents) before slab return; defense against UAF residual revealing verifier internals to a fresh allocation.
+- **PAX_UDEREF** — every `bpf_attr.*` dereference goes through `bpfptr_t`; SMAP/PAN must remain engaged across the whole `__sys_bpf` dispatch, including the `BPF_PROG_LOAD` insn-copy fast path.
+- **PAX_RAP/kCFI** — `bpf_link_ops`, `bpf_map_ops`, `bpf_prog_ops`, `bpf_iter_*_ops` indirect calls (`->release`, `->update`, `->fill_link_info`, `->show_fdinfo`) must all verify kCFI tag at call site; defense against ops-vector swap on a freed kernel object.
+- **GRKERNSEC_HIDESYM** — `BPF_PROG_GET_INFO_BY_FD` / `BPF_MAP_GET_INFO_BY_FD` / `BPF_LINK_GET_INFO_BY_FD` and `seq_show_fdinfo` must elide kernel pointers (jited_addr, run_cnt buffer, btf address) from callers lacking CAP_SYSLOG even when they hold CAP_BPF.
+- **GRKERNSEC_DMESG** — verifier log (`bpf_verifier_vlog`) must be rate-limited and must not splat raw kernel pointers into dmesg even at high `log_level`; default log destination is the user-supplied buffer, not printk.
+- **Full bpf(2) CAP_BPF/CAP_PERFMON gate** — `__sys_bpf` must reject every `cmd` not in the unprivileged-allowlist when `sysctl_unprivileged_bpf_disabled` is set; defense against per-namespace CAP_BPF granting tracing-class progs without CAP_PERFMON.
+- **BPF_PROG_LOAD signature verification** — Rookery enforces `attr->signature` / `attr->signature_size` mandatory for `BPF_F_SIGNED_PROG`; verifier rejects load if `bpf_check_prog_signature` returns -EKEYREJECTED. Defense against unsigned attacker-supplied programs reaching the JIT even with CAP_BPF.
+- **BPF token narrow-scope** — `BPF_TOKEN_CREATE` must clamp `allowed_cmds`/`allowed_maps`/`allowed_progs`/`allowed_attach_types` to the strict subset documented by the operator; defense against token-creator widening its own scope post-`unshare`.
+- **Per-uid `memlock` BPF charge** — every prog/map alloc must go through `bpf_map_charge_memlock` against the creating user's RLIMIT_MEMLOCK with per-userns ceiling; defense against CAP_BPF-in-container exhausting host vmalloc.
+- **Rationale** — `bpf(2)` is the single most powerful kernel-exposed syscall available to a non-root user (with CAP_BPF). The grsec regime forces every load path through: signature verification → CAP gate → memlock quota → W^X JIT → kCFI ops dispatch → refcount saturation → HIDESYM redaction. Each layer is independent; an attacker must defeat all of them before a forged BPF program becomes a kernel control primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

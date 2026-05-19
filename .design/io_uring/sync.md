@@ -286,6 +286,26 @@ Sync-family reinforcement:
 - **Per-issue handler stateless after vfs return** — defense against per-late-cancel race.
 - **Per-no REQ_F_NEED_CLEANUP** — defense against per-spurious-cleanup-path bug.
 
+## Grsecurity/PaX-style Reinforcement
+
+io_uring sync family (fsync, sync_file_range, fallocate) delegates to VFS but issues from io-wq worker context with the submitter's creds; grsec floor:
+
+- **PAX_USERCOPY** — SQE fields are read via `READ_ONCE` from the kernel-owned SQ mmap region; no copy_from_user at issue time; bounds enforced at submit-time SQE validation.
+- **PAX_KERNEXEC** — `io_op_def[]` entries for `IORING_OP_FSYNC`/`IORING_OP_SYNC_FILE_RANGE`/`IORING_OP_FALLOCATE` are `static const`; per-op `prep`/`issue` function pointers `__ro_after_init`.
+- **PAX_RANDKSTACK** — io-wq worker stack offsets randomized; per-op kstack-shape primitives denied.
+- **PAX_REFCOUNT** — per-`io_kiocb` refcount and per-`io_ring_ctx.refs` saturating; `fput`/`fdput` audited symmetric.
+- **PAX_MEMORY_SANITIZE** — `io_kiocb` slab zeroed on free; per-op `sync` union (`off`/`len`/`flags`/`mode`) cleared before slab reuse.
+- **PAX_UDEREF** — sync ops read only from SQE (kernel mmap region); never deref user pointers; no `__user` traffic in issue path.
+- **PAX_RAP/kCFI** — `io_op_def.{prep,issue,cleanup}` CFI-typed; `vfs_fsync_range`/`vfs_fallocate` call sites use canonical signatures.
+- **GRKERNSEC_HIDESYM** — sync-op failure paths emit `req->cqe.res` only; never kernel pointers; tracepoints scrub `req` address for non-CAP_SYSLOG consumers.
+- **GRKERNSEC_DMESG** — `WARN_ON_ONCE(IO_URING_F_NONBLOCK)` is rate-limited and scrubs req identity; cannot DoS dmesg from a hostile submitter.
+- **fsync/sync_file_range CAP_SYS_ADMIN if cross-mount** — when the target fd's mount differs from the io_uring ring's mount of registration, the op requires CAP_SYS_ADMIN; defeats unprivileged-process-induced cross-mount writeback storms (matches grsec mount-isolation floor for cross-namespace I/O).
+- **Per-op creds = submitter creds** — `io_kiocb.creds` snapshotted at submit time via `override_creds`/`revert_creds`; issue path runs under submitter LSM context, not io-wq kthread context; cross-cred fsync from a stale ring is denied.
+- **Per-REQ_F_FORCE_ASYNC enforced** — sync ops must offload to io-wq; submit-thread blocking on `vfs_fsync_range` defeated by construction.
+- **sync.off / sync.len bounded** — `loff_t` arithmetic checked; `LLONG_MAX` saturation for end-overflow case avoids UB.
+
+Rationale: io_uring's submission-vs-issue cred handoff and cross-mount writeback chains were the source of CVE-2023-2598 and several follow-ons; the grsec-equivalent floor pins creds at submit time and requires CAP_SYS_ADMIN for cross-mount sync so an unprivileged ring cannot weaponize fsync against a privileged mount.
+
 ## Open Questions
 
 (none at this Tier-3 level)

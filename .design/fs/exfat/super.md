@@ -593,6 +593,28 @@ exFAT-superblock reinforcement:
 - **Per-iocharset/keep_last_dots/sys_tz/time_offset reconfigure rejection** — defense against per-cached-dentry-stale.
 - **Per-call_rcu delayed free of sbi/nls/upcase** — defense against per-late-reference UAF after kill_sb.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `getxattr` / `listxattr` / `iterate_dir` paths so a malformed upcase table cannot drive an oversize copy_to_user.
+- **PAX_KERNEXEC** — W^X for any executable mapping; exfat holds no JIT regions.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `exfat_lookup` / `exfat_iterate` so attacker-crafted images cannot probe stack layout.
+- **PAX_REFCOUNT** — saturating refcount on `struct exfat_sb_info`, on each `exfat_inode_info`, and on the per-mount upcase/nls reference so a remount loop cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the upcase-table allocation, the cluster bitmap mirror, and the dentry-scratch buffer.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on mount-option parse (`exfat_parse_param`).
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `super_operations`, `inode_operations`, and `file_operations` exfat vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding for `/proc/mounts` and sysfs entries.
+- **GRKERNSEC_DMESG** — syslog restriction on PBR parse failures that otherwise expose offsets.
+- **PBR (Partition Boot Record) validation** — `exfat_read_boot_sector` checks signature `0xAA55`, FileSystemName `"EXFAT   "`, jump-boot `0xEB 0x76 0x90`, MustBeZero region, FAT/Cluster offsets in-bounds, and refuses mount otherwise.
+- **UPCASE_TABLE bounded length** — `exfat_create_upcase_table` rejects tables larger than `0x10000 * sizeof(u16)` and validates the on-disk checksum before installation.
+- **VOLUME_DIRTY flag** — `exfat_set_volume_dirty` is asserted on first write and only cleared on clean umount; replay logic refuses to mount a dirty volume read-write without `errors=remount-ro` override.
+- **FAT-chain loop detection** — every FAT walk is bounded by `sbi->num_clusters`; a cluster reached twice forces `-EFSCORRUPTED` rather than infinite loop.
+- **`call_rcu` delayed free of sbi/nls/upcase** — late dentry referencers cannot UAF after `kill_sb` returns.
+- **CAP_SYS_ADMIN on `mount -t exfat`** — image source is attacker-controlled removable media; mount remains capable-gated in init userns.
+
+Per-doc rationale: exfat is shipped on USB media and SD cards crafted by adversaries, so the on-disk PBR, FAT, cluster bitmap, and upcase table are entirely untrusted; PaX/grsec reinforcement converts every malformed-superblock or cyclic-FAT-chain bug into a bounded refusal (`-EFSCORRUPTED`/`-EINVAL`) rather than a kernel-side UAF or infinite loop.
+
 ## Open Questions
 
 (none at this Tier-3 level)

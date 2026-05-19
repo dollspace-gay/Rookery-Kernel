@@ -480,6 +480,23 @@ Shm-segment reinforcement:
 - **Per-`__randomize_layout`** — defense against per-known-offset attacks.
 - **Per-ipc_namespace isolation** — defense against per-cross-ns segment access.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `copy_shmid_{to,from}_user` and any `shminfo` copy against the slab whitelist for `struct shmid_kernel`; reject partial copies.
+- **PAX_KERNEXEC** — keep `shm_file_operations`, `shm_vm_ops`, and per-namespace `ipc_ids.ops` in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on `shmget`/`shmat`/`shmdt`/`shmctl` entry; the on-stack `shmid64_ds` is a stable disclosure target.
+- **PAX_REFCOUNT** — saturating refcount on `struct shmid_kernel->shm_perm` (ipc_rcu), `shm_file`, and any `hugetlb_file_setup` mapping; wraparound panics.
+- **PAX_MEMORY_SANITIZE** — zero the segment on `shm_destroy()` regardless of `SHM_LOCKED`/`SHM_HUGETLB`; never recycle prior process memory into a fresh `shmat` for a different uid.
+- **PAX_UDEREF** — strict user/kernel split when reading `struct shmid_ds __user *buf`.
+- **PAX_RAP / kCFI** — type-check `shm_open`, `shm_close`, `shm_fault`, `shm_mmap`, and LSM `security_shm_*` hooks.
+- **GRKERNSEC_HIDESYM** — hide `do_shmat`, `shm_destroy`, `newseg`, and `exit_shm` from non-root kallsyms.
+- **GRKERNSEC_DMESG** — restrict dmesg so SHM allocation/hugetlb error spew cannot leak segment ids or kernel addresses.
+- **`shmid` PAX_REFCOUNT** — explicit saturating wrapper around `shm_perm.refcount`; the `shm_destroy` vs `shm_close` race is the canonical UAF surface and MUST NOT wrap.
+- **`SHM_HUGETLB` requires `CAP_IPC_LOCK`** — re-check `CAP_IPC_LOCK` (and per-hstate limits) at `shmget`; never silently downgrade to non-huge when the cap is missing — fail with -EPERM.
+- **SHMMAX bound** — reject `size > ns->shm_ctlmax` *and* enforce per-namespace SHMALL aggregate; do not rely on later VMA setup to fail.
+- **`SHM_NORESERVE` audit** — when `SHM_NORESERVE` is requested, audit via grsec because it disables OOM accounting for the segment.
+- **Rationale** — SHM is the most pointer-rich SysV IPC object (it owns a `file *`, a `vm_area_struct` chain, and an underlying `address_space`); PAX_REFCOUNT + SHMMAX + CAP_IPC_LOCK on hugetlb close the historical class of `shm_destroy` UAFs and unmetered hugepage exhaustion.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -403,6 +403,24 @@ cgroup freezer reinforcement:
 - **Per-`signal_wake_up(task, false)` vs `wake_up_process(task)` distinction** — defense against per-freeze-during-uninterruptible-sleep livelock (freeze sets TIF_SIGPENDING so task wakes at next interruptible boundary; unfreeze unconditional-wakes any task stuck in killable freeze trap).
 - **Per-`cgroup_file_notify(events_file)` on every CGRP_FROZEN flip and on no-op writes** — defense against per-userspace poll/select hanging forever on stale state.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `cgroup.freeze` write handler copies a single-byte attacker-supplied value through `kstrtoint`; whitelist the exact 16-byte buffer and refuse any oversized write before parse.
+- **PAX_KERNEXEC** — freezer cftype indirect-call vectors live in `.rodata`; refuse rwx so a kernel-write primitive cannot rewrite `cgroup_freeze_write` to skip the CAP_SYS_ADMIN check.
+- **PAX_RANDKSTACK** — `cgroup_freeze_task` / `cgroup_propagate_frozen` run from `write(2)` with attacker-controlled cgroup depth; randomized kstack offset disrupts ROP through the recursive `css_rightmost_descendant` walk.
+- **PAX_REFCOUNT** — `cgroup->freezer.nr_frozen_descendants` / `nr_frozen_tasks` counters are refcount_t with saturating overflow; defense against fork/exit storm underflow racing `cgroup_freeze` against descendant teardown.
+- **PAX_MEMORY_SANITIZE** — freezer state on `cgroup_destroy_root` must clear `CGRP_FREEZE` / `CGRP_FROZEN` flags and zero the `freezer_event` waitqueue head before kfree; defense against residual frozen-task wakeup pointer in a fresh allocation.
+- **PAX_UDEREF** — `cgroup.freeze` write keeps SMAP/PAN engaged across `kernfs_ops->write` → `cgroup_freeze_write` → `cgroup_do_freeze`.
+- **PAX_RAP/kCFI** — `cgroup_subsys.*` and `kernfs_ops->write` indirect calls must verify kCFI tag at every freezer dispatch site.
+- **GRKERNSEC_HIDESYM** — `cgroup.events` reader exposes `frozen 0|1` lines, never kernel pointers; refuse to leak the `struct cgroup *` address through any error path.
+- **GRKERNSEC_DMESG** — `WARN_ON` paths in `cgroup_propagate_frozen` and `signal_wake_up` must not splat raw task / cgroup pointers into dmesg readable by non-CAP_SYSLOG.
+- **cgroup.freeze CAP_SYS_ADMIN gate** — `cgroup_freeze_write` must enforce `ns_capable(user_ns, CAP_SYS_ADMIN)` against the userns owning the cgroup root, not init; defense against per-userns freezer granting host-process freeze manipulation.
+- **Recursive propagate bounded** — `cgroup_propagate_frozen` descent must be bounded by `cgroup_max_depth` so a deeply-nested hierarchy cannot stall the freeze write under `cgroup_mutex`.
+- **`signal_wake_up(task, false)` discipline** — freeze must use the `false` variant (non-resume) and the `JOBCTL_TRAP_FREEZE` machinery; never confuse with the legacy `PF_FROZEN` suspend path. Mixing them grants an attacker a wakeup-into-uninterruptible-sleep primitive.
+- **`css_rightmost_descendant` skip idempotent** — already mitigated upstream; harden by adding a `nr_frozen_descendants == nr_descendants` short-circuit check so an idempotent write storm cannot consume `cgroup_mutex` time.
+- **`cgroup_file_notify` on every flip** — already mitigated upstream; harden with rate-limit so a fork-bomb inside a freezing cgroup cannot generate event storm on `cgroup.events`.
+- **Rationale** — the freezer is a soft-DoS primitive against any process inside a cgroup; mis-gated it grants a container CAP_SYS_ADMIN holder the ability to freeze sibling-container tasks (or worse, init userns tasks) via cross-cgroup writes. The grsec regime forces an attacker to defeat W^X + kCFI + strict-userns CAP_SYS_ADMIN + refcount saturation before reaching a host-freeze primitive.
+
 ## Open Questions
 
 - Interaction with kernel/power/process.c (system-wide freezer / suspend): the legacy `freeze_task`/`thaw_task` path uses `PF_FROZEN` (different bit) and is invoked from suspend; the cgroup-v2 path uses `JOBCTL_TRAP_FREEZE` + `current->frozen`. Rookery must keep them disjoint and never confuse the two state-machines (system-suspend should freeze across all cgroups regardless of per-cgroup freeze, and unfreeze must restore the per-cgroup state on resume).

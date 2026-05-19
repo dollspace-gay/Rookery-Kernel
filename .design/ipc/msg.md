@@ -480,6 +480,22 @@ Msg-queue reinforcement:
 - **Per-MSG_COPY only with CHECKPOINT_RESTORE** — defense against per-leak (otherwise -ENOSYS).
 - **Per-ipc_namespace isolation** — defense against per-cross-ns queue access.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `copy_msqid_from_user`, `copy_msqid_to_user`, and the payload `copy_from_user(mtext, ...)` against the slab whitelist for `struct msg_msg` and per-segment `msg_msgseg`; reject any copy that crosses MSGMAX.
+- **PAX_KERNEXEC** — keep `msg_ops`, `ipc_ops`, and per-namespace `ipc_ids` `ops` tables in `__ro_after_init`; reject late patching of `msg_security`/`msg_alloc`.
+- **PAX_RANDKSTACK** — re-randomize kernel stack on `msgsnd`/`msgrcv`/`msgctl` entry; the on-stack `msqid64_ds` copy is otherwise a stable disclosure target.
+- **PAX_REFCOUNT** — saturating refcount on `struct msg_queue->q_refcount` (via `ipc_rcu`) and on submitter creds; wraparound MUST panic, not silently UAF the queue at `freeque()`.
+- **PAX_MEMORY_SANITIZE** — zero every `msg_msg`/`msg_msgseg` on `free_msg`; never recycle a prior process's `mtext` bytes into a fresh `msgrcv` for a different uid.
+- **PAX_UDEREF** — strict user/kernel separation for `void __user *msgp` in both `msgsnd` and `msgrcv`; the kernel MUST NOT deref a smuggled kernel pointer.
+- **PAX_RAP / kCFI** — type-check indirect `msq->q_perm.security`, LSM `security_msg_queue_*` hooks, and `ipc_obtain_object*` callsites.
+- **GRKERNSEC_HIDESYM** — hide `do_msgsnd`/`do_msgrcv`/`freeque` from non-root `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — restrict dmesg so msg-queue allocation failures (which echo queue ids and uid) cannot be harvested.
+- **`msg_queue` PAX_REFCOUNT** — explicit saturating wrapper around `ipc_rcu_getref`/`ipc_rcu_putref` for `struct msg_queue`; this is the canonical UAF surface for SysV IPC.
+- **MSGMAX bound** — reject `msgsz > ns->msg_ctlmax` *before* allocation; do not rely on later `load_msg` checks (an attacker pinning many oversize requests can OOM the namespace).
+- **IPC_PRIVATE strict** — when `key == IPC_PRIVATE`, never reuse a stale `msqid` slot without `ipc_rmid()` having completed; enforce ipc-namespace ownership on every `msgctl(IPC_RMID)` call (no cross-ns rmid even with matching id).
+- **Rationale** — SysV msg queues are a long-lived, refcounted, kernel-pointer-rich object accessible to any uid in the ipc-namespace; PAX_REFCOUNT + PAX_USERCOPY + MSGMAX bounding close the historical class of msgsnd/msgrcv UAF and OOM exploits (e.g., the 2018 `msg_msgseg` overlap and the recurring `freeque` race).
+
 ## Open Questions
 
 (none at this Tier-3 level)

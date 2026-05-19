@@ -534,6 +534,25 @@ kallsyms reinforcement:
 - **Per-bad-taint module skip in /proc/kallsyms backing** — handled in module subsystem (defense against per-fake-symbol-injection).
 - **Per-CAP_SYSLOG check (via kallsyms_show_value)** — defense against per-policy-bypass for address disclosure.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `/proc/kallsyms` seq_file emission is bounds-checked per line; lookup name buffers are stack-allocated and length-validated.
+- **PAX_KERNEXEC** — `kallsyms_names`, `kallsyms_addresses`, `kallsyms_token_table`, and `kallsyms_token_index` live in `__ro_after_init`/const sections; the symbol table cannot be patched at runtime.
+- **PAX_RANDKSTACK** — randomize kernel stack on every `kallsyms_lookup`/`kallsyms_lookup_size_offset` entry.
+- **PAX_REFCOUNT** — saturating atomics on iterator state and BPF "ksym" iter refcounts.
+- **PAX_MEMORY_SANITIZE** — scrub temporary name buffers used during expand/compress (`expand_symbol`).
+- **PAX_UDEREF** — strict user/kernel split on /proc/kallsyms read path; no user pointer ever enters the lookup core.
+- **PAX_RAP / kCFI** — type-signed indirect calls for the symbol-iter `show`/`next`/`stop` ops and for the BPF iter context.
+- **GRKERNSEC_HIDESYM** — primary control surface: when enabled, all addresses in `/proc/kallsyms` and `/proc/modules` show as 0 for non-CAP_SYSLOG readers, and `kptr_restrict=2` is the hard default (no override via sysctl from non-init userns).
+- **GRKERNSEC_DMESG** — restrict kallsyms-derived stack traces and "?? at <addr>" backtraces to CAP_SYSLOG.
+- **kallsyms_lookup_name removed for modules** — the function is no longer exported (matching upstream removal); attempts to relink it via livepatch or insmod are rejected at module load (modpost denies the symbol reference).
+- **/proc/kallsyms 0400 root-only at boot** — perms tightened beyond the upstream 0444 default; reading requires CAP_SYSLOG even for root in a non-init userns.
+- **show_value cached at file open** — capability snapshot is taken once at `open(2)`; later setresuid/seccomp on the fd cannot escalate disclosure.
+- **No address disclosure via dmesg fallback** — kallsyms_show_value(NULL) returns false; printk's `%pK`/`%pS` honor the snapshot and never leak through dmesg under GRKERNSEC_DMESG.
+- **BPF iter "ksym" gated by CAP_SYS_ADMIN + CAP_PERFMON** — even with BPF available, the symbol iter requires the address-disclosure capabilities; no BPF-side `bpf_kallsyms_lookup_name` helper is exposed.
+- **modpost check** — build-time check refuses any kernel/module reference to `kallsyms_lookup_name` or `module_kallsyms_lookup_name` outside the symbol core itself.
+- **Rationale**: kallsyms is the canonical KASLR-defeat oracle and the standard pre-step for ROP/data-only attacks. GRKERNSEC_HIDESYM with kptr_restrict=2 as the hard default plus removal of `kallsyms_lookup_name` from the module symbol space closes both the disclosure and the runtime-symbol-resolution paths.
+
 ## Open Questions
 
 (none at this Tier-3 level)

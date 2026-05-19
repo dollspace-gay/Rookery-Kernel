@@ -716,6 +716,21 @@ BPF-arraymap reinforcement:
 - **Per-RCU bpf_event_entry_free** — defense against per-concurrent-walk UAF in `perf_event_fd_array_release` (call_rcu deferred fput + kfree).
 - **Per-deferred prog_array_map_clear** — defense against per-cgroup-bpf-destroy-deadlock: `schedule_work` decouples release from `cgroup_bpf_destroy_wq`-style synchronous paths.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check every `copy_from_user`/`copy_to_user` on `BPF_MAP_LOOKUP_ELEM`/`UPDATE_ELEM` against the per-map `value_size` and slab whitelist; reject if `index >= max_entries` *before* any allocator math.
+- **PAX_KERNEXEC** — keep `array_map_ops`, `percpu_array_map_ops`, `prog_array_map_ops`, `perf_event_array_map_ops`, `cgroup_array_map_ops`, and `array_of_maps_map_ops` in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on every map syscall to defeat disclosure of the staged value buffer.
+- **PAX_REFCOUNT** — saturating refcount on `struct bpf_map`, `bpf_prog` (PROG_ARRAY slots), `bpf_event_entry` (PERF_EVENT_ARRAY), and `struct cgroup` (CGROUP_ARRAY); wraparound MUST panic.
+- **PAX_MEMORY_SANITIZE** — zero the array value region on `map_free`; never recycle prior process values into a fresh map. For PROG_ARRAY, scrub the tail-call slot on xchg.
+- **PAX_UDEREF** — strict user/kernel separation when staging `value __user *` into the map.
+- **PAX_RAP / kCFI** — type-check `map_ops->map_lookup_elem`, `map_update_elem`, `map_delete_elem`, `map_seq_show_elem`, and the tail-call dispatch into `prog_array[idx]->bpf_func`.
+- **GRKERNSEC_HIDESYM** — hide `array_map_*`, `bpf_fd_array_map_clear`, and `prog_fd_array_*` from non-root kallsyms; PROG_ARRAY slot disclosure is a JIT-spray oracle.
+- **GRKERNSEC_DMESG** — restrict dmesg so per-map verifier/alloc spew (which echoes map ids and kernel addresses) is not harvestable.
+- **PROG_ARRAY tail-call slot xchg** — atomic `xchg` of `prog_array[idx]` with `bpf_prog_put` deferred via RCU; PAX_RAP MUST verify the new prog's `bpf_func` type before any tail-call can reach it (prevents JIT-pointer confusion across tail-call boundaries).
+- **BPF_F_INNER_MAP** — `array_of_maps` MUST reject inner maps whose `bpf_map_meta` does not exactly match the verifier-resolved `inner_map_meta` (key_size, value_size, map_type, flags); a mismatch is the canonical type-confusion primitive across map-in-map.
+- **Rationale** — arraymap is the most pointer-rich BPF map family (PROG_ARRAY holds JIT entry pointers, PERF_EVENT_ARRAY holds `file *`, CGROUP_ARRAY holds `cgroup *`, ARRAY_OF_MAPS holds `bpf_map *`); PAX_REFCOUNT + PAX_RAP on the tail-call dispatch close the historical class of stale-slot and type-confusion exploits.
+
 ## Open Questions
 
 (none at this Tier-3 level)

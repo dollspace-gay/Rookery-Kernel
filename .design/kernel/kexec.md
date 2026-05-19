@@ -526,6 +526,26 @@ kexec reinforcement:
 - **Per-kexec_load_check rejects unknown flag bits** — defense against per-forward-incompatible-flag attack.
 - **Per-KEXEC_SEGMENT_MAX cap** — defense against per-unbounded-list inflation.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — copy-in of `kexec_segment[]` and image-buffer fragments is bounds-checked; `memdup_array_user` overflow checks remain mandatory.
+- **PAX_KERNEXEC** — purgatory and kimage control pages are W^X; the live kernel never permits W+X on any segment during load.
+- **PAX_RANDKSTACK** — randomize kernel stack on `sys_kexec_load`/`sys_kexec_file_load` entry.
+- **PAX_REFCOUNT** — saturating atomics on `kexec_in_progress`, `crash_kexec_post_notifiers`, and image refcounts.
+- **PAX_MEMORY_SANITIZE** — scrub all kexec segment staging pages on load failure or replacement so a previous user's blob cannot leak into a new load.
+- **PAX_UDEREF** — strict user/kernel split when chasing user-supplied segment buffers.
+- **PAX_RAP / kCFI** — type-signed indirect calls for `kexec_file_loaders[]` (`->probe`, `->load`, `->cleanup`, `->verify_sig`) and arch-specific `machine_kexec_*` hooks.
+- **GRKERNSEC_HIDESYM** — hide `kexec_image`, `kexec_crash_image`, `crashk_res`, `machine_kexec_cleanup` from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict kexec load / purgatory diagnostics to CAP_SYSLOG.
+- **kexec_load CAP_SYS_BOOT + signature verify** — `sys_kexec_load` (the legacy raw-segment path) is *disabled at build time* under hardened configs; only `kexec_file_load` is accepted, which mandates kernel signature verification via `KEXEC_SIG`/`KEXEC_SIG_FORCE` and rejects unsigned images even for CAP_SYS_BOOT.
+- **kernel_lockdown integrity mode** — under lockdown=integrity or =confidentiality, kexec_file_load additionally requires the image be signed by a key in the platform keyring; secondary keyring trust is opt-in.
+- **purgatory SHA-256 anchored** — the digest is computed at load and re-verified just before `machine_kexec`; mismatch panics rather than boots.
+- **crashk_res containment hardened** — every segment destination address is re-checked against `crashk_res` and `crashk_low_res` immediately before relocation; trampoline-overwrite attempts panic.
+- **machine_crash_shutdown halts secondaries** — confirmed under PAX_REFCOUNT-protected IPI fences; no secondary CPU may continue executing live-kernel text during crash transition.
+- **kexec_in_progress freeze flag** — set under saturating refcount; reentry from a subsystem teardown notifier is denied with `WARN_ON_ONCE` and the kexec aborted.
+- **TDX/SEV-SNP accept_memory** — every staged segment that lands in a confidential-VM is accepted before write; unaccepted-memory writes are rejected.
+- **Rationale**: kexec replaces the running kernel — any unsigned blob loaded here defeats every other hardening in the system. Forcing kexec_file_load with KEXEC_SIG_FORCE plus lockdown-integrity platform-keyring anchoring makes "kexec a malicious kernel" a non-path even with CAP_SYS_BOOT.
+
 ## Open Questions
 
 (none at this Tier-3 level)

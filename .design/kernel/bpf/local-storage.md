@@ -529,6 +529,22 @@ local-storage reinforcement:
 - **Per-mem_charge / _uncharge symmetric** — defense against per-map memcg accounting drift.
 - **Per-WARN_ON_ONCE on rqspinlock timeout in destroy path** — defense against per-silent leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `bpf_*_storage_get` / `_delete` from BPF programs return a user-readable `value` pointer of `value_size` bytes; whitelist the per-map value window so a verifier-side size-confusion between map type (TASK/INODE/SK/CGRP) cannot drag adjacent `bpf_local_storage_elem` metadata across the kernel boundary.
+- **PAX_KERNEXEC** — `bpf_local_storage_map_ops` dispatch (per-type alloc/free/destroy) is indirect-called from BPF helpers; enforce W^X on the ops table page and refuse rwx for any JIT trampoline emitting the helper call.
+- **PAX_RANDKSTACK** — storage helpers run from arbitrary BPF prog context (LSM, tracing, sched_cls) at user-driven stack depth; randomized kstack offset disrupts ROP through the `bpf_local_storage_update` rqspinlock critical section.
+- **PAX_REFCOUNT** — `bpf_local_storage->refcnt` and per-selem `bpf_selem->snode` lifetime counters are hot fast-path; refcount_t with saturating overflow trap prevents underflow during concurrent owner-free (task_exit / inode_evict / sk_destruct / css_offline) racing storage update.
+- **PAX_MEMORY_SANITIZE** — `bpf_selem_free_rcu` callback must zero the value region (including any embedded kptr / spin_lock / timer special-fields) before returning the selem to bpf_mem_cache; defense against post-RCU stale-kptr resurrection.
+- **PAX_UDEREF** — `bpf_*_storage_get` from syscall side (BPF_MAP_*_ELEM on a local_storage map) reads `key` (an fd-or-pointer to the owner) from user `bpf_attr`; SMAP/PAN must engage across `bpf_fd_*_storage_lookup_elem` translation.
+- **PAX_RAP/kCFI** — per-type `bpf_local_storage_cache` `local_storage_update` indirect calls (task/inode/sk/cgrp) must verify kCFI tag; defense against confused-deputy where a TASK_STORAGE selem could be threaded through SK_STORAGE update path post-corruption.
+- **GRKERNSEC_HIDESYM** — `bpf_map_show_fdinfo` for local_storage maps must hide the per-cache pointer and the selem head address from non-CAP_SYSLOG readers; expose only id + value_size.
+- **GRKERNSEC_DMESG** — `WARN_ON_ONCE(rqspinlock timeout)` in the destroy path must not splat raw selem / owner pointers into dmesg readable by non-CAP_SYSLOG.
+- **Per-object lifetime binding** — TASK_STORAGE selems must die with `release_task`; INODE_STORAGE with `__destroy_inode`; SK_STORAGE with `sk_destruct`; CGRP_STORAGE with `css_free_rwork_fn`. Any decoupling (e.g., delayed teardown via workqueue) widens a UAF window and is forbidden under grsec mode.
+- **BPF_F_NO_PREALLOC mandatory + memcg charge** — local_storage maps must reject `!(map_flags & BPF_F_NO_PREALLOC)`; per-selem mem_charge must go through memcg with the owner cgroup so a CAP_BPF user cannot pin host slab via a flood of task-storage allocations.
+- **Per-owner storage ceiling** — Rookery should impose `bpf_local_storage_max_per_owner` (default 64) so a single task/inode/sk/cgroup cannot host an unbounded selem chain that defeats RCU-grace destroy bounds.
+- **Rationale** — local_storage is uniquely hazardous: its lifetime is bound to a kernel object the BPF user does not own (task, inode, sk, cgroup), so an attacker can use storage maps to extend BPF-controlled state across cred boundaries (post-`exec`, post-`fork`, post-`fchown`). The grsec regime forces multi-layer escalation (defeat refcount saturation + RCU sanitize + kCFI dispatch + memcg quota) before storage UAF becomes a control-flow primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -325,6 +325,26 @@ PID-procfs reinforcement:
 - **Per-loginuid CAP_AUDIT_CONTROL once** — defense against per-loginuid-spoof.
 - **Per-/proc/<pid>/coredump_filter mask-only** — defense against per-coredump-overflow.
 
+## Grsecurity/PaX-style Reinforcement
+
+/proc/<pid>/ is the top of the per-task disclosure tree; grsec historically gated nearly every entry with `GRKERNSEC_PROC_USER`/`PROC_USERGROUP` and `ptrace_may_access`. Rookery commits to that policy as the default:
+
+- **PAX_USERCOPY** — `maps`/`smaps`/`pagemap` seq buffers bounded against allocation size; copy_to_user past the `seq_file.size` is rejected.
+- **PAX_KERNEXEC** — `tgid_base_stuff`, `tid_base_stuff`, and per-pid_entry tables are `__ro_after_init`; no runtime mutation of the per-pid vtable.
+- **PAX_RANDKSTACK** — kernel stack offset randomized so `stack`/`syscall` emitters never yield a per-build kstack anchor.
+- **PAX_REFCOUNT** — `get_task_struct`/`put_task_struct`, `mmget`/`mmput`, `get_pid`/`put_pid`, and `try_get_task_stack`/`put_task_stack` are saturating-refcount audited.
+- **PAX_MEMORY_SANITIZE** — `seq_file.buf` and per-pid scratch slabs zeroed on free so prior-reader smaps/pagemap state cannot bleed.
+- **PAX_UDEREF** — every per-pid emitter writes through seq_buf APIs that treat the target as user-domain; no raw `__user` deref.
+- **PAX_RAP/kCFI** — `pid_entry.iop`/`pid_entry.fop`/`pid_entry.show` are CFI-typed and `__ro_after_init`.
+- **GRKERNSEC_HIDESYM** — `maps`/`smaps`/`stack`/`syscall` strip kernel pointers for non-CAP_SYSLOG readers; `kptr_restrict` is treated as a floor not a ceiling.
+- **GRKERNSEC_DMESG** — ptrace-deny diagnostics route only through audit (`PTRACE_MODE_NOAUDIT` for read-only probes); never to dmesg.
+- **/proc/<pid>/{maps,smaps,pagemap} CAP_SYS_PTRACE** — cross-uid readers require `ptrace_may_access(target, PTRACE_MODE_READ_FSCREDS)`; pagemap additionally requires CAP_SYS_ADMIN for PFN visibility (upstream + grsec floor).
+- **PR_SET_DUMPABLE=0 hide** — when target has cleared dumpable, `/proc/<pid>/` directory is owned by root and unreadable to non-root; matches grsec `GRKERNSEC_PROC_USERGROUP` interaction with `setuid` exec.
+- **/proc/<pid>/mem write CAP_SYS_PTRACE + same-mm** — write side denies even with PTRACE_MODE_ATTACH unless target shares mm or caller has CAP_SYS_ADMIN.
+- **/proc/<pid>/environ CAP_SYS_PTRACE** — env vector treated as ptrace-read-class, not as "owner readable", to defeat post-exec credential leakage.
+
+Rationale: this directory is the union of the CVE classes grsec targeted (info-leak via maps/stack/syscall, race on mm/task lifetimes, cross-namespace PID disclosure); the Rookery contract is to land grsec-equivalent gating in the upstream code path so toggling a future `GRKERNSEC_PROC_*` build option becomes a no-op rather than a feature.
+
 ## Open Questions
 
 (none at this Tier-3 level)

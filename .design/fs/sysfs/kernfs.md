@@ -313,6 +313,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+kernfs is the underlying VFS-backed in-memory tree for sysfs, cgroupfs, and configfs; grsec hardened the node lifecycle (active-counter draining, ops-vtable immutability). Rookery commits:
+
+- **PAX_USERCOPY** — per-`kernfs_open_file` read/write buffer sized at `seq_file` allocation; copy_to_user/copy_from_user bounded by that size.
+- **PAX_KERNEXEC** — every `kernfs_ops` instance is `static const`; per-node `priv` may be mutable but the vtable is rodata.
+- **PAX_RANDKSTACK** — kernfs open/read/write paths run under randomized kstack offset.
+- **PAX_REFCOUNT** — `kernfs_node.count` and `kernfs_node.active` are saturating refcount; `kernfs_active_drain` is a barrier against use-after-free during `kernfs_remove`.
+- **PAX_MEMORY_SANITIZE** — freed `kernfs_node` slabs zeroed; per-node `name` and `priv` pointer cleared before slab reuse so prior-node identity cannot bleed.
+- **PAX_UDEREF** — read/write callbacks receive userspace pointer as `void __user *` and consume via `copy_*_user`; raw deref is a build break.
+- **PAX_RAP/kCFI** — `kernfs_ops.{open,release,seq_show,read,write,poll,mmap}` are all CFI-typed and pinned `__ro_after_init`.
+- **GRKERNSEC_HIDESYM** — kernfs read paths never emit a kernel pointer unless the per-file `seq_show` explicitly opted in and the reader has CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — node-remove races and active-drain timeouts never log the node path to dmesg.
+- **kernfs node refcount audit** — `kernfs_get`/`kernfs_put` use saturating refcount; `kernfs_active_drain` completion handshake guarantees no `kernfs_ops.read`/`write` can race a `kernfs_remove`; per-node `active` counter is the explicit barrier grsec required.
+- **sysfs_ops PAX_RAP** — the `sysfs_ops` shim (`sysfs_kf_seq_show`, `sysfs_kf_write`, etc.) that bridges kernfs to per-kobject attribute show/store is CFI-typed; per-attribute `show`/`store` function pointers re-checked against CFI allow-list at every kernfs `seq_show` dispatch.
+- **kernfs_create_link symlink target validation** — symlink targets resolved within the same kernfs root; cross-root or out-of-tree targets rejected to prevent path-confusion attacks.
+- **Per-`kernfs_root` lockdown** — root pointer stored in `__ro_after_init` for sysfs/cgroupfs/configfs; module-provided kernfs trees must register a CFI-typed root.
+
+Rationale: kernfs is the shared lifecycle engine for three high-attack-surface filesystems (sysfs, cgroupfs, configfs); a single corrupted ops-vtable here yields arbitrary call from any of those filesystems. The grsec-equivalent contract pins ops-vtables to rodata and audits the active-counter draining at the kernfs layer once, rather than re-implementing the gate three times.
+
 ## Open Questions
 
 (none — kernfs framework exhaustively specified by upstream + sysfs/cgroup-v2/configfs interop)

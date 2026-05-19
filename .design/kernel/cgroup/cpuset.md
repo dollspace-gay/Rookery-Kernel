@@ -217,6 +217,23 @@ cpuset-specific reinforcement:
 - **Partition exclusive-cpu enforcement** — child cgroup attempting to use exclusive-cpu owned by parent's other partition rejected.
 - **Per-cgroup mems.effective restricts page allocator** — `cpuset_node_allowed` check in slab/page allocator paths; defense against per-cgroup memory leakage to disallowed nodes.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `cpuset.cpus` / `cpuset.mems` write handlers parse attacker-supplied `cpulist`/`nodelist` strings through `cpulist_parse` / `nodelist_parse`; whitelist `PAGE_SIZE - 1` and refuse the moment a malformed comma-delimited list would cross the buffer boundary.
+- **PAX_KERNEXEC** — `cpuset_subsys.legacy_cftypes` and `dfl_cftypes` indirect-call vectors live in `.rodata`; refuse rwx so a kernel-write cannot rewrite `update_cpumask` to skip `validate_change`.
+- **PAX_RANDKSTACK** — `cpuset_write_resmask` runs from `write(2)` with attacker-controlled cpulist/nodelist depth; randomized kstack offset disrupts ROP through the giant `update_cpumasks_hier` + `rebuild_sched_domains` callchain.
+- **PAX_REFCOUNT** — `css->refcnt`, `cs->attach_in_progress`, and `top_cpuset->css.refcnt` are refcount_t with saturating overflow; defense against fd-storm underflow racing `cpuset_css_free` against in-flight attach.
+- **PAX_MEMORY_SANITIZE** — `cpuset_css_free` must zero `cs->cpus_allowed` / `cs->mems_allowed` / `cs->effective_cpus` / `cs->effective_mems` bitmaps before kfree; defense against post-free residual exposing topology info to a fresh cpuset allocation.
+- **PAX_UDEREF** — cpulist/nodelist parsing keeps SMAP/PAN engaged across the entire `kernfs_ops->write` → `cpuset_write_resmask` → `cpulist_parse` chain.
+- **PAX_RAP/kCFI** — `cpuset_subsys.*` callbacks (`css_alloc`, `css_online`, `css_offline`, `attach`, `can_attach`) are indirect-called from cgroup core; require matching kCFI tag so a corrupted subsys vector cannot bypass `validate_change`.
+- **GRKERNSEC_HIDESYM** — `cpuset.effective_cpus` reader must not leak kernel pointers (`struct cpuset *` address); only the cpumask content is user-facing.
+- **GRKERNSEC_DMESG** — `WARN_ON` in `rebuild_sched_domains` and `update_tasks_cpumask` must not splat raw pointers or NUMA-internal addresses into dmesg readable by non-CAP_SYSLOG.
+- **cpu/mem CAP_SYS_ADMIN gate** — `update_cpumask` / `update_nodemask` (and the v2-equivalent `cpuset.cpus`/`cpuset.mems` writers) must enforce `ns_capable(user_ns, CAP_SYS_ADMIN)` against the userns owning the cgroup root, not init; defense against per-userns cpuset granting host-CPU isolation manipulation.
+- **`isolcpus` integration** — `cpuset.cpus.partition=root` requesting `isolcpus`-reserved CPUs must hard-fail with `-EBUSY`; defense against partition-creation circumventing boot-time isolation policy.
+- **NUMA `memory_migrate=1` strict** — page-migration on `cpuset.mems` change only when explicitly requested; defense against accidental cross-node thrash from a child cgroup write.
+- **Partition exclusive-cpu enforcement** — sibling partition cannot claim CPUs already exclusive to another root-partition; `validate_change` must reject with `-EINVAL` even if the parent's effective set superficially contains the CPU.
+- **Rationale** — cpuset bridges scheduler topology and NUMA memory placement; a single mis-validation can leak workload affinity across cgroup boundaries or starve a real-time cpuset. The grsec regime forces an attacker to defeat W^X on cftype + kCFI on subsys ops + CAP_SYS_ADMIN strict-userns + refcount saturation on css before reaching a host-scheduler manipulation primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

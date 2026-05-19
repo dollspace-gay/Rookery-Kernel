@@ -756,6 +756,25 @@ IRQ-manage reinforcement:
 - **Per-IRQTF_READY barrier on request → thread bringup** — defense against per-IRQ-before-thread-ready.
 - **Per-IRQF_NO_AUTOEN to delay auto-enable** — defense against per-spurious-on-bringup before driver init.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — copy-out of irq stats and copy-in of /proc/irq/N writes are bounds-checked.
+- **PAX_KERNEXEC** — irqaction lists are linked through const/W^X heads; `request_irq` callbacks land in const-protected dispatch tables.
+- **PAX_RANDKSTACK** — randomize kernel stack on `__handle_irq_event_percpu` entry; threaded-handler kthreads also re-seed per wake.
+- **PAX_REFCOUNT** — saturating atomics on `desc.action->count`, `desc.depth`, `desc.threads_active`, `affinity_notify->kref`, `wake_depth`.
+- **PAX_MEMORY_SANITIZE** — scrub `struct irqaction` on free so stale handler/thread_fn pointers cannot be replayed via slab reuse.
+- **PAX_UDEREF** — strict user/kernel split on /proc/irq/* parse paths.
+- **PAX_RAP / kCFI** — type-signed indirect calls for `irqaction->handler`, `->thread_fn`, `->secondary_handler`, and `affinity_notify->notify`.
+- **GRKERNSEC_HIDESYM** — hide `__setup_irq`, `irq_thread`, `request_threaded_irq` from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict spurious-IRQ and shared-line mismatch warnings to CAP_SYSLOG.
+- **request_irq CAP_SYS_RAWIO for shared lines** — adding a *new* irqaction to an already-claimed shared line requires CAP_SYS_RAWIO so an unprivileged-with-fd driver path cannot piggy-back on an existing line.
+- **IRQF_TIMER strict** — IRQF_TIMER implies `IRQF_NO_THREAD | IRQF_NO_SUSPEND | IRQF_NO_SOFTIRQ_CALL`; mismatched combinations are rejected at request time, denying timer-line abuse to escape suspend or threading constraints.
+- **Threaded-handler kthread cred locked** — `irq_thread` runs with PF_NO_SETAFFINITY and the original requester's cred frozen; later prctl/seccomp changes do not propagate.
+- **NMI request hardened** — `request_nmi`/`request_percpu_nmi` reject threaded, shared, suspendable flags, and require CAP_SYS_ADMIN; only the in-kernel watchdog path can establish NMIs.
+- **/proc/irq write capability** — affinity, smp_affinity_list, and node_affinity writes all gated through `irq_can_set_affinity_usr` which additionally requires CAP_SYS_ADMIN in init_user_ns.
+- **Affinity notifier kref + RCU sync** — `irq_set_affinity_notifier` swap drops the old notifier under PAX_REFCOUNT and synchronize_rcu before releasing the user-supplied notify callback context.
+- **Rationale**: `request_irq` is the user-driver-facing entry into the irq subsystem; shared lines are the classic vector for unprivileged drivers to plant callbacks reachable from irq context. Capability gating on shared-line attach, NMI requests, and /proc/irq writes plus PAX_RAP-typed handler callbacks prevent the irqaction list from becoming an attacker-controlled callback chain.
+
 ## Open Questions
 
 (none at this Tier-3 level)

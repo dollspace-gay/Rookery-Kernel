@@ -591,6 +591,31 @@ ntfs3-superblock-specific reinforcement:
 - **Per-`ntfs_set_shared` + `ntfs_put_shared` refcount on $UpCase** — defense against per-double-free of the 128 KiB shared upcase table.
 - **Per-`msg_ratelimit` on `ntfs_printk`** — defense against per-corrupt-volume log flood.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `getxattr` / `listxattr` and on `FIEMAP` so a malicious MFT-attribute length cannot drive an oversize copy_to_user.
+- **PAX_KERNEXEC** — W^X for any executable mapping reachable from ntfs3 paths.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `ntfs_iterate` / `ntfs_lookup` / `ntfs_read_folio`.
+- **PAX_REFCOUNT** — saturating refcount on `struct ntfs_sb_info`, on every loaded system-inode ($MFT, $MFTMirr, $LogFile, $Volume, $AttrDef, $UpCase, $Bitmap, $Secure), and on the shared $UpCase table.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the per-mount MFT-record cache, the $Bitmap scratch, and the 128 KiB upcase allocation.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on mount-option parse.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `super_operations`, `inode_operations`, `address_space_operations` ntfs3 vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in `/proc/mounts` and `/sys/fs/ntfs3/<dev>/`.
+- **GRKERNSEC_DMESG** — syslog restriction on MFT-parse failures that otherwise leak offsets and cluster numbers.
+- **Reparse-point CAP_LINUX_IMMUTABLE gate** — creating or modifying a reparse-point (junction, symlink) on an ntfs3 mount requires `CAP_LINUX_IMMUTABLE` so an unprivileged container user cannot install an attacker-controlled reparse target that VFS will dereference.
+- **MFT signature verify** — every MFT record load (`FILE` magic), every INDX-buffer load (`INDX` magic), and every $LogFile record (`RSTR`/`RCRD` magic) is checked before any field deref; mismatch forces `-EFSCORRUPTED`.
+- **Update-sequence-number (USN) fixup mandatory** — `ntfs_fix_pre_boot` / `ntfs_check_record` re-applies per-sector USN before parse so a torn write does not present a half-rolled-back record.
+- **`SB_RDONLY` forced on `dev_size < volume.size + boot_sector_size`** — truncated images degrade to read-only rather than risking writeback past end-of-device.
+- **`umask & ~07777`** — mount-supplied umask is masked to mode bits so a crafted mount option cannot poison VFS mode interpretation.
+- **`ntfs_set_shared`/`ntfs_put_shared` on $UpCase** — the 128 KiB shared upcase table cannot be double-freed across concurrent mounts.
+- **`ntfs_set_state(NTFS_DIRTY_CLEAR)` only on clean `put_super`** — dirty bit is cleared exclusively on a successful sync_fs path; a crash leaves the dirty bit asserted for next-mount replay.
+- **`msg_ratelimit` on `ntfs_printk`** — corrupt volumes cannot drive log floods.
+- **CAP_SYS_ADMIN on `mount -t ntfs3`** — image source is attacker-controlled removable media or a remote-supplied disk image; mount remains capable-gated.
+
+Per-doc rationale: ntfs3 ingests an extremely complex on-disk format (MFT + $LogFile + $Bitmap + $UpCase + reparse points + ADS) authored by Windows or by an adversary; PaX/grsec reinforcement holds every system-inode reference under saturating refcount, every record load behind magic+USN verification, every reparse mutation behind `CAP_LINUX_IMMUTABLE`, and the dirty-state machine under journaled-clean discipline so a malformed volume becomes `-EFSCORRUPTED`, not a kernel write.
+
 ## Open Questions
 
 (none at this Tier-3 level)

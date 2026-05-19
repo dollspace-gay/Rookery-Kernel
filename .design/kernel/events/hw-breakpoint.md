@@ -525,6 +525,24 @@ HW-breakpoint reinforcement:
 - **Per-constraints_initialized __ro_after_init gate** — defense against use-before-init returning bogus 0 success.
 - **Per-bp.destroy = bp_perf_event_destroy** — defense against per-event-leak missing release_bp_slot on perf-event-close.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check copy-out of `struct perf_event_attr` fields exposing DRn register state to user space.
+- **PAX_KERNEXEC** — hw_breakpoint dispatch and per-arch ops tables are W^X; `arch_install_hw_breakpoint` cannot be repointed at runtime.
+- **PAX_RANDKSTACK** — randomize the kernel stack on every entry that touches `ptrace_set_breakpoint_addr` / `perf_event_open` for HW BPs.
+- **PAX_REFCOUNT** — saturating atomics on per-CPU `bp_slots_taken`, rhltable refs, and per-task BP counts; overflow on slot accounting traps instead of double-installing.
+- **PAX_MEMORY_SANITIZE** — scrub `struct perf_event` HW-BP attributes on destroy so stale watch addresses cannot be replayed.
+- **PAX_UDEREF** — strict user/kernel split on `arch_bp_generic_fields` decoding of user-supplied bp_addr/bp_len.
+- **PAX_RAP / kCFI** — type-signed indirect calls for `bp->overflow_handler`, `arch_install_hw_breakpoint`, and die-notifier chain entries.
+- **GRKERNSEC_HIDESYM** — hide `hw_breakpoint_slots`, `bp_cpuinfo`, per-arch DRn helpers from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict "ran out of HW breakpoint slots" / DR6 spew to CAP_SYSLOG.
+- **ptrace HW-breakpoint requires CAP_SYS_PTRACE** — installing a HW BP on another task via `PTRACE_POKEUSER`/perf cross-task open requires CAP_SYS_PTRACE in addition to ptrace_may_access(); cross-uid HW-BP install is denied even for ptrace-attached children.
+- **Slot constraint validation hardened** — `__reserve_bp_slot` rechecks `nr_bp_pinned[type] + nr_bp_flexible <= HBP_NUM` under PAX_REFCOUNT semantics and panics on inconsistency rather than overcommitting.
+- **DR7 mask sanity** — per-arch `arch_validate_hwbkpt_settings` rejects reserved DR7 bits and any encoding that would alias an unimplemented length/type, denying CVE-class trap-bypass tricks.
+- **No DRn from compat32 unless explicitly enabled** — 32-bit-compat HW-BP install on a 64-bit kernel is opt-in per-process to shrink the surface.
+- **die-notifier registration gated** — `hw_breakpoint_init` registers at priority 0x7fffffff once, `__ro_after_init`; later attempts to splice notifiers are refused.
+- **Rationale**: HW breakpoints are a privileged debugging primitive that, if reachable cross-uid, becomes a precise side-channel and a controlled-trap injection vector. Requiring CAP_SYS_PTRACE for cross-task install, validating the slot bitmap under saturating refcounts, and locking the die-notifier order make the surface usable for debug without becoming a generic ptrace-elevation tool.
+
 ## Open Questions
 
 (none at this Tier-3 level)

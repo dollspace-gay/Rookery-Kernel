@@ -515,6 +515,29 @@ NFS dir reinforcement:
 - **Per-LOOKUP_REVAL forced-RPC** — defense against per-client-side stale-cache misroute.
 - **Per-32-bit-loff_t encoding via is_32bit_api** — defense against per-truncation of 64-bit NFS cookies on 32-bit userspace.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `nfs_readdir` → `filldir` callbacks so a malicious server cannot drive an oversize copy_to_user via a crafted `READDIR` reply.
+- **PAX_KERNEXEC** — W^X for any executable mapping reachable from NFS dir code paths.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `nfs_lookup` / `nfs_readdir` so wire-side timing cannot leak stack layout.
+- **PAX_REFCOUNT** — saturating refcount on every `struct nfs_open_dir_context`, `nfs_cache_array`, and on the per-cred access-cache entry.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the readdir-array pages and for the access-cache slab so stale server data does not survive into reallocation.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on the dirent emit path.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `nfs_dir_inode_ops` / `nfs_dir_ops` and on RPC `proc.encode`/`proc.decode` vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in `/proc/self/mountstats` NFS dentry counters.
+- **GRKERNSEC_DMESG** — syslog restriction on RPC-level diagnostics that leak server addresses.
+- **NFSv4 `atomic_open` PAX_USERCOPY** — `nfs4_atomic_open` round-trips the `open_flags`/`mode_t` and returned `nfs4_state` under bounded copy semantics so a misbehaving server cannot trigger oversize copy into the lookup result.
+- **READDIRPLUS opt-out** — `nfs_advise_use_readdirplus` defers RDPLUS once the dir is "leaf-shaped" and falls back to plain READDIR; this prevents server-side amplification attacks that try to force the client to pre-populate the inode cache.
+- **`d_invalidate` on RDPLUS fileid mismatch** — a server that hands back the wrong (fh, fileid) for a known dentry forces dentry invalidation rather than silent rebinding.
+- **`LOOKUP_REVAL` forced-RPC** — `O_CREAT|O_EXCL` and rename paths force a fresh GETATTR so stale-cache hides cannot win.
+- **`is_32bit_api` cookie encoding** — `nfs_readdir_page_filler` collapses 64-bit cookies to 32-bit safely for 32-bit userspace consumers without losing entries.
+- **Silly-rename under unlink-of-open** — `nfs_sillyrename` makes the client correct for servers that refuse `REMOVE` of an open file.
+- **Access-cache shrinker (4 MiB cap)** — per-cred access cache is reclaim-bounded so an unprivileged cred-storm cannot pin server-evaluated permissions.
+
+Per-doc rationale: NFS directory ops are the largest attack surface for server-side adversaries: a malicious or compromised server controls fileids, cookies, RDPLUS attribute streams, and access masks. PaX/grsec reinforcement turns server-driven misbehavior into bounded refusals (`-EIO`, `-ESTALE`, dentry invalidation) rather than client-side UAF, refcount wrap, or oversize copy_to_user.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -315,6 +315,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+kobject is the per-driver lifecycle and uevent emitter; grsec hardened the kref accounting and the netlink uevent socket. Rookery contract:
+
+- **PAX_USERCOPY** — uevent message construction (`kobj_uevent_env`) is sized to `UEVENT_BUFFER_SIZE`; per-envp byte-count enforced; netlink `genlmsg_put` copies are bound.
+- **PAX_KERNEXEC** — every `kobj_type` and `kset_uevent_ops` instance is `static const`; default attribute groups are `static const`.
+- **PAX_RANDKSTACK** — kobject_add/del/uevent paths run under randomized kstack offset.
+- **PAX_REFCOUNT** — `kobject.kref` and per-kset refcount use saturating refcount; `kobject_get`/`kobject_put` are the choke-point grsec audited for UAF (matched ref/unref across all driver subsystems).
+- **PAX_MEMORY_SANITIZE** — freed `kobj_uevent_env` scratch and per-kobject `name` string zeroed on free; per-attribute data slabs sanitized so prior-driver state cannot bleed via netlink to userspace listeners.
+- **PAX_UDEREF** — netlink message construction never deref's a userspace pointer; uevent envp built entirely in kernel.
+- **PAX_RAP/kCFI** — `kobj_type.{release,sysfs_ops,default_groups,child_ns_type,namespace,get_ownership}` and `kset_uevent_ops.{filter,name,uevent}` are CFI-typed and `__ro_after_init`.
+- **GRKERNSEC_HIDESYM** — uevent messages never contain kernel pointers; netlink listeners (non-CAP_SYSLOG) see hashed/scrubbed identifiers only.
+- **GRKERNSEC_DMESG** — kobject_init_and_add failure logs are rate-limited and scrub pointer fields.
+- **kobject_get/put PAX_REFCOUNT** — the original Linus-vs-grsec dispute centered on kref overflow; Rookery uses saturating `Refcount` and refuses to ever release on overflow, matching grsec floor.
+- **/sys/firmware CAP_SYS_ADMIN** — uevent-triggered firmware loader path (`/sys/firmware/<name>/data` write) requires CAP_SYS_ADMIN; the matching kobject directory is owned by root with mode 0600; firmware blob writes never reach driver memory from an unprivileged user.
+- **NETLINK_KOBJECT_UEVENT socket scoping** — uevent multicast socket is per-netns; cross-netns uevent leak denied (matches grsec `GRKERNSEC_PROC_USER` per-namespace floor).
+- **uevent_seqnum monotonicity** — saturating counter; cannot wrap to bypass deduplication logic in udev.
+
+Rationale: kobject's kref overflow and uevent-leak vectors were the historical grsec/Linus flashpoint (CVE-2018-7995-class); the Rookery contract pins ops-vtables to rodata, uses saturating `Refcount` for every kobject_get/put, and applies CAP_SYS_ADMIN at the firmware-loader chokepoint so the upstream code path mechanically encodes the grsec floor.
+
 ## Open Questions
 
 (none — kobject + uevent framework exhaustively specified by upstream + udev test corpus + driver-developer interop)

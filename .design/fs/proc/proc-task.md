@@ -416,6 +416,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+/proc/<pid>/task/<tid>/ exposes the per-thread mirror of every /proc/<pid>/ entry; grsec applied the same `GRKERNSEC_PROC_*` policy to both. Rookery contract:
+
+- **PAX_USERCOPY** — per-thread `maps`/`smaps`/`stat`/`status` seq buffers bounded against allocation; copy_to_user past `seq_file.size` rejected.
+- **PAX_KERNEXEC** — `tid_base_stuff[]` and per-thread `pid_entry` tables `__ro_after_init`.
+- **PAX_RANDKSTACK** — per-thread emitters run under randomized kstack; per-tid kstack-shape leaks denied.
+- **PAX_REFCOUNT** — `get_task_struct`/`put_task_struct`, `get_pid`/`put_pid`, and per-thread `mmget` saturate.
+- **PAX_MEMORY_SANITIZE** — per-thread seq buffers zeroed on free; thread-local sensitive state (per-tid sigmask, per-tid statm) cannot bleed across readers.
+- **PAX_UDEREF** — every per-tid emitter uses seq_buf user-domain APIs; no raw `__user` deref.
+- **PAX_RAP/kCFI** — `pid_entry.iop`/`pid_entry.fop`/`pid_entry.show` for the `tid_base_stuff[]` set are CFI-typed and `__ro_after_init`.
+- **GRKERNSEC_HIDESYM** — per-thread `stat`/`status`/`stack`/`syscall` strip kernel pointers for non-CAP_SYSLOG readers; `kptr_restrict` floor.
+- **GRKERNSEC_DMESG** — per-thread ptrace-deny diagnostics route only through audit (`PTRACE_MODE_NOAUDIT` for read), never dmesg.
+- **Per-thread /proc/<pid>/task/<tid> same-as-proc-pid policy** — every `ptrace_may_access` gate that applies to `/proc/<pid>/X` is identically applied to `/proc/<pid>/task/<tid>/X`; the per-thread directory cannot be a policy-bypass mirror.
+- **/proc/<pid>/task readdir CAP_SYS_PTRACE for cross-uid** — listing the thread set of another uid's process requires `PTRACE_MODE_READ_FSCREDS`, mirroring grsec `GRKERNSEC_PROC_USER` floor.
+- **PR_SET_DUMPABLE=0 hide** — when target has cleared dumpable, both `/proc/<pid>/` AND `/proc/<pid>/task/` directories are owned by root and unreadable to non-root; the per-thread mirror cannot escape the dumpable=0 lockdown.
+- **Per-tid /proc/<pid>/task/<tid>/mem write CAP_SYS_PTRACE + same-mm** — identical floor to /proc/<pid>/mem; per-thread write side cannot be a bypass.
+
+Rationale: prior CVEs (CVE-2018-1120, several /proc/<pid>/mem-class) exploited the policy asymmetry between `/proc/<pid>/X` and `/proc/<pid>/task/<tid>/X`; the Rookery contract is a single shared gate function called from both paths, removing the asymmetry by construction — the policy grsec enforced at the access-decision layer.
+
 ## Open Questions
 
 (none — per-task /proc semantics exhaustively specified by upstream + decades of distro tooling parsing this format)

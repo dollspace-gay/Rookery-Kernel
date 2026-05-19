@@ -449,6 +449,21 @@ uring_cmd reinforcement:
 - **Per-`io_submit_flush_completions` after cancel walk** — defense against per-CQE-loss on cancel-all.
 - **Per-`IO_URING_F_COMPLETE_DEFER` requires !IO_URING_F_UNLOCKED** — defense against per-defer-without-lock corruption.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check every `copy_from_user`/`copy_to_user` against `cmd->sqe`, `cmd->pdu`, and per-driver passthrough buffers to slab whitelist; reject objects that cross multi-page slab boundaries.
+- **PAX_KERNEXEC** — keep `struct io_uring_cmd_ops` and per-driver `->uring_cmd` vtables in `__ro_after_init`; any rewrite (e.g., late-loaded NVMe/ublk module replacing an op) must be rejected.
+- **PAX_RANDKSTACK** — re-randomize kernel stack on every uring-cmd entry to defeat stack-spray against the large `pdu[32]` scratch area.
+- **PAX_REFCOUNT** — saturating refcount on `req->file`, `nvme_uring_cmd_pdu`, and `ublk_uring_cmd` so a buggy driver cannot wrap and trigger UAF on completion.
+- **PAX_MEMORY_SANITIZE** — zero `cmd->pdu`, `cmd->sqe`, and any per-driver bounce buffer on free; never leak prior `struct nvme_command` bytes to a recycled SQE slot.
+- **PAX_UDEREF** — enforce strict user/kernel separation when uring-cmd passes opaque `void __user *` from `sqe->addr` to driver; reject any direct kernel pointer deref.
+- **PAX_RAP / kCFI** — type-check every indirect `->uring_cmd`, `->uring_cmd_iopoll`, and per-driver completion callback; mismatch panics rather than executes attacker-controlled gadget.
+- **GRKERNSEC_HIDESYM** — hide driver symbol addresses (e.g., `nvme_submit_user_cmd`, `ublk_ch_uring_cmd`) from `/proc/kallsyms` for non-root to blunt passthrough exploit chains.
+- **GRKERNSEC_DMESG** — restrict dmesg so per-cmd error spew (driver-leaked SGL, queue depth) cannot be harvested by unprivileged probers.
+- **Per-driver CAP gating** — every `->uring_cmd` op MUST re-check the cap the corresponding `ioctl` requires (NVMe passthrough/ublk → `CAP_SYS_RAWIO`); do not trust that io_uring registration laundered the check.
+- **NVMe/ublk passthrough hardening** — clamp opcode allowlist per-namespace; reject `IO_URING_F_CQE32`/`F_SQE128` if driver does not opt in; verify metadata-pointer ownership before DMA.
+- **Rationale** — `uring-cmd` is a generic passthrough that turns io_uring into an ioctl multiplexer; every grsec primitive that historically hardened `ioctl(2)` MUST apply equally here, plus refcount and CFI guards because completion runs in IRQ/softirq context where exploitation is easier and recovery harder.
+
 ## Open Questions
 
 (none at this Tier-3 level)

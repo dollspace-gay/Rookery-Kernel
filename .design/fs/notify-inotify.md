@@ -500,6 +500,29 @@ Inotify-user reinforcement:
 - **Per-INOTIFY_IOC_SETNEXTWD gated on CONFIG_CHECKPOINT_RESTORE** — defense against per-CRIU-only path attack surface.
 - **Per-FIONREAD walks queue under notification_lock** — defense against per-FIONREAD-vs-read race.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `inotify_read` `copy_event_to_user` so a crafted name-length on an oversize watch path cannot overrun a user buffer.
+- **PAX_KERNEXEC** — W^X for any executable mapping reachable from inotify dispatch.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `inotify_init1` / `inotify_add_watch` / `inotify_rm_watch` so timing channels do not leak stack layout.
+- **PAX_REFCOUNT** — saturating refcount on `struct fsnotify_group`, on the per-mark `inotify_inode_mark`, and on `wd → mark` IDR mappings.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `inotify_event_info` slab so leftover name/path bytes do not survive into the next event.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on read path and on `INOTIFY_IOC_SETNEXTWD`.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `inotify_fsnotify_ops` (`handle_inode_event`, `free_event`, `freeing_mark`).
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in `/proc/<pid>/fdinfo/N` for inotify fds (`inotify wd:`).
+- **GRKERNSEC_DMESG** — syslog restriction on overflow / mark-leak diagnostics.
+- **`max_user_watches` per-uid quota** — `inotify_new_watch` charges a per-uid counter via `inc_inotify_watches`; quota is enforced regardless of user-namespace traversal so a user inside a container cannot exceed the host policy.
+- **`max_user_instances` per-uid quota** — `inotify_init1` charges `inc_inotify_instances` so fork-bomb-style instance creation cannot exhaust group slab.
+- **`IN_DONT_FOLLOW`** — symlink targets are not auto-resolved when `IN_DONT_FOLLOW` is set; this is required for trusted-path inotify because the path component might be attacker-writable.
+- **`IN_ONESHOT` auto-remove** — single-shot watches drop the mark on first event so a watcher cannot leak wd entries.
+- **`idr_alloc_cyclic`** — wd numbers are not reused soon after `rm_watch`, eliminating collisions with stale userland wd references.
+- **`anon_inode` O_RDONLY only** — inotify fd cannot be `write()`-targeted by mistake; write attempts fail with `-EBADF`.
+- **`INOTIFY_IOC_SETNEXTWD` `CONFIG_CHECKPOINT_RESTORE` gate** — wd-number injection is restricted to CRIU builds; non-CRIU production kernels reject this ioctl outright.
+
+Per-doc rationale: inotify is an unprivileged user-namespace-traversable subsystem with per-uid watch quotas as its only resource bound; PaX/grsec reinforcement keeps watch and instance counters under saturating arithmetic, keeps wd allocation collision-resistant, keeps event copy-out USERCOPY-bounded, and keeps the watch-symlink-following semantics under explicit `IN_DONT_FOLLOW` opt-in so trusted-path monitoring is actually trusted.
+
 ## Open Questions
 
 (none at this Tier-3 level)

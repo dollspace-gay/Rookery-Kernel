@@ -562,6 +562,21 @@ DevMap reinforcement:
 - **Per-broadcast clone via xdpf_clone (n-1 clones)** — defense against per-double-xmit of original.
 - **Per-exclude_ingress upper-dev walk bounded by MAX_NEST_DEV** — defense against per-upper-dev recursion.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `copy_from_user(&dev_val)` on `BPF_MAP_UPDATE_ELEM` against `struct bpf_devmap_val` size; reject malformed `ifindex`/`bpf_prog.fd` combinations.
+- **PAX_KERNEXEC** — keep `dev_map_ops`, `dev_map_hash_ops`, the per-entry `bpf_dtab_netdev` dispatch, and the `netdev_notifier` block in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on `dev_map_redirect`/`bq_xmit_all`/`dev_map_run_prog`; the on-stack `xdp_bulk_queue` is a stable disclosure target.
+- **PAX_REFCOUNT** — saturating refcount on `struct bpf_dtab_netdev`, the inner `bpf_prog`, and `struct net_device` (via `dev_hold`/`dev_put`); wraparound MUST panic.
+- **PAX_MEMORY_SANITIZE** — zero the `xdp_bulk_queue.q[]` slots and freed `bpf_dtab_netdev` entries; never recycle frame pointers or stale netdev pointers.
+- **PAX_UDEREF** — strict user/kernel separation when staging `bpf_devmap_val` from userspace.
+- **PAX_RAP / kCFI** — type-check `dev_map_ops->map_*`, the per-entry XDP `bpf_func` dispatch, and `ndo_xdp_xmit` callbacks; mismatch panics rather than chains.
+- **GRKERNSEC_HIDESYM** — hide `dev_map_*`, `bq_xmit_all`, and `__dev_map_hash_lookup_elem` from non-root kallsyms.
+- **GRKERNSEC_DMESG** — restrict dmesg so devmap notifier and `ndo_xdp_xmit` error spew (which echoes ifindex and netdev names) is not harvestable.
+- **`BPF_MAP_TYPE_DEVMAP` + `DEVMAP_HASH` validation** — at `dev_map_update_elem`, the resolved `net_device` MUST be in the *same* netns as the map; reject cross-netns ifindex resolution. Hash variant MUST validate `key < max_entries` AND that the resolved bucket is in the map's `dtab->dev_index_head[]` range.
+- **`ndo_xdp_xmit` bounded** — every redirect MUST honor the netdev's `xdp_features` (`NETDEV_XDP_ACT_NDO_XMIT`); reject if the driver has not opted in. The bulkq drain MUST stop at `XDP_BULK_QUEUE_SIZE` and return all unsent frames via `xdp_return_frame_rx_napi` to avoid leak.
+- **Rationale** — devmap holds attacker-influenced netdev pointers across notifier teardown and per-CPU bulk queues; PAX_REFCOUNT on the entry+prog+netdev, strict netns isolation on update, and `ndo_xdp_xmit` opt-in validation close the historical class of devmap UAF (entry replace vs in-flight xmit) and cross-netns redirect bugs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

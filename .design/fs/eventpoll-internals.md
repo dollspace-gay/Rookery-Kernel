@@ -579,6 +579,28 @@ eventpoll-internals reinforcement:
 - **Per-`EPIOCSPARAMS` CAP_NET_ADMIN gate on oversize budget** — defense against per-unprivileged busy-poll-storm.
 - **Per-`ep_poll_safewake` `spin_lock_irqsave_nested`** — defense against per-lockdep false-positive blocking valid nested wakes.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `ep_send_events` → `__put_user(struct epoll_event)` so a malicious `events` array cannot escape the user iov bound.
+- **PAX_KERNEXEC** — W^X for any executable mapping touched by the wakeup chain.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `epoll_wait` / `epoll_pwait2` so polling cadence cannot leak stack layout.
+- **PAX_REFCOUNT** — saturating refcount on `struct eventpoll`, on every `struct epitem`, and on the per-task wakeup-chain depth counter; `ep_loop_check` cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `struct epitem` and `struct eppoll_entry` so stale `f_ep`/`fllink` pointers do not survive into reallocation.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access; `ep_send_events` defers all user-side stores to a single bounded region.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `wait_queue_func_t` (`ep_poll_callback`) and on `wait_queue_entry.func` so an attacker who plants a function pointer in a free'd `eppoll_entry` cannot redirect control flow on wake.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding for `/proc/<pid>/fdinfo/N` epoll entries.
+- **GRKERNSEC_DMESG** — syslog restriction on epoll watch-limit and loop-check diagnostics.
+- **EPOLL nesting depth bound (`EP_MAX_NESTS = 4`)** — `ep_loop_check_proc` rejects deeper epoll-on-epoll graphs so an attacker cannot blow the kernel stack via recursive wakeups.
+- **EPOLLEXCLUSIVE wake-stampede prevention** — `ep_poll_callback` honors `EPOLLEXCLUSIVE` and `WQ_FLAG_EXCLUSIVE` so a single ready fd never wakes the entire watcher cohort on shared-listen-socket workloads.
+- **POLLFREE release/acquire fence** — `ep_remove_wait_queue` pairs `smp_store_release(&epi->ws, NULL)` with the wakeup-side `smp_load_acquire` so a racing `close()` cannot leave a wait_queue head pointing into freed memory.
+- **`percpu_counter` `max_user_watches`** — per-uid epitem cap enforced atomically; rlimit-like quota survives namespace traversal.
+- **`f_ep` singleton under `file->f_lock`** — a given (epfd, target_fd) pair admits exactly one epitem, blocking double-attach UAF.
+- **`EPIOCSPARAMS` CAP_NET_ADMIN gate** — oversize busy-poll budgets require capability so unprivileged tasks cannot pin a CPU spinning.
+
+Per-doc rationale: the epoll internals own a wait-queue graph that crosses fd/file/task boundaries and runs callbacks from softirq, so a single stale pointer or missed barrier becomes a kernel-side UAF on a hot wakeup path; PaX/grsec reinforcement closes the gap between "POLLFREE was sent" and "the last softirq callback retired" with explicit refcount, fencing, and CFI rather than relying on the file table's release order.
+
 ## Open Questions
 
 (none at this Tier-3 level)

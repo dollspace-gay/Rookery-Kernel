@@ -479,6 +479,22 @@ Ringbuf-specific reinforcement:
 - **Per-BPF_MAX_USER_RINGBUF_SAMPLES cap on drain loop** — defense against per-callback infinite drain (RCU stall, scheduler starvation).
 - **Per-irq_work_sync on free** — defense against per-UAF from in-flight wakeup at teardown.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — userspace consumer mmaps the ring data pages directly; whitelist the `data_pages` / `consumer_pages` / `producer_pages` extents so a verifier-side off-by-one on `BPF_F_MMAPABLE` cannot expose the adjacent `bpf_ringbuf` metadata page to the consumer.
+- **PAX_KERNEXEC** — `bpf_ringbuf_ops` indirect-call surface (`map_alloc`, `map_lookup_elem`, `map_release_uref`) lives in `.rodata`; refuse rwx for the helper JIT trampolines emitting `bpf_ringbuf_reserve` / `_submit` / `_discard`.
+- **PAX_RANDKSTACK** — `bpf_ringbuf_reserve` runs from arbitrary BPF prog context (XDP, kprobe, tracepoint, lsm) at user-driven stack depth; randomized kstack offset disrupts ROP through the irq_work_queue path on commit.
+- **PAX_REFCOUNT** — `bpf_ringbuf->busy` counter (in-flight reservations) and `map->refcnt` are refcount_t with saturating overflow; defense against underflow racing `BPF_RB_RING_SIZE` teardown vs in-flight reservation commit.
+- **PAX_MEMORY_SANITIZE** — `bpf_ringbuf_free` (vunmap of producer/consumer/data pages) must zero the data extent before the pages return to the buddy allocator; defense against post-free residual sample exposure to next mmap consumer.
+- **PAX_UDEREF** — `BPF_MAP_*_ELEM` ioctls on a ringbuf map dereference user `bpf_attr` for key/value; SMAP/PAN must engage even though the fast path is mmap-based.
+- **PAX_RAP/kCFI** — `bpf_ringbuf_ops.map_mmap` and `_poll_readable` indirect calls from VFS / poll layer must verify kCFI tag; defense against ops-vector swap on a freed ringbuf.
+- **GRKERNSEC_HIDESYM** — `seq_show_fdinfo` for ringbuf maps must elide the data/producer/consumer page kernel addresses from non-CAP_SYSLOG readers; expose only id, size, and current pending counter.
+- **GRKERNSEC_DMESG** — `WARN_ON_ONCE` on RINGBUF_MAX_RECORD_SZ overflow / BPF_MAX_USER_RINGBUF_SAMPLES drain cap must not splat raw ringbuf pointers into dmesg readable by non-CAP_SYSLOG.
+- **SPSC PAX_USERCOPY whitelist** — the producer-side page is kernel-only-written, consumer-side page is user-readable; enforce the directional split so a verifier confusion cannot expose the producer position to user writes (which would let a consumer corrupt the commit pointer).
+- **BPF_RB_NO_WAKEUP / FORCE_WAKEUP discipline** — `bpf_ringbuf_submit`/`_discard` flag mask must reject any bit outside `{NO_WAKEUP, FORCE_WAKEUP}`; defense against flag-laundering smuggling RCU-grace bypass through `irq_work_queue`.
+- **Per-cgroup ringbuf size ceiling** — Rookery should cap `max_entries` per memcg so a CAP_BPF user in a container cannot allocate gigabytes of pinned vmalloc'd ringbuf data pages and evict host pagecache.
+- **Rationale** — ringbuf is the only BPF map whose data extent is directly mmap-shared with userspace; a single page-permission slip exposes producer state and grants the consumer a commit-pointer write primitive. Grsec hardening narrows the attack to "must defeat W^X on ops + kCFI on map_mmap + refcount saturation on busy counter + memcg quota" simultaneously before reaching either a kernel R/W or a denial-of-service primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

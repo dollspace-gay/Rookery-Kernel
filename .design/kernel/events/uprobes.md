@@ -614,6 +614,25 @@ uprobes reinforcement:
 - **Per-CAP_SYS_ADMIN gate for kernel-space bp** (inherited from perf-hw-breakpoint path when uprobe is misused) — defense against per-int3-in-trap-handler recursion.
 - **Per-ref_ctr offset alignment + page-bound check** — defense against per-cross-page atomic-add corrupting unrelated user data.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — copy-in/out of probed insn bytes (`copy_from_page`, XOL slot writes) is bounds-checked; a malicious offset cannot escalate into adjacent kernel memory.
+- **PAX_KERNEXEC** — uprobe dispatch tables and `arch_uprobe_*` ops are W^X; the `uprobe_consumer` chain head is const-protected.
+- **PAX_RANDKSTACK** — randomize the kernel stack at every `handle_swbp` and `handle_singlestep` entry.
+- **PAX_REFCOUNT** — saturating atomics on `struct uprobe.ref`, `xol_area.slot_count`, RI depth counters, and per-mm uprobe maps.
+- **PAX_MEMORY_SANITIZE** — scrub freed `struct return_instance` and XOL slot bytes on release so prior probed insns cannot be read back.
+- **PAX_UDEREF** — strict user/kernel split when patching the int3 into the user COW page; the kernel writes via `__copy_to_user_inatomic` with usercopy checks engaged.
+- **PAX_RAP / kCFI** — type-signed indirect calls for `consumer->handler`, `consumer->ret_handler`, and `arch_uprobe_*` per-arch ops.
+- **GRKERNSEC_HIDESYM** — hide `uprobes_treelock`, `xol_area`, `handle_trampoline`, and tracepoint adapters from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — gate "uretprobe: depth exceeded" / XOL fault diagnostics behind CAP_SYSLOG.
+- **int3 patch lives in COW page only** — `set_swbp` refuses to install on a shared (non-COW) page; the modification must be process-private so it cannot perturb another mm.
+- **xol_vma is per-process VM_DONTCOPY|VM_IO|VM_SEALED_SYSMAP** — fork does not inherit it; the user cannot mremap, munmap, or mprotect the XOL region; slot 0 is reserved for the trampoline.
+- **URETPROBE stack capped at MAX_URETPROBE_DEPTH=64** — recursive functions under uretprobe cannot DoS-blow the RI stack; overflow is logged once via `printk_ratelimited` and the probe is detached.
+- **ref_ctr page-bound atomic** — the SDT semaphore atomic-add is page-bound and alignment-checked so a malicious ELF cannot redirect the increment into adjacent user state.
+- **uprobe install requires CAP_PERFMON / CAP_SYS_PTRACE** — userspace probes only attach via perf-event-open or ptrace paths with capability checks; no anon ioctl path.
+- **Trampoline page is `__ro_after_init` once mapped** — once the xol_area trampoline is published, the underlying kernel-side template is not rewritten for the lifetime of the mm.
+- **Rationale**: uprobes inject foreign control flow into a process via int3, so the trust boundary is exactly the line between "this mm" and "any other state". Forcing the patch onto a COW page, sealing the xol_vma against userspace manipulation, and capping URETPROBE depth eliminate the well-known XOL-leak, cross-mm-patch, and recursion-DoS classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

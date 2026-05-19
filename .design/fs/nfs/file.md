@@ -555,6 +555,29 @@ NFS-file reinforcement:
 - **Per-mkwrite folio_wait_writeback** — defense against per-COW-during-writeback torn page.
 - **Per-mkwrite refuses cross-mapping folio** — defense against per-truncation-vs-mkwrite race.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `nfs_file_read_iter` / `nfs_file_write_iter` paths so a misbehaving server cannot drive an oversize copy via stale `iov_iter` truncation.
+- **PAX_KERNEXEC** — W^X for any executable mapping over an NFS-backed file.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `read` / `write` / `fsync` / `flock` entries.
+- **PAX_REFCOUNT** — saturating refcount on `struct nfs_open_context`, `nfs_lock_context`, on `nfs4_state` open-state objects, and on the per-inode write-delegation reference so a delegation-storm cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the per-write `nfs_pgio_header` slab and the per-commit `nfs_commit_data` allocation.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on the user iter path.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `nfs_file_ops`, on `nfs_pageio_descriptor` callbacks, and on RPC `proc.encode`/`proc.decode` vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in `/proc/self/mountstats` write-counter and delegation-state entries.
+- **GRKERNSEC_DMESG** — syslog restriction on RPC error diagnostics.
+- **Write-delegation PAX_REFCOUNT** — `nfs_inode_set_delegation` / `nfs_inode_return_delegation` increments/decrements a saturating counter; a server that floods or yanks delegations cannot push the client refcount to wrap.
+- **COMMIT durability gate** — `nfs_commit_inode` and `nfs_file_fsync_commit` only return success after the server's `COMMIT` reply contains a verifier matching the client's pre-write verifier; verifier mismatch forces full resend rather than silent durability lie.
+- **`do_setlk` cache-zap unless delegation** — without an active delegation, acquiring a server-side POSIX lock forces page-cache invalidation so stale local pages cannot survive a remote lock-mediated write.
+- **`do_unlk` wb_all + iocounter_wait** — `nfs_file_flush` drains in-flight writes before unlock so unlock-vs-write races cannot leave dirty pages past lock release.
+- **`release_folio` refuses RPC under reclaim** — kswapd cannot enter the NFS RPC path so kswapd↔NFS-server deadlock is impossible.
+- **`swap_activate` holes check** — swapping to NFS files refuses sparse files; sparse-swap corruption is structurally blocked.
+- **`mkwrite` folio_wait_writeback + cross-mapping refuse** — COW-during-writeback torn pages and truncation-vs-mkwrite races degrade to retry, not corruption.
+
+Per-doc rationale: NFS file I/O is the only path in the kernel where a non-local entity (the NFS server) drives the durability contract; PaX/grsec reinforcement keeps the client-side state machine (open-contexts, lock-contexts, write-delegations, commit verifiers) under saturating refcount and strict copy bounds so a hostile or buggy server cannot escalate from "wrong data" to "kernel UAF" or "unbounded memory growth."
+
 ## Open Questions
 
 - pNFS flexfile / blocklayout interaction with write-delegation: how to invalidate per-extent under conflicting delegation? (Tier-3 pnfs.md scope.)

@@ -600,6 +600,24 @@ IRQ-chip reinforcement:
 - **Per-IRQCHIP_AFFINITY_PRE_STARTUP gating** — defense against per-affinity-write before vector allocation.
 - **Per-chip.irq_request_resources mandatory acquire before startup** — defense against per-shared-resource conflict (GPIO-pinmux).
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — copy-out of irq_chip/effective-affinity state through /proc/interrupts is bounds-checked.
+- **PAX_KERNEXEC** — every `struct irq_chip` instance is const and W^X; no writable irq_chip vtables anywhere in the build.
+- **PAX_RANDKSTACK** — randomize kernel stack on every interrupt entry that dispatches through `handle_*_irq`.
+- **PAX_REFCOUNT** — saturating atomics on irq_chip parent-data refs, msi_domain refs, and chained-handler installs.
+- **PAX_MEMORY_SANITIZE** — scrub freed `irq_data`/`irq_common_data` allocations on hierarchy teardown to deny stale parent pointers from being reused.
+- **PAX_UDEREF** — user/kernel pointer split rigorously preserved on the chained-handler fast path (no user deref from irq context).
+- **PAX_RAP / kCFI** — type-signed indirect calls for *every* `irq_chip` op (`irq_mask`, `irq_unmask`, `irq_eoi`, `irq_set_affinity`, `irq_set_type`, `irq_request_resources`, hierarchical alloc/free).
+- **GRKERNSEC_HIDESYM** — hide `irq_default_chip`, `no_irq_chip`, `dummy_irq_chip`, and per-arch IO-APIC/MSI chips from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict "Unknown IRQ chip"/EOI warnings to CAP_SYSLOG.
+- **irq_chip vtable PAX_RAP** — handle_level_irq, handle_edge_irq, handle_fasteoi_irq, handle_simple_irq, and handle_percpu_irq dispatch through type-signed indirect call wrappers; a forged irq_chip cannot redirect dispatch to arbitrary kernel text.
+- **handle_*_irq dispatch hardened** — each handler validates `desc->handler_data` and `irq_desc_get_chip(desc) != &no_irq_chip` before fanning out; mismatched flow handlers are rejected with `WARN_ON` instead of silently dispatching.
+- **Chained handler install gated** — `irq_set_chained_handler*` forces `IRQ_NOREQUEST | IRQ_NOPROBE | IRQ_NOTHREAD` so userspace cannot later claim or steer the chained line.
+- **Hierarchical walk bounded** — `irq_chip_*_parent` walks stop on `data->parent_data == NULL`, and the maximum hierarchy depth is checked at domain registration; malformed hierarchies cannot loop the EOI path.
+- **PM acquire under refcount** — `pm_runtime_get` on chip device uses PAX_REFCOUNT; the chip cannot suspend mid-IRQ-flow.
+- **Rationale**: irq_chip is the canonical indirect-call cluster in the kernel — every line dispatches through five or more vtable slots per IRQ. PAX_RAP on the entire op set plus const W^X chip instances eliminates the "forged chip via slab UAF" class and keeps the IRQ flow handlers genuinely typed.
+
 ## Open Questions
 
 (none at this Tier-3 level)

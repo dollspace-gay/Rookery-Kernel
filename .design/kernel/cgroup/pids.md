@@ -217,6 +217,24 @@ pids-controller-specific reinforcement:
 - **pids.max="max" interpretation** — defense against integer-overflow on max-int limit values.
 - **cgroup_file_notify on max-hit** — defense against silent fork-fail without admin awareness.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `pids.max` write handler copies attacker-supplied "max"/"<int>" string through `kstrtoll`; whitelist `PAGE_SIZE - 1` and reject any oversized write before parse.
+- **PAX_KERNEXEC** — pids cftype indirect-call vectors live in `.rodata`; refuse rwx so a kernel-write primitive cannot rewrite `pids_can_attach` to skip the per-cgroup quota check.
+- **PAX_RANDKSTACK** — `pids_try_charge` / `pids_can_fork` fire from `fork(2)` / `clone(2)` at attacker-driven depth; randomized kstack offset disrupts ROP through the recursive `parent_pids` walk.
+- **PAX_REFCOUNT** — `pids_cgroup->counter` (page_counter family) and `pids_cgroup->css.refcnt` are refcount_t with saturating overflow; defense against fork-storm underflow racing `pids_cancel_attach` against in-flight charge.
+- **PAX_MEMORY_SANITIZE** — `pids_css_free` must zero the per-cgroup counter and `events` buffer before kfree; defense against post-free counter residual exposing fork telemetry to a fresh cgroup.
+- **PAX_UDEREF** — `pids.max` write keeps SMAP/PAN engaged across `kernfs_ops->write` → `pids_max_write` → `page_counter_set_max`.
+- **PAX_RAP/kCFI** — `pids_cgrp_subsys.*` (`css_alloc`, `can_attach`, `cancel_attach`, `attach`, `can_fork`, `cancel_fork`) indirect calls must verify kCFI tag.
+- **GRKERNSEC_HIDESYM** — `pids.current` / `pids.max` / `pids.events` readers expose counter values only; refuse to leak the `struct pids_cgroup *` address through any error path or fdinfo.
+- **GRKERNSEC_DMESG** — `WARN_ON` on `pids_cancel_attach` rollback failure must not splat raw cgroup / task pointers into dmesg readable by non-CAP_SYSLOG.
+- **Per-cgroup process-quota CAP_SYS_RESOURCE** — `pids.max` write must enforce `ns_capable(user_ns, CAP_SYS_RESOURCE)` against the userns owning the cgroup root, not init; defense against per-userns pids granting unbounded fork beyond operator policy.
+- **`pids.max="max"` integer-overflow trap** — string "max" must map to `PIDS_MAX_LIMIT` (LLONG_MAX) with an explicit branch, not through `kstrtoll` saturation; defense against attacker passing 2^63-1 to circumvent quota.
+- **Per-attach `can_attach + attach` paired** — partial-migration leaving src counter wrong is mitigated upstream; harden by adding rqspinlock timeout WARN so an attacker holding the migration cannot stall the attach indefinitely.
+- **`cgroup_file_notify` on max-hit** — already mitigated upstream; harden with rate-limit so a fork-bomb cannot generate event storm on `pids.events`.
+- **Host-wide ceiling** — Rookery imposes a sysctl-configured host-wide upper bound on the sum of `pids.max` so a CAP_SYS_RESOURCE-in-container cannot reserve >host-`pid_max` and starve sibling containers.
+- **Rationale** — pids cgroup is the kernel's primary defense against fork-bomb DoS in multi-tenant environments; mis-quota grants a container the ability to exhaust host PIDs and lock out admin sessions. The grsec regime forces an attacker to defeat W^X on cftype + kCFI on subsys ops + CAP_SYS_RESOURCE strict-userns + refcount saturation + integer-overflow trap before reaching a host-PID-exhaustion primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

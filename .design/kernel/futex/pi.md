@@ -331,6 +331,25 @@ PI-futex reinforcement:
 - **Per-pi_state.owner == NULL after final put** — defense against per-stale-owner deref.
 - **Per-fixup_pi_state_owner post-rt_mutex** — defense against per-mid-rt-mutex preemption inconsistency.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — copy-in of futex words and robust-list head pointers is bounds-checked; user-supplied robust_list_head cannot pivot reads into adjacent VMAs.
+- **PAX_KERNEXEC** — `rt_mutex` and pi-state callback tables (`waiter_clb`, `rt_mutex_setprio`) are W^X.
+- **PAX_RANDKSTACK** — randomize kernel stack on `futex_lock_pi`, `futex_unlock_pi`, and `exit_robust_list` entry.
+- **PAX_REFCOUNT** — saturating atomics on `futex_pi_state.refcount` and per-hb plist refs; underflow on `put_pi_state` traps.
+- **PAX_MEMORY_SANITIZE** — scrub freed `futex_pi_state` on RCU release so a re-allocated slab object cannot leak old `owner`/`rt_waiter`.
+- **PAX_UDEREF** — strict user/kernel split when chasing `robust_list_head.list_op_pending`; the kernel never dereferences a user pointer as a kernel one.
+- **PAX_RAP / kCFI** — type-signed indirect calls for the rt_mutex backend (`->prepare_lock`, `->wake_q_add`, `task_blocks_on_rt_mutex`).
+- **GRKERNSEC_HIDESYM** — hide `pi_state_cache`, `futex_q`, `rt_mutex_*` symbols from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict pi-state inconsistency warnings ("pi futex: ... ") to CAP_SYSLOG.
+- **rt_mutex backend PAX_RAP** — the PI boost path goes through type-signed indirect calls so an attacker who plants a fake `rt_waiter` (e.g. via heap UAF) cannot redirect `rt_mutex_top_waiter` chasing.
+- **FUTEX_OWNER_DIED handling** — when the kernel observes OWNER_DIED, it must run `fixup_pi_state_owner` under hb->lock with the pi_state ref held; the bit cannot be set by user-space writes after exit cleanup.
+- **Robust-list cleanup on exit** — `exit_robust_list` walks the user-supplied list with a bounded iteration limit and PAX_USERCOPY checks per entry; a circular or oversized list cannot loop the exiting task or read out-of-VMA memory.
+- **TID-mask integrity** — `FUTEX_TID_MASK` is enforced when matching user-supplied owner tids; bits outside the mask are rejected, denying format-spoof tricks that smuggle WAITERS or OWNER_DIED into the tid.
+- **CAP_SYS_NICE for SCHED_FIFO via PI** — a PI boost that would lift the holder to a real-time class requires the original owner already hold CAP_SYS_NICE, denying unprivileged real-time elevation through PI inheritance.
+- **No PI on shared anon without VM_LOCKED check** — PI futexes on pages that can be swapped out are explicitly rejected to avoid the well-known page-migration vs pi_state race class.
+- **Rationale**: PI futexes splice user-controlled state (the futex word, robust list, TID) into the rt_mutex inheritance graph. PAX_RAP on the rt_mutex backend plus strict TID-mask and robust-list bounding turn a historically CVE-rich area (CVE-2014-3153 class) into a typed, capability-gated path.
+
 ## Open Questions
 
 (none at this Tier-3 level)

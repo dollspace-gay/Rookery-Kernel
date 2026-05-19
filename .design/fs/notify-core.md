@@ -418,6 +418,28 @@ Fsnotify-core reinforcement:
 - **Per-kill_fasync SIGIO only on non-empty enqueue** — defense against per-signal flood on overflow.
 - **Per-sync_cookie monotonic** — defense against per-rename pair confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on event dequeue (`copy_event_to_user`) so a crafted event name length cannot overrun the user-supplied buffer.
+- **PAX_KERNEXEC** — W^X for any executable mapping reachable from fsnotify dispatch.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `fsnotify` dispatch entry from VFS hot paths.
+- **PAX_REFCOUNT** — saturating refcount on `struct fsnotify_mark`, on `struct fsnotify_connector`, and on `struct fsnotify_group`; mark.refcnt strict get/put closes the UAF-during-dispatch window.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the event slab so stale path/name pointers do not leak into reallocated event objects.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on the dequeue path.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `fsnotify_ops` (`handle_event`, `free_group_priv`, `freeing_mark`, `free_event`, `send_to_group`) vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in `/proc/<pid>/fdinfo/N` for inotify/fanotify fds.
+- **GRKERNSEC_DMESG** — syslog restriction on overflow diagnostics that leak per-group queue depth.
+- **`fsnotify_mark` refcount strict get/put** — every dispatch into `handle_event` holds an additional reference; the mark cannot be freed mid-dispatch even if a concurrent remove races.
+- **`ignore_mask` validation** — `fsnotify_recalc_mask` ANDs caller-supplied `ignore_mask` against the per-mark allowed set so an inotify_add_watch cannot suppress events outside its own mark scope.
+- **`FSNOTIFY_MARK_FLAG_EXCL_UNLINK`** — events on already-unlinked inodes are suppressed so a deleted target cannot drive event amplification.
+- **Connector publish via `cmpxchg`** — initial connector attach is single-publisher; a double-attach race is structurally impossible.
+- **`kill_fasync` only on non-empty enqueue** — SIGIO is suppressed when the event was overflow-dropped so signal-floods cannot be used as a DoS vector against the listener.
+- **`sync_cookie` monotonic** — rename pair correlation cannot be confused by counter wrap or by an attacker timing concurrent renames.
+
+Per-doc rationale: fsnotify is invoked from every VFS hot path (read, write, open, close, rename, unlink, mkdir, ...) and dispatches into user-installed marks that may belong to entirely different security contexts; PaX/grsec reinforcement keeps mark/connector/group lifetimes under saturating refcount, keeps event copy-out USERCOPY-bounded, and keeps RAP-protected vtables so a buggy listener cannot weaponize the dispatch path into a kernel-side UAF.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -458,6 +458,24 @@ dmem reinforcement:
 - **Per-config-file write-atomic per line** — defense against per-partial-config corruption.
 - **Per-strscpy/memparse + end-pointer check** — defense against per-malformed user input parse confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `dmem.max` / `dmem.min` / `dmem.low` write handlers copy attacker-supplied size strings; whitelist `PAGE_SIZE - 1` and trap on any oversized write before `memparse` runs.
+- **PAX_KERNEXEC** — DRM/GPU memory controller cftypes indirect-call vectors live in `.rodata`; refuse rwx so a kernel-write primitive cannot rewrite `dmem_charge` to skip the per-region quota check.
+- **PAX_RANDKSTACK** — `dmem_try_charge` / `dmem_uncharge` fire from GPU driver allocation paths (TTM, GEM) at user-driven depth via ioctl; randomized kstack offset disrupts ROP through the page_counter chain.
+- **PAX_REFCOUNT** — `dmemcg_state->page_counter` family and per-region `dmem_region->ref` are refcount_t with saturating overflow; defense against ioctl-storm underflow racing `dmemcs_offline` against in-flight charge.
+- **PAX_MEMORY_SANITIZE** — `dmemcs_free` must zero per-region counter array and `dmem.events` buffer before kfree; defense against post-free residual exposing GPU-allocation telemetry to a fresh cgroup.
+- **PAX_UDEREF** — `memparse` of size strings keeps SMAP/PAN engaged across the whole `cftype->write` → `dmem_max_write` → `page_counter_set_max` chain.
+- **PAX_RAP/kCFI** — `dmem_cgrp_subsys.*` ops vector (`css_alloc`, `css_offline`, `css_free`) must verify kCFI tag at indirect-call sites in cgroup core.
+- **GRKERNSEC_HIDESYM** — `dmem.current` / `dmem.max` readers expose counter values, not kernel pointers; refuse to leak the `struct dmem_region *` address through any error path or fdinfo.
+- **GRKERNSEC_DMESG** — `WARN_ON` paths in `dmem_region_register` (kvasprintf failure, end-pointer check) must not splat raw pointers into dmesg readable by non-CAP_SYSLOG.
+- **DRM/GPU memory CAP_SYS_ADMIN gate** — `dmem.max` / `dmem.min` write must enforce `ns_capable(user_ns, CAP_SYS_ADMIN)` against the userns owning the cgroup; defense against per-userns dmem cgroup granting GPU-memory limit manipulation outside operator policy.
+- **Per-cgroup limit ceiling** — Rookery imposes a host-wide upper bound on the sum of dmem.max across cgroups (configured via sysctl) so a CAP_SYS_ADMIN-in-container cannot reserve >100% of GPU VRAM and starve sibling containers.
+- **Per-region register CAP_SYS_RAWIO** — `dmem_region_register` (called from DRM driver bind) must require CAP_SYS_RAWIO in init userns; defense against a userns-confined driver registering a fake "GPU memory" region to side-channel charge other cgroups.
+- **`dmem.events` rate-limit** — write-storm on max-hit must be rate-limited per-cgroup so OOM-like notifications cannot saturate `cgroup_file_notify` and starve unrelated controllers.
+- **Atomic write-line config** — config-file write must be atomic per line; partial writes leaving the page_counter in a half-updated state are forbidden.
+- **Rationale** — dmem mediates GPU memory which is increasingly attacker-accessible via Vulkan/CUDA from unprivileged containers; mis-accounting yields cross-tenant DoS (VRAM starvation) or even leakage of GPU page contents. The grsec regime forces an attacker to defeat W^X on cftype + kCFI on subsys ops + CAP_SYS_ADMIN strict-userns + CAP_SYS_RAWIO on register + refcount saturation simultaneously before reaching a host-GPU manipulation primitive.
+
 ## Open Questions
 
 - Should `dmem.events` (max-hit counter, OOM-like) be added in Rookery to surface eviction pressure to userspace, mirroring `pids.events` / `memory.events`? Upstream baseline does not expose it.

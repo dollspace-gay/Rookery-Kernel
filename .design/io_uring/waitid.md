@@ -465,6 +465,21 @@ waitid reinforcement:
 - **Per-`put_pid(iwa.wo.wo_pid)` in free** — defense against per-pid refcount leak (especially P_PIDFD).
 - **Per-`hlist_del_init` on both terminal paths** — defense against per-stale waitid_list entry after free.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `copy_siginfo_to_user` and `__put_user(&iwa.wo.wo_stat)` against the userspace `siginfo_t __user *` slab whitelist; reject any partial copy that could leak kernel `struct waitid_async` bytes.
+- **PAX_KERNEXEC** — keep the `io_op_def[IORING_OP_WAITID]` table entry and `io_waitid_wait` notifier ops in `__ro_after_init`; reject late patching of `wo_pid`/`wo_info` callbacks.
+- **PAX_RANDKSTACK** — re-randomize stack on each `io_waitid_prep`/`io_waitid` entry; the embedded `struct wait_opts` is large and a stack-disclosure target.
+- **PAX_REFCOUNT** — saturating `get_pid`/`put_pid` on `wo_pid` so a malicious task cannot wrap the pid refcount via repeated `P_PIDFD` submissions and force UAF in `__wake_up`.
+- **PAX_MEMORY_SANITIZE** — zero `struct io_waitid_async` on free (it carries `siginfo_t` with potentially sensitive `si_uid`/`si_pid`/`si_status`); never recycle bytes into a fresh waitid op.
+- **PAX_UDEREF** — strict user/kernel split when reading `infop __user *` and writing back `siginfo_t`; the per-syscall stub MUST NOT deref a userspace pointer in kernel mode.
+- **PAX_RAP / kCFI** — type-check the `io_waitid_complete` callback chain and `wait_queue_func_t` slots; mismatch panics rather than chains.
+- **GRKERNSEC_HIDESYM** — hide `io_waitid_*`, `kernel_waitid`, and `do_wait` from non-root `/proc/kallsyms` to deny gadget discovery for waitid-based exploits.
+- **GRKERNSEC_DMESG** — restrict dmesg so wait-queue debug spew cannot reveal pid layout or task struct addresses.
+- **WNOWAIT + GRKERNSEC_HARDEN_PTRACE** — under HARDEN_PTRACE, treat `WNOWAIT` like a ptrace-attach probe: deny cross-uid `WNOWAIT` and audit; otherwise WNOWAIT becomes an unmetered task-state oracle for sibling processes.
+- **P_PIDFD lifecycle** — re-validate `pidfd_get_pid(fd)` against current creds at completion (not just at prep); a SCM_RIGHTS-passed pidfd MUST NOT escalate the waiter's view of a different user's child.
+- **Rationale** — `io_uring` waitid runs the wake callback in softirq with the target task's refcount; without PAX_REFCOUNT + PAX_RAP an attacker who wins the cancel-vs-wake race can both UAF the `io_waitid_async` and divert the indirect call. The WNOWAIT and pidfd cases additionally turn waitid into a cross-namespace info leak that must inherit ptrace-hardening rules.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -525,6 +525,27 @@ EROFS-super reinforcement:
 - **Per-INODE_SHARE only when ishare-xattrs feature present** — defense against per-share-without-key data leak.
 - **Per-kill_anon vs kill_block_super dispatch** — defense against per-wrong-superblock-teardown crash.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on every `erofs_read_metabuf` → user transfer and on `getxattr` paths so a malformed image cannot overrun a `kmalloc` slab.
+- **PAX_KERNEXEC** — W^X for any executable mapping; erofs-backed text pages remain `PROT_EXEC` only when the underlying image's FS_VERITY descriptor verifies.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `iterate_dir` / `lookup` on erofs so attacker-crafted images cannot probe stack layout.
+- **PAX_REFCOUNT** — saturating refcount on `struct erofs_sb_info`, `erofs_workgroup` (compressed clusters), and each `erofs_device_info` so a malicious DEVICE_TABLE cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for decompressed scratch pages and the meta-buffer slab so stale image bytes do not leak across mounts.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access; erofs holds no user pointers in its read-only paths and rejects `copy_*_user` from softirq context.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `erofs_sb_info.devs` vtable, on `z_erofs_decompressor` dispatch, and on `super_operations` so a planted vtable in an image-derived struct cannot redirect control flow.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding for `erofs_show_options` / sysfs entries.
+- **GRKERNSEC_DMESG** — syslog restriction on image-parse errors that otherwise expose layout-derived offsets.
+- **read-only image signature verify** — `erofs_read_superblock` checks the optional `EROFS_FEATURE_COMPAT_SB_CHKSUM` CRC and, when paired with fs-verity over the backing file, refuses mount on mismatch.
+- **fscache backend capability gate** — `erofs_init_fscache` requires `CAP_SYS_ADMIN` in the init userns; mode is mutually exclusive with DAX and with file-backed mount.
+- **DEVICE_TABLE extra-dev count match** — `erofs_init_devices` refuses to mount when the on-disk device count disagrees with the user-supplied device-list, preventing a confused-deputy on bdev fd ownership.
+- **`s_stack_depth == 0`** — erofs forbids erofs-on-erofs file-backed nesting so a recursive image cannot exhaust the kernel stack at decompress time.
+- **CAP_SYS_ADMIN on `mount -t erofs`** — image source is an attacker-controlled blob; the mount syscall enforces capable in init userns even for user-namespace-friendly callers.
+
+Per-doc rationale: erofs accepts an entirely attacker-controlled, compressed, indexed on-disk image and exposes it to the rest of the VFS as a read-only filesystem, so every superblock field, every device-table entry, and every compressed-cluster header is untrusted input; PaX/grsec reinforcement turns malformed-image bugs into bounded refcount/USERCOPY faults instead of arbitrary kernel writes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

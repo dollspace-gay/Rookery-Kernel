@@ -647,6 +647,25 @@ Fork reinforcement:
 - **Per-SCS (shadow call stack) re-prepared** — defense against per-return-address corruption inheritance.
 - **Per-seccomp filter ref + NNP sync under siglock** — defense against per-set_no_new_privs / fork race.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — copy-in of `clone_args` (via `copy_struct_from_user`) and copy-out of `pidfd`/`child_tid` are bounds-checked.
+- **PAX_KERNEXEC** — fork hooks, `copy_process` op tables, and per-arch `copy_thread` are W^X; vtables for `mm_struct`, `files_struct` are const.
+- **PAX_RANDKSTACK** — randomize kernel stack on every `kernel_clone` entry; the child receives a fresh `randomize_kstack_offset` seed.
+- **PAX_REFCOUNT** — saturating atomics on `cred->usage`, `mm_users`/`mm_count`, `files->count`, `fs->users`, `signal->live`, `sighand->count`, `task_struct.usage`; refcount overflow during copy_process panics rather than aliases.
+- **PAX_MEMORY_SANITIZE** — scrub the new `task_struct` and kernel stack on `dup_task_struct` failure paths so partial-init state is never reused.
+- **PAX_UDEREF** — strict user/kernel split when reading `clone_args.tls`, `set_tid` array, and `parent_tid`/`child_tid` user pointers.
+- **PAX_RAP / kCFI** — type-signed indirect calls for `copy_thread`, `arch_dup_task_struct`, and the seccomp filter chain attached to the child.
+- **GRKERNSEC_HIDESYM** — hide `copy_process`, `dup_task_struct`, `init_task`, `pidhash` from non-root /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict fork-related warnings (RLIMIT_NPROC hit, fork bomb throttling) to CAP_SYSLOG.
+- **copy_process PAX_REFCOUNT on cred/mm/files/sighand** — every cloned sub-object is taken with a saturating `get_*`; any failure path runs `put_*` symmetrically, and `goto bad_fork_*` cannot leave a half-shared structure with an inflated count.
+- **CLONE_NEWUSER gated** — creating a new user namespace requires either uid 0 or an unprivileged-userns sysctl explicitly enabled by the operator; default-deny on grsec-style policy.
+- **CLONE_NEWNS / NEWPID / NEWNET also capability-gated** — non-userns ns-creation requires CAP_SYS_ADMIN in the parent userns, blocking userns-pivot exploits that try to chain new namespaces.
+- **set_tid array bounded** — `set_tid_size <= MAX_PID_NS_LEVEL` rechecked, and each entry validated under PAX_USERCOPY; cannot escape pid_ns hierarchy.
+- **CLONE_PIDFD reserve-then-install** — pidfd is allocated to a reserved slot and only installed in the parent's fdtable after `copy_process` succeeds; cancellation paths run `put_unused_fd`.
+- **Stack canary + SCS re-seeded** — `dup_task_struct` refreshes the per-task canary and reinitializes shadow call stack; the child does not inherit the parent's canary value.
+- **Rationale**: fork is the canonical privilege-multiplier — every refcount it touches is a future UAF if mishandled, and every namespace flag it accepts is a sandbox-escape surface. Saturating refcounts on all duplicated sub-objects plus capability gating on CLONE_NEW* close the unprivileged-userns and ns-pivot classes that have produced repeated CVEs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

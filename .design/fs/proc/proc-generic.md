@@ -347,6 +347,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+proc-generic.c is the chokepoint where every `proc_create_*` and `proc_handler` is registered; the grsec-equivalent contract enforces the policy at registration time rather than at access time:
+
+- **PAX_USERCOPY** — `proc_dir_entry.data` payload sizes recorded so seq_file copy_to_user has an allocation-bound to check against.
+- **PAX_KERNEXEC** — `proc_dir_operations`, `proc_file_inode_operations`, and the parent `proc_root` are `static const`; runtime mutation of `pde->proc_ops` is rejected.
+- **PAX_RANDKSTACK** — proc_create paths run under stack-offset randomization; no caller-controlled stack layout is observable post-registration.
+- **PAX_REFCOUNT** — `pde_get`/`pde_put` and per-`use_pde` counters use saturating refcount; `proc_remove` is a barrier against use-after-free races with concurrent readers.
+- **PAX_MEMORY_SANITIZE** — `proc_dir_entry` slab cache is sanitize-on-free so stale `proc_handler` function pointers are zeroed before reuse.
+- **PAX_UDEREF** — all `proc_handler` callbacks receive the user buffer via `void __user *` and must consume it through `copy_*_user`; raw deref of the buffer pointer is a build-break.
+- **PAX_RAP/kCFI** — `proc_handler` callbacks and `proc_ops.proc_read`/`proc_write` function pointers are CFI-typed (`int (*proc_handler)(struct ctl_table *, int, void *, size_t *, loff_t *)`); type signature is verified at registration and at call.
+- **GRKERNSEC_HIDESYM** — proc-generic refuses to register a node that would emit a kernel pointer unless the caller has marked it `GRKERNSEC_PROC_HIDESYM`-clean.
+- **GRKERNSEC_DMESG** — registration failures (duplicate name, parent gone) never log the caller's pointer to dmesg.
+- **Per-file CAP gating** — `proc_create_data` accepts an optional `cap_required` field; emitter rejects readers/writers without that capability before the seq_file path runs, mirroring grsec `GRKERNSEC_PROC_USER` per-entry gating.
+- **proc_handler signature verify** — at `register_sysctl` time the table walker confirms each `proc_handler` matches one of a small `__ro_after_init` allow-list of canonical handlers; unknown handler pointers are rejected.
+- **Named-children PAX_RAP enforcement** — `proc_mkdir`/`proc_symlink` children's `proc_ops` tables are pinned `__ro_after_init`; module unload paths revoke via `proc_remove` before any pointer becomes stale.
+
+Rationale: every procfs CVE class (use-after-free on remove, type confusion on proc_handler, info-leak from unsanitized seq buffer) is closed at this layer; proc-generic.c is therefore the right policy gate, not the per-feature emitters.
+
 ## Open Questions
 
 (none — generic procfs framework exhaustively specified by upstream + libnss-using tools' procfs parsing test corpus)

@@ -747,6 +747,25 @@ Exit/wait reinforcement:
 - **Per-thread_group_cputime accumulated under stats_lock seqlock** — defense against per-getrusage torn-read.
 - **Per-do_notify_parent dropped-on-tracer-detach via EXIT_TRACE** — defense against per-tracer-vs-parent reap race.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — copy-out of `struct rusage` / `siginfo_t` during wait*() is bounds-checked; truncated user buffers cannot leak adjacent kernel state.
+- **PAX_KERNEXEC** — exit-path notifier chains (`task_exit_notifier`, `profile_task_exit`) are W^X; the chain head cannot be patched at runtime.
+- **PAX_RANDKSTACK** — randomize the kernel stack at every `do_exit` and `wait4` entry; exit is high-frequency and on every cred boundary.
+- **PAX_REFCOUNT** — saturating atomics on `task_struct.usage`, `sighand_struct.count`, `signal_struct.live/sigcnt`, `pid->count`; overflow on reaper math traps.
+- **PAX_MEMORY_SANITIZE** — scrub `task_struct`, `thread_info`, kernel stack, and `signal_struct` on RCU-deferred free so register state and creds cannot be salvaged.
+- **PAX_UDEREF** — strict user/kernel split on `copy_siginfo_to_user` and waitid info_t paths.
+- **PAX_RAP / kCFI** — type-signed indirect calls for the exit-notifier chain, `->release_task`, and `mm_release` op hooks.
+- **GRKERNSEC_HIDESYM** — hide `release_task`, `find_new_reaper`, `__cleanup_sighand`, init_task from /proc/kallsyms.
+- **GRKERNSEC_DMESG** — restrict "potentially unexpected fatal signal" / coredump-related exit diagnostics to CAP_SYSLOG.
+- **Task reaping PAX_REFCOUNT discipline** — `put_task_struct`, `__put_task_struct`, `delayed_put_task_struct` all go through saturating atomics; a missing `get_task_struct` is a panic, not a silent UAF.
+- **exit_notify SIGCHLD strict** — `do_notify_parent` validates parent's `pid_ns` matches the child's reaper namespace before signal delivery; cross-ns SIGCHLD spoofing is denied.
+- **Cred drop on exit** — `exit_creds` runs under PAX_REFCOUNT so a botched `prepare_creds` cannot leave a live elevated cred attached to a zombie.
+- **EXIT_ZOMBIE oom-immune** — zombie tasks with elevated creds are excluded from oom-kill victim selection so an attacker cannot race reap-vs-oom.
+- **find_new_reaper non-bypass** — reaper must be a thread in the same pid_ns or that ns's `child_reaper`; falling through to `init_task` is logged via `pr_warn_once` only with CAP_SYSLOG visibility.
+- **release_task tasklist_lock write-side** — held across the full unhash + sighand release; concurrent `for_each_process` walkers cannot observe a half-released task.
+- **Rationale**: exit is where the kernel discards creds, mm, files, and signal state; any refcount underflow or cross-namespace SIGCHLD here is direct UAF or signal-spoof. Saturating refcounts on every per-task structure plus strict pid_ns scoping of `do_notify_parent` close the canonical exit-time elevation paths.
+
 ## Open Questions
 
 (none at this Tier-3 level)

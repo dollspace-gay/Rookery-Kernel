@@ -340,6 +340,22 @@ XATTR reinforcement:
 - **Per-LOOKUP_FOLLOW explicit on path variants** — defense against per-policy-drift; matches the synchronous syscall semantics.
 - **Per-AT_FDCWD anchor on path variants** — defense against per-confusion with dfd-anchored xattr (no AT_FDCWD field in the prep — io_uring does not expose dfd here, matching the kernel's path-only entry points).
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `strncpy_from_user(filename)`, `strncpy_from_user(name)`, and `copy_from_user(value)` against the slab whitelist for the per-request `struct io_xattr` and `struct xattr_ctx`; reject any copy that crosses the 256B name limit or `XATTR_SIZE_MAX` value limit.
+- **PAX_KERNEXEC** — keep `io_op_def[IORING_OP_*XATTR]`, VFS `xattr_handler` tables, and per-FS `->set`/`->get` vectors in `__ro_after_init`; deny late patching by an out-of-tree FS module.
+- **PAX_RANDKSTACK** — re-randomize kernel stack on `io_setxattr_prep`/`io_getxattr_prep` to defeat stack disclosure of the `struct xattr_name` buffer.
+- **PAX_REFCOUNT** — saturating `path_get`/`path_put` on the resolved `struct path` and on submitter creds passed through io-wq; deny wraparound.
+- **PAX_MEMORY_SANITIZE** — zero `xattr_ctx.kvalue` and the `xattr_name` page on free; never let a prior `security.selinux` or `trusted.*` value leak into a recycled SQE.
+- **PAX_UDEREF** — strict user/kernel separation while parsing the `name __user *` and `value __user *`; reject any kernel pointer smuggled via `addr`/`addr2`.
+- **PAX_RAP / kCFI** — type-check indirect calls to `->set`, `->get`, `->list` xattr handlers and the LSM `security_inode_setxattr` chain.
+- **GRKERNSEC_HIDESYM** — hide `vfs_setxattr`, `__vfs_getxattr`, and per-FS xattr handler addresses from non-root kallsyms.
+- **GRKERNSEC_DMESG** — restrict dmesg so xattr-handler error spew (which often echoes attribute names and FS internals) is not harvestable.
+- **`trusted.*` requires `CAP_SYS_ADMIN`** — re-check the cap against the *submitter* creds latched at prep time, not the io-wq worker; refuse if creds were SCM_RIGHTS-laundered.
+- **PAX_USERCOPY on path/name** — the path (`PATH_MAX`) and name (`XATTR_NAME_MAX`) buffers MUST be allocated from usercopy-whitelisted caches; reject if the destination slab object is not whitelisted.
+- **`security.*` namespace** — enforce LSM hook even when called via io_uring; the async path MUST NOT skip `security_inode_setxattr`/`security_inode_getxattr`.
+- **Rationale** — xattr operations cross every LSM and per-FS handler with attacker-controlled name+value+path triples; without PAX_USERCOPY + strict cap re-checks, io_uring becomes a creds-laundering bypass for `trusted.*`/`security.*` namespaces that the synchronous syscalls guard carefully.
+
 ## Open Questions
 
 (none at this Tier-3 level)

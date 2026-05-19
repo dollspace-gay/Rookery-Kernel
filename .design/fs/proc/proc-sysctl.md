@@ -254,6 +254,25 @@ Each handler does its own validation:
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+/proc/sys is the canonical kernel-policy mutation surface; grsec gated nearly every write with `CAP_SYS_ADMIN` plus gradm `kernel_admin` role. Rookery encodes that as the default contract:
+
+- **PAX_USERCOPY** — sysctl write scratch buffer is allocated with a known bound and `copy_from_user` is checked against that bound; reads use `seq_file` with size-tracked buffer.
+- **PAX_KERNEXEC** — every `ctl_table[]` is `static const`; the `proc_handler` function pointer set is `__ro_after_init`.
+- **PAX_RANDKSTACK** — sysctl write paths run under randomized kernel-stack offset; no per-write kstack anchor leaks.
+- **PAX_REFCOUNT** — `ctl_table_header.count`, `proc_sys_inode.unuse`, and per-set refcounts use saturating refcount; unregister is a barrier.
+- **PAX_MEMORY_SANITIZE** — freed write-side scratch buffers zeroed; sensitive values (kptr_restrict, dmesg_restrict, sysrq, modules_disabled, *_paranoid) cannot bleed via slab reuse.
+- **PAX_UDEREF** — handlers receive the user buffer as `void __user *` and consume it through `copy_*_user`; raw deref is a build break.
+- **PAX_RAP/kCFI** — every `proc_handler` matches the canonical CFI type; the register-time walker rejects unknown handler signatures.
+- **GRKERNSEC_HIDESYM** — sysctls that would emit a kernel pointer (kptr_restrict=0 case, `/proc/sys/kernel/random/uuid` excluded) strip the pointer for non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — sysctl write-denied diagnostics never log the rejected value to dmesg.
+- **Write-side CAP_SYS_ADMIN** — `proc_sys_write` enforces `CAP_SYS_ADMIN` (or per-domain CAP_NET_ADMIN/CAP_SYS_RESOURCE) by default for every sysctl in `kernel/`, `vm/`, and `fs/` namespaces, irrespective of file mode.
+- **Named-children PAX_RAP** — `register_sysctl_sz` walks the table and verifies every child's `proc_handler` is in the `__ro_after_init` allow-list; module-provided handlers must register a CFI-typed thunk.
+- **Sticky-locked sysctls** — `/proc/sys/kernel/{sysrq,modules_disabled,perf_event_paranoid,kptr_restrict,dmesg_restrict,unprivileged_bpf_disabled,kexec_load_disabled}` are one-shot lockable; once raised they refuse decrease even from CAP_SYS_ADMIN, matching grsec lockdown semantics.
+
+Rationale: sysctl-write is the most-attacked policy mutation surface in the kernel (every "disable mitigation" rootkit step lives here); grsec made the entire write surface CAP_SYS_ADMIN + RBAC-gated, and Rookery reproduces that floor inside the upstream code path so the build option becomes a tightening rather than a feature gate.
+
 ## Open Questions
 
 (none — sysctl ABI exhaustively specified by upstream + extensive distro sysctl.d test corpus)

@@ -400,6 +400,24 @@ coherent-pool-specific reinforcement:
 - **Per-CONFIG_ARM strict `no-map` requirement** — `rmem_dma_setup` rejects pools without `no-map` on ARM; defense against CPU linear-map aliasing with device-DMA window.
 - **Per-CONFIG_DMA_GLOBAL_POOL `__ro_after_init`** — `dma_coherent_default_memory` is read-only after init; defense against post-init pointer overwrite.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — coherent DMA buffers are typically mmaped to userspace via `dma_mmap_coherent`; whitelist the per-device pool extent so a driver bug cannot use `remap_pfn_range` to expose adjacent pool metadata (bitmap, virt_base) across the user boundary.
+- **PAX_KERNEXEC** — coherent pool ops (`dma_alloc_from_dev_coherent`, `dma_release_from_dev_coherent`, `dma_mmap_from_dev_coherent`) are dispatched indirectly via `dma_map_ops`; enforce W^X on the ops vector and refuse rwx for any per-device trampoline.
+- **PAX_RANDKSTACK** — `dma_alloc_from_dev_coherent` runs from arbitrary driver context (ioctl, probe) at user-driven depth; randomized kstack offset disrupts ROP through the bitmap-search + virt-translate chain.
+- **PAX_REFCOUNT** — `struct dma_coherent_mem->use_dev_dma_pfn_offset` and per-device pool `nr_pages` bitmap accounting use refcount_t with saturating overflow; defense against ioctl-storm underflow racing pool teardown against in-flight alloc.
+- **PAX_MEMORY_SANITIZE** — `dma_release_from_dev_coherent` and `dma_init_coherent_memory` rollback paths must zero the released pool extent before bitmap-mark-free; defense against post-free residual DMA-mapped data exposure to next allocator user.
+- **PAX_UDEREF** — `dma_mmap_from_dev_coherent` user vma fault path keeps SMAP/PAN engaged across `remap_pfn_range`; never enable AC for more than the page-table update.
+- **PAX_RAP/kCFI** — `dma_map_ops.alloc` / `.free` / `.mmap` indirect calls must verify kCFI tag at every device-coherent dispatch site.
+- **GRKERNSEC_HIDESYM** — `/proc/iomem` and DT-pool `seq_show` paths must elide the kernel `virt_base` / `device_base` pointers from non-CAP_SYSLOG readers; expose only the physical pool range.
+- **GRKERNSEC_DMESG** — coherent pool rollback paths (`rmem_dma_setup` failure, bitmap-alloc failure) must not splat raw pool addresses into dmesg readable by non-CAP_SYSLOG.
+- **Per-device pool PAX_REFCOUNT** — `dma_coherent_mem->bitmap` extent must be tracked by refcount_t so simultaneous `dma_release_from_dev_coherent` + driver unbind cannot double-free the pool.
+- **`dma_release` CAP_SYS_RAWIO** — only CAP_SYS_RAWIO holders (in the device-owning userns) can trigger `dma_release_declared_memory`; defense against an unprivileged ioctl path inadvertently tearing down a pool another driver still relies on.
+- **DT `shared-dma-pool` `reusable` rejection** — already enforced; harden by requiring DT pool node to be parsed only during early boot (`__init`) and refusing dynamic re-registration of the same `<base, size>` window.
+- **CONFIG_ARM `no-map` strict** — already enforced; harden by extending to CONFIG_ARM64 with `mark_rodata_ro` to lock the linear-map alias before any device coherent alloc.
+- **`__ro_after_init` on `dma_coherent_default_memory`** — already enforced; harden by additionally locking the per-device `dev->dma_mem` pointer under `device_lock` so an attacker with a writable device pointer cannot swap the pool mid-allocation.
+- **Rationale** — coherent DMA pools alias physical RAM through both a CPU virtual mapping and a device DMA window; a single mis-mapping yields either a kernel-RAM read primitive for the device or a device-RAM read primitive for userspace. The grsec regime forces an attacker to defeat W^X on dma_map_ops + kCFI on alloc/free dispatch + CAP_SYS_RAWIO on release + `__ro_after_init` on default pool + DT-parse early-boot lockdown before reaching either primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

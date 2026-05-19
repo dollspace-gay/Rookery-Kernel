@@ -675,6 +675,31 @@ Overlayfs reinforcement:
 - **Per-OVL_XATTR_XWHITEOUT on layers that cannot mknod char 0/0** — defense against per-no-whiteout-on-fat upper.
 - **Per-casefolding propagated only when both upper supports + lower compatible** — defense against per-cross-layer-case-confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `getxattr`/`listxattr` egress; `trusted.overlay.*` xattrs are length-clamped before copy_to_user.
+- **PAX_KERNEXEC** — W^X for any executable mapping over an overlay-backed file.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `ovl_lookup` / `ovl_copy_up` / `ovl_iterate_real`.
+- **PAX_REFCOUNT** — saturating refcount on `struct ovl_fs`, on every per-layer `ovl_layer`, on `ovl_entry`, and on the per-fs `mounter` cred so layer-stack stunts cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `ovl_path` arrays and for the copy-up scratch buffers.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on mount-option parse.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `ovl_super_operations`, `ovl_inode_operations`, `ovl_file_operations`, and the two distinct `ovl_export_operations` vtables (decodable vs file-id-only).
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in `/proc/mounts` and `/proc/self/mountinfo` overlay entries.
+- **GRKERNSEC_DMESG** — syslog restriction on copy-up / redirect-dir diagnostics.
+- **`trusted.overlay.*` requires `CAP_SYS_ADMIN`** — overlay metadata xattrs (`trusted.overlay.opaque`, `trusted.overlay.redirect`, `trusted.overlay.origin`, `trusted.overlay.metacopy`, `trusted.overlay.protattr`, `trusted.overlay.nlink`, `trusted.overlay.upper`) are gated on `CAP_SYS_ADMIN` in the init userns; non-init mounters fall back to `user.overlay.*` via the `userxattr` option.
+- **Copy-up data validation** — `ovl_copy_up_data` verifies size and (when fs-verity is enabled on the lower) the Merkle root before publishing the upper inode; a mismatch aborts with `-EIO` rather than racing partial data into the upper.
+- **`ovl_copy_up` credential switch** — copy-up runs under the saved mounter cred, not the caller cred, so a container task cannot escalate by triggering copy-up of a privileged lower file.
+- **`OVL_XATTR_PROTATTR`** — immutable/append-only flags are preserved across copy-up so flag-stripping attacks (writing to a lower-immutable file via overlay) are structurally blocked.
+- **`OVL_XATTR_XWHITEOUT`** — whiteouts on upper layers that cannot `mknod char 0/0` (e.g., FAT) use the xattr form so whiteout semantics are preserved without requiring `CAP_MKNOD`.
+- **`nfs_export` gated on every-layer encode_fh** — half-working export configurations are refused at mount, not decoded silently.
+- **`OVERLAYFS_SUPER_MAGIC` distinct vtable** — overlay sb is never confused with an underlying-fs sb during file-handle decode.
+- **Casefolding propagated only when both upper + lower compatible** — cross-layer case-confusion (one layer case-fold, the other case-sensitive) is refused at mount.
+- **CAP_SYS_ADMIN on `mount -t overlay`** — non-init userns mount requires the `userxattr`/`metacopy=off` restricted profile so container-issued overlay mounts cannot install `trusted.overlay.*` semantics.
+
+Per-doc rationale: overlayfs synthesizes a writable view across multiple independent file systems and credential boundaries; a single missed `CAP_SYS_ADMIN` on `trusted.overlay.*`, a single unverified copy-up, or a single mismatched export vtable becomes a container escape or a setuid-bit smuggle. PaX/grsec reinforcement keeps every layer reference under saturating refcount, every metadata xattr capability-gated, every copy-up credentialled to the mounter, and every export-mode vtable distinct so layering primitives cannot be turned into privilege transitions.
+
 ## Open Questions
 
 - Whether to model the redirect-dir / metacopy fast paths (`fs/overlayfs/namei.c`, `fs/overlayfs/dir.c`) in this Tier-3 or split to a dedicated `overlayfs/dir.md`. Current document references their xattr semantics only.

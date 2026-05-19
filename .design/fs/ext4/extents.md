@@ -512,6 +512,29 @@ Extent-tree reinforcement:
 - **Per-i_data_sem write-locked across mutations** — defense against per-concurrent-truncate vs writeback race.
 - **Per-precache holds shared i_data_sem** — defense against per-mutator-vs-reader on tree walk.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `FIEMAP` / `FS_IOC_FIEMAP` extent enumeration so a crafted mapping cannot drive an oversized copy_to_user.
+- **PAX_KERNEXEC** — W^X for any executable mapping reachable from extent code paths.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `ext4_ext_map_blocks` / `ext4_ext_truncate` so crafted images cannot probe stack layout.
+- **PAX_REFCOUNT** — saturating refcount on every `buffer_head` of an extent-index block and on `EXT4_I(inode)->i_es_tree` cached extents so cyclic-tree probing cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `ext4_ext_path` arrays and per-depth scratch buffers on every error unwind.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access on FIEMAP / FALLOCATE ioctl surface.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `ext4_ext_truncate` / `ext4_split_unwritten_extents` indirect dispatches.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding for `/proc/fs/ext4/<dev>/extents_status`.
+- **GRKERNSEC_DMESG** — syslog restriction on extent-tree corruption diagnostics that otherwise expose physical block numbers.
+- **Extent-tree depth bound (5)** — `EXT4_MAX_EXTENT_DEPTH = 5` is enforced in `ext4_ext_check_block`; deeper trees force `-EFSCORRUPTED` so a malicious image cannot blow the kernel stack.
+- **CRC32C verify on every extent index block** — `ext4_extent_block_csum_verify` runs before any extent walk; a mismatched tail-csum aborts the I/O.
+- **`EXT_UNWRITTEN_MAX_LEN = 0x7fff`** — unwritten-extent length is bounded so the high bit (the "unwritten" tag) cannot be set on a length that aliases into a written extent.
+- **Unwritten-extent → written conversion atomicity** — `ext4_convert_unwritten_extents_endio` only flips the length-high-bit under journal commit so a crash never exposes uninitialized blocks as readable.
+- **`partial_cluster` state-machine** — bigalloc cluster ownership tracked across truncate splits so neither end of a partial cluster is double-freed.
+- **`handle_t` credit check pre-mutation** — `ext4_ext_split` / `ext4_ext_grow_indepth` verify journal credits before any tree mutation, refusing with `-ENOSPC` rather than commit-time abort.
+- **`i_data_sem` write-locked across mutations** — concurrent truncate vs writeback cannot observe a half-rewritten tree.
+
+Per-doc rationale: the extent tree is the on-disk representation of every regular-file mapping in ext4; any path that walks it (read, write, fallocate, truncate, FIEMAP) reads attacker-controllable depth/length/start fields from disk. PaX/grsec reinforcement keeps depth bounded, lengths CRC-verified, unwritten flips journal-atomic, and the entire walk under refcount/USERCOPY discipline so a malformed extent tree degrades to `-EFSCORRUPTED`, not arbitrary kernel write.
+
 ## Open Questions
 
 (none at this Tier-3 level)

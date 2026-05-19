@@ -574,6 +574,22 @@ auditfilter reinforcement:
 - **Per-audit_log_rule_change("add_rule"/"remove_rule") audit-trail** — defense against per-undetected rule change.
 - **Per-audit_filter default ret=1 on unsupported field** — defense against per-fail-open silent drop on user/exclude lists (failure-mode is audit-on, not audit-off).
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `copy_from_user(data, ..., struct audit_rule_data)` against the slab whitelist; `audit_rule_data` is variable-length (buf + fields + values) and a classic OOB-read source.
+- **PAX_KERNEXEC** — keep `audit_krule_ops`, the per-filter `audit_entry` list heads (`audit_filter_list[]`), and LSM rule-conversion vtables in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on `audit_receive`/`audit_rule_to_entry` to defeat disclosure of the staged rule on stack.
+- **PAX_REFCOUNT** — saturating refcount on `struct audit_krule` (via `audit_entry`) and on attached `audit_watch`/`audit_tree`/`audit_fsnotify_mark`; wraparound MUST panic.
+- **PAX_MEMORY_SANITIZE** — zero `audit_krule->fields[]` (with embedded LSM rule pointers and string buffers) on free; never recycle a prior policy's `lsm_str` into a new rule.
+- **PAX_UDEREF** — strict user/kernel separation when parsing `struct audit_rule_data __user *`; the netlink path MUST NOT deref a smuggled kernel pointer.
+- **PAX_RAP / kCFI** — type-check the LSM `security_audit_rule_init`/`_match`/`_free` callbacks and the `f_op` of any fd-based field.
+- **GRKERNSEC_HIDESYM** — hide `audit_filter_*`, `audit_add_rule`, `audit_del_rule` from non-root kallsyms.
+- **GRKERNSEC_DMESG** — restrict dmesg so per-rule add/del spew (which echoes attacker-supplied field strings) cannot be harvested.
+- **`audit_rule_data` PAX_USERCOPY** — explicit usercopy whitelist for the staging buffer because length is attacker-controlled and the kernel does pointer arithmetic into it (`bufp`/`field_count`).
+- **LSM-policy reload integrity** — on SELinux/AppArmor policy reload, `update_lsm_rule()` MUST atomically re-init every `audit_krule.lsm_rule`; a half-reloaded rule is a fail-open primitive. PaX-style: if any rule fails re-init under reload, `audit_panic("update_lsm_rule failed")` MUST escalate per `audit_failure` policy, never silently drop.
+- **CAP_AUDIT_CONTROL boundary** — every `AUDIT_ADD_RULE`/`AUDIT_DEL_RULE` MUST be re-gated on `CAP_AUDIT_CONTROL` against current creds, not the netlink socket's stale creds.
+- **Rationale** — auditfilter is the kernel's own policy DSL parsed from netlink; it is both attacker-reachable (CAP_AUDIT_CONTROL-gated, but the rule-data layout has been the source of multiple OOB-read CVEs) and security-critical (a tampered rule is silent audit blindness). PAX_USERCOPY on `audit_rule_data` and atomic LSM re-init close the two historical bug classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

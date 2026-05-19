@@ -491,6 +491,24 @@ DMA-mapping facade reinforcement:
 - **Per-debug_dma_*** — defense against per-double-map / leak via DMA API debug.
 - **Per-dma_addressing_limited dev_dbg** — defense against silent bounce-buffer overhead.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check any copy that crosses DMA-staged kernel buffers into user space (e.g. /proc/dma debug dumps).
+- **PAX_KERNEXEC** — DMA facade text is read-only; struct dma_map_ops is const and W^X enforced.
+- **PAX_RANDKSTACK** — randomize per-syscall stack offset for callers entering dma_map_single / dma_alloc_coherent.
+- **PAX_REFCOUNT** — saturating atomics on device-attached map counters and dma_pool refcounts (overflow traps, not wraps).
+- **PAX_MEMORY_SANITIZE** — scrub freed coherent buffers on dma_free_coherent to deny residual peripheral payload reuse.
+- **PAX_UDEREF** — explicit user/kernel split when faulting on DMA-mapped page metadata.
+- **PAX_RAP / kCFI** — type-signed indirect calls through struct dma_map_ops (->map_page, ->alloc, ->sync_*) so a forged ops vector cannot be installed by a writable kernel pointer.
+- **GRKERNSEC_HIDESYM** — hide dma_ops, default_dma_ops, dma_direct_ops symbols from /proc/kallsyms for non-root.
+- **GRKERNSEC_DMESG** — restrict DMA failure / bounce-fallback diagnostics to CAP_SYSLOG so attackers cannot probe layout.
+- **DMA facade PAX_RAP signature on dma_map_ops** — every backend (direct, iommu, swiotlb, virtio) registers with a typed call signature; mismatch panics rather than dispatches.
+- **dma_alloc_coherent bounded allocations** — enforce per-device DMA quota and refuse oversized GFP_DMA32 requests from unprivileged ioctl paths.
+- **dma_map_sg sg_table sanity** — validate nents and per-sg length under PAX_USERCOPY-class checks before any HW-visible mapping.
+- **CONFIG_DMA_API_DEBUG hardened mode** — keep debug entries refcounted (PAX_REFCOUNT) so debug-allocator UAF cannot escalate.
+- **Restricted-DMA child pools** — require CAP_SYS_ADMIN to install device-tree restricted-dma-pool overrides at runtime.
+- **Rationale**: the DMA facade is a high-value pivot — a single forged ops pointer or unbounded coherent allocation gives the attacker DMA-capable kernel memory. PAX_RAP on the vtable plus saturating refcounts on map state turn the entire surface into a typed, bounded API rather than a raw indirect-call sink.
+
 ## Open Questions
 
 (none at this Tier-3 level)

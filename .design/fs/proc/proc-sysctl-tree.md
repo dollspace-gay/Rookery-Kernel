@@ -696,6 +696,26 @@ proc_sysctl reinforcement:
 - **Per-`xlate_dir` translation for link tree** — defense against per-dangling symlink to gone-away namespace.
 - **Per-`kmemleak_not_leak` on __register_sysctl_init** — defense against per-false-leak-report for permanently-resident init tables.
 
+## Grsecurity/PaX-style Reinforcement
+
+The sysctl tree (rb-tree of `ctl_table_header` + walker) is the registration/lookup engine; grsec hardened both the registration path (handler-pointer validation) and the lookup path (cross-namespace gating). Rookery commits:
+
+- **PAX_USERCOPY** — per-table `data`/`maxlen` recorded so write-side scratch copy bounds are mechanically checkable, not handler-discretion.
+- **PAX_KERNEXEC** — every registered `ctl_table[]` is `static const`; the rb-tree node pointers in `ctl_node` are mutable but the table itself is rodata.
+- **PAX_RANDKSTACK** — walker (`__lookup_entry`, `proc_sys_readdir`) runs under randomized kstack; rb-tree traversal cannot anchor a kstack-shape attack.
+- **PAX_REFCOUNT** — `use_table`/`unuse_table` is saturating-refcount audited; `start_unregistering` completion handshake guarantees no UAF.
+- **PAX_MEMORY_SANITIZE** — `ctl_table_header` slab and write-side `kvzalloc` buffers sanitize-on-free; freed handler-pointer slots are zeroed before slab reuse.
+- **PAX_UDEREF** — walker never deref's user-supplied path bytes as kernel pointers; `proc_sys_lookup`/`proc_sys_readdir` use `qstr` + `namecmp` exclusively.
+- **PAX_RAP/kCFI** — `sysctl_check_table` verifies each `proc_handler` matches a CFI-typed allow-list at register time; unknown pointers reject registration. Named-children walker re-verifies at every descent.
+- **GRKERNSEC_HIDESYM** — sysctl-tree iteration never emits a kernel pointer; per-handler addresses are not visible via /proc/sys/.
+- **GRKERNSEC_DMESG** — register/unregister races and malformed tables fail silently (return code only); no dmesg leak of table identity.
+- **Write-side CAP_SYS_ADMIN** — `sysctl_perm` enforces CAP_SYS_ADMIN for write to any `kernel/`/`vm/`/`fs/` subtree by default, layered over file-mode and over `is_seen` namespace gate.
+- **Named-children PAX_RAP** — at every rb-tree insert the walker calls `sysctl_check_table` which traverses the table array and rejects any entry whose `proc_handler` is not in the CFI allow-list; this is the choke-point grsec used to defeat handler-pointer-overwrite primitives.
+- **Per-`is_seen` namespace + RBAC layer** — the netns/userns gate runs before any write reaches `proc_handler`, mirroring grsec `GRKERNSEC_PROC_ADD` per-namespace scoping.
+- **Per-`SYSCTL_TABLE_TYPE_PERMANENTLY_EMPTY`** — unprivileged-mount-safe directories are typed and the walker refuses to populate them post-registration.
+
+Rationale: the sysctl tree is where grsec's most subtle hardening landed (handler-pointer validation at register time so a corrupted table cannot turn into arbitrary call); the Rookery contract codifies that as `sysctl_check_table` + PAX_RAP allow-list checked at registration AND at every named-child descent.
+
 ## Open Questions
 
 - Per-`ctl_table_poll` lifetime: the upstream code requires the poll structure to outlive any open file descriptor referencing it; Rookery should model this as a borrow-checked lifetime in `CtlTable`.

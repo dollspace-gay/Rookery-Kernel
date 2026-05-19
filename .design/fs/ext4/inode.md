@@ -314,6 +314,29 @@ ext4-inode reinforcement:
 - **Per-encrypted-file per-folio decrypt** — defense against per-cache plaintext-leak.
 - **Per-verity Merkle-tree per-read validate** — defense against per-content tampering.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on read/write paths and on every `getxattr`/`listxattr` egress.
+- **PAX_KERNEXEC** — W^X for any executable mapping over an ext4-backed file.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `ext4_file_read_iter` / `ext4_buffered_write_iter`.
+- **PAX_REFCOUNT** — saturating refcount on every `struct ext4_inode_info` and on the per-inode `i_es_tree` cache.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the per-folio decrypt scratch buffer and for inline-data tail buffer on truncate.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access; iter copies use `iov_iter` helpers exclusively.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `address_space_operations` / `iomap_ops` ext4 vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in stat/inode-info ioctls.
+- **GRKERNSEC_DMESG** — syslog restriction on inode-corruption diagnostics.
+- **Extent vs indirect dispatch** — `ext4_map_blocks` consults `EXT4_INODE_EXTENTS` flag exactly once per call and pins the chosen back-end under `i_data_sem`; the two block-mapping back-ends are never multiplexed on a single inode within one syscall.
+- **fs-verity integration** — Merkle-tree page reads are mandatory on every read of an `EXT4_VERITY_FL` inode; a mismatched root or interior hash forces `-EIO` to userspace.
+- **fs-crypto integration** — per-folio decrypt happens before `mark_buffer_uptodate`; encrypted plaintext never enters the page cache as uptodate without a passing decrypt.
+- **Inline-data size-cap** — `EXT4_MAX_INLINE_DATA` (60 bytes default, extended via xattr) is enforced on write so an inline tail cannot scribble into the next on-disk inode.
+- **Orphan-list managed under journal** — `ext4_orphan_add`/`del` are journal-atomic so unlink-while-open can never leak blocks across crash.
+- **DAX/direct-IO/page-cache mutual exclusion** — `S_DAX` is set/cleared only at lookup time and `O_DIRECT` writes bypass page cache atomically under `i_rwsem`.
+- **CAP_SYS_RESOURCE on root-pool dipping** — reserved-block consumption gated through `ext4_has_free_clusters`.
+
+Per-doc rationale: every regular-file read/write/truncate/fallocate in ext4 lands here; the inode dispatch picks between extent and indirect block mapping, between page-cache and DAX, between encrypted and plaintext, and between verity-checked and raw. PaX/grsec reinforcement holds the dispatch invariants under refcount/USERCOPY/RAP so a single mis-flag (e.g., `EXT4_INODE_EXTENTS` toggled mid-call) cannot let one back-end read state owned by the other.
+
 ## Open Questions
 
 (none at this Tier-3 level)

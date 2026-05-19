@@ -465,6 +465,21 @@ CPUMap reinforcement:
 - **Per-broadcast/exclude-ingress flags disallowed (allowed_mask = 0)** — defense against per-unsupported-fan-out.
 - **Per-trace_xdp_cpumap_{enqueue,kthread} rate-limited via tracepoint infra** — defense against per-log-flood.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check `copy_from_user(&cpumap_val)` on `BPF_MAP_UPDATE_ELEM` against `struct bpf_cpumap_val` size; reject malformed `qsize`/`bpf_prog.fd` combinations.
+- **PAX_KERNEXEC** — keep `cpu_map_ops`, the per-CPU kthread `cpu_map_kthread_run` dispatch, and the XDP secondary-prog vtable in `__ro_after_init`.
+- **PAX_RANDKSTACK** — re-randomize stack on `cpu_map_redirect`/`bq_flush_to_queue`/`cpu_map_bpf_prog_run`; the on-stack `xdp_cpumap_stats` and frame batches are stable disclosure targets.
+- **PAX_REFCOUNT** — saturating refcount on `struct bpf_cpu_map_entry`, the inner `bpf_prog`, and the per-CPU kthread `task_struct`; wraparound MUST panic.
+- **PAX_MEMORY_SANITIZE** — zero the `ptr_ring` slots on entry-free; never recycle frame pointers from a freed entry into a fresh allocation.
+- **PAX_UDEREF** — strict user/kernel separation when staging `bpf_cpumap_val` from userspace.
+- **PAX_RAP / kCFI** — type-check `cpu_map_kthread_run`, the secondary XDP `bpf_func` dispatch, and `ndo_xdp_xmit` callbacks reached via redirect.
+- **GRKERNSEC_HIDESYM** — hide `cpu_map_*`, `bq_flush_to_queue`, and `cpu_map_kthread_run` from non-root kallsyms.
+- **GRKERNSEC_DMESG** — restrict dmesg so cpumap kthread create/exit spew and `ptr_ring` overflow logs (which echo cpu ids and ring addresses) are not harvestable.
+- **Per-CPU kthread isolation** — the cpumap kthread MUST be `PF_NO_SETAFFINITY` pinned to its target CPU; an attacker who can migrate it off the target CPU breaks the single-consumer invariant. Under grsec, an affinity-change attempt triggers `audit_panic`.
+- **XDP_REDIRECT validation** — before publishing into `ptr_ring`, validate that the `xdp_frame->data` lies inside the registered `mem_info` allocator (`MEM_TYPE_*`) and that `xdp_frame->frame_sz <= PAGE_SIZE`; reject any frame whose `mem.type` is `MEM_TYPE_UNUSED` (a freed allocator slot).
+- **Rationale** — cpumap moves attacker-influenced XDP frames across CPUs through a single-consumer ring fed by RCU-managed entries with embedded bpf_prog pointers; PAX_REFCOUNT on the entry+prog+kthread plus strict frame-mem validation close the historical class of cpumap UAF (entry replace vs in-flight frame) and cross-CPU type-confusion bugs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

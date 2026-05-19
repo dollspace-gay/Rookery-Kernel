@@ -218,6 +218,24 @@ dma-iommu specific reinforcement:
 - **DMA-direction prot mapping correct** — DMA_TO_DEVICE → IOMMU_READ; DMA_FROM_DEVICE → IOMMU_WRITE; DMA_BIDIRECTIONAL → IOMMU_READ | IOMMU_WRITE; defense against per-direction permission downgrade attacks.
 - **MSI cookie isolation** — MSI-only domains have separate cookie that doesn't allow general DMA mapping; defense against MSI-domain-confusion attacks.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `iommu_dma_mmap` exposes the underlying pages to userspace through `vm_iomap_memory` / `remap_pfn_range`; whitelist the per-allocation extent so a driver bug cannot widen the vma to drag adjacent kernel pages or IOVA-allocator metadata across the user boundary.
+- **PAX_KERNEXEC** — `iommu_dma_ops` vector (`iommu_dma_alloc`, `_free`, `_map_page`, `_unmap_page`, `_map_sg`, `_unmap_sg`, `_sync_*`) is indirect-called from the DMA-API top dispatch; enforce W^X on the ops page and refuse rwx for any per-iommu-driver trampoline.
+- **PAX_RANDKSTACK** — `iommu_dma_map_page` / `_map_sg` run from network/block driver IRQ-disabled paths at user-driven depth; randomized kstack offset disrupts ROP through the `iommu_map` → `iova_alloc` chain.
+- **PAX_REFCOUNT** — `iova_domain->iova_rcache` per-cpu cache `mag->size`, `cookie->fq_ring` entries, and `iommu_dma_cookie` refcount use refcount_t with saturating overflow; defense against driver-storm underflow racing `iommu_dma_free` against fq-ring lazy-flush.
+- **PAX_MEMORY_SANITIZE** — `iommu_dma_free` (and the deferred fq_ring flush) must zero released pages AND invalidate the IOVA range AND tear down the IOMMU page-table entry before returning to the buddy allocator; any reordering grants the device a stale-DMA window onto next allocator user.
+- **PAX_UDEREF** — `iommu_dma_mmap` user vma fault path keeps SMAP/PAN engaged across `vm_iomap_memory`; never enable AC outside the page-table update.
+- **PAX_RAP/kCFI** — `dma_map_ops.*` indirect calls must verify kCFI tag; additionally, per-iommu-driver `iommu_ops.*` indirect calls (`map_pages`, `unmap_pages`, `iova_to_phys`) must verify kCFI tag at the IOAS dispatch site.
+- **GRKERNSEC_HIDESYM** — `iommu_group_show` / `iommu_dma_show_options` (if exposed) must elide IOAS / cookie / fq_ring kernel addresses from non-CAP_SYSLOG readers; expose only group id and reserved-region ranges.
+- **GRKERNSEC_DMESG** — `WARN_ON` on `iommu_dma_map_sg` rollback, IOVA exhaustion, and fq_ring overflow must not splat raw IOVA-domain pointers into dmesg readable by non-CAP_SYSLOG.
+- **IOVA allocator PAX_REFCOUNT** — `iova_domain` magazine cache and per-cpu rcache slots tracked via refcount_t with saturating overflow; defense against IOVA-leak storm masking a UAF in the fq_ring deferred flush.
+- **fq_ring lazy flush bounded** — `iommu_dma_unmap_page` deferred-flush queue depth must be bounded by `IOVA_FQ_SIZE` with strict eviction so an attacker driving rapid map/unmap cannot keep stale IOVA-to-phys mappings alive past the device-IOAS coherency window.
+- **DMA-direction prot mapping** — already enforced (`DMA_TO_DEVICE → IOMMU_READ`, `DMA_FROM_DEVICE → IOMMU_WRITE`, `DMA_BIDIRECTIONAL → IOMMU_READ|IOMMU_WRITE`); harden by adding `BUG_ON(prot & ~(IOMMU_READ|IOMMU_WRITE|IOMMU_CACHE|IOMMU_NOEXEC|IOMMU_MMIO))` to catch future flag laundering.
+- **MSI cookie isolation** — already enforced; harden by requiring `iommu_dma_get_msi_page` to refuse if the requested IOVA falls outside the MSI-only reserved range (no general DMA via MSI cookie).
+- **`iommu_map` failure rollback** — already enforced (per-segment unmap on partial failure); harden by adding a WARN+`dev_err` on any rollback so silent IOAS-partial-state cannot accumulate.
+- **Rationale** — dma-iommu is the modern protected DMA path; the IOMMU is the kernel's primary defense against malicious-device DMA. A single misordering between page-free and IOAS-teardown creates a window where the device writes attacker-controlled data into freed-and-reused kernel pages. The grsec regime forces an attacker to defeat W^X on dma + iommu ops + kCFI on dispatch + strict sanitize+unmap+free ordering + fq_ring bounded eviction + MSI-cookie isolation simultaneously before reaching a device-mediated kernel-write primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

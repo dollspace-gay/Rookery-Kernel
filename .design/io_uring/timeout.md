@@ -510,6 +510,27 @@ io_uring/timeout reinforcement:
 - **Per-data->req back-ref set before hrtimer_start** — defense against per-callback-on-uninitialized.
 - **Per-cancel-by-user_data scoped to req.cqe.user_data + ctx** — defense against per-cross-ring cancel.
 
+## Grsecurity/PaX-style Reinforcement
+
+io_uring/timeout backs every IORING_OP_TIMEOUT/IORING_OP_LINK_TIMEOUT with an hrtimer that runs in IRQ context; the timer-vs-cancel race is the highest-attacked surface. Rookery grsec/PaX floor:
+
+- **PAX_USERCOPY** — SQE fields read from kernel-owned SQ mmap region; `__kernel_timespec` deserialized via `get_timespec64`/`get_old_timespec64` with bounds checked at prep.
+- **PAX_KERNEXEC** — `io_op_def[IORING_OP_TIMEOUT*]` entries and `io_timeout_fn` hrtimer callback are `static const`/`__ro_after_init`.
+- **PAX_RANDKSTACK** — both submit and hrtimer-callback paths run under randomized kstack offsets where applicable.
+- **PAX_REFCOUNT** — `io_kiocb.refs` and per-`io_timeout_data.req` back-pointer use saturating refcount; `req_ref_inc_not_zero` audited at every linked-timeout snapshot.
+- **PAX_MEMORY_SANITIZE** — `io_timeout_data` slab zeroed on free; `io_kiocb.timeout` union cleared so stale `target_seq`/`flags` cannot bleed into a later submission.
+- **PAX_UDEREF** — `get_timespec64` is the sole boundary; no raw `__user` deref in issue/cancel paths.
+- **PAX_RAP/kCFI** — `io_timeout_fn`, `io_link_timeout_fn`, and `io_op_def.{prep,issue,cleanup}` are CFI-typed; hrtimer callback function pointer in `hrtimer.function` is checked at every `hrtimer_start`.
+- **GRKERNSEC_HIDESYM** — timeout-fired/cancel diagnostics emit only `req->cqe.user_data` (caller-supplied) and `req->cqe.res`; no kernel pointers.
+- **GRKERNSEC_DMESG** — WARN_ON paths (e.g., callback on uninitialized req) rate-limited and scrubbed of req identity.
+- **hrtimer-backed PAX_REFCOUNT** — `io_timeout_data.req` back-pointer increments refcount before `hrtimer_start`; hrtimer callback runs `io_req_task_complete` only if the saturating ref-inc-not-zero succeeds; defeats UAF where cancel completes while callback is mid-flight.
+- **MULTISHOT validation** — MULTISHOT requires REL clock domain (rejected with ABS at prep); MULTISHOT rearm checks `req->ctx` still references the same ring; cross-ring MULTISHOT rearm denied.
+- **CLOCK_MASK hweight = 1** — clock domain bits validated at prep to exactly one of {MONOTONIC, BOOTTIME, REALTIME}; CLOCK_MASK hweight > 1 rejected; defeats clock-confusion oracles.
+- **Per-`completion-then-timeout` lock order** — `ctx->timeout_lock` then `ctx->completion_lock`; reverse order is build-time-asserted via lockdep; ABBA deadlock with cancel path impossible.
+- **Linked-of-linked rejected** — linked-timeout cannot itself be the head of a link chain; cycle prevention at prep time.
+
+Rationale: io_uring/timeout is the standard exploit primitive for UAF-via-hrtimer-callback (CVE-2022-3910-class); the grsec-equivalent floor pins the req back-ref via saturating PAX_REFCOUNT and forbids MULTISHOT cross-domain semantics that historically smuggled cancellation races into the callback path.
+
 ## Open Questions
 
 (none at this Tier-3 level)

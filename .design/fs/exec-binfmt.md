@@ -240,6 +240,28 @@ Per Axiom 4 of `00-security-principles.md`:
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `copy_strings_kernel` / `copy_string_kernel` and on every `get_user_pages_remote` page-copy into the new mm.
+- **PAX_KERNEXEC** — W^X for any executable mapping; `setup_arg_pages` cannot stack-grow into a region with `VM_EXEC|VM_WRITE`.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization across `execve` / `execveat` so initial-stack canary placement is unpredictable.
+- **PAX_REFCOUNT** — saturating refcount on `struct linux_binfmt`, on `struct linux_binprm`, and on the per-binfmt module reference so a fast-path `execve` flood cannot wrap.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `linux_binprm.argv`/`envp` page array and for the scratch bprm pages on failure.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access; `get_user_arg_ptr` always uses the user-access helpers.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `linux_binfmt.load_binary` / `load_shlib` / `core_dump` vtables; binfmt registration validates the table signature before linking into `formats`.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding in `/proc/<pid>/auxv`, `/proc/<pid>/stat` start_code/end_code.
+- **GRKERNSEC_DMESG** — syslog restriction on bprm/coredump diagnostics that otherwise expose mapping addresses.
+- **`AT_SECURE` auxv** — `bprm->secureexec` propagates into `AT_SECURE`; glibc honors this to suppress `$ORIGIN`, `LD_*`, and other untrusted env on suid/sgid/caps-elevated exec.
+- **`PR_SET_NO_NEW_PRIVS` (NNP) gate** — `bprm_check_security` refuses any privilege transition (suid, file caps, LSM) when `current->no_new_privs` is set; sandboxes use this to make `execve` strictly non-elevating.
+- **suid-bit handling** — `bprm_fill_uid` zeroes `euid`/`egid` raise when the executable is on `nosuid`, when ptraced under `MAY_PTRACE`, or when the calling user-ns is non-init; mismatch is silent demotion not silent escalation.
+- **`NT_ROOKERY_SECURITY_FLAGS` reserved-bits enforcement** — non-zero reserved bits in the JIT-exemption note force `-EINVAL` so a future flag word cannot be silently bypassed by a stale binary.
+- **`binfmt_misc` register requires `CAP_SYS_ADMIN`** — interpreter-table mutation is restricted to the init user-namespace so user-namespace-confined containers cannot register attacker-controlled MIME handlers.
+- **Coredump pipe `CAP_SYS_ADMIN`** — `core_pattern = "|..."` requires capable in init userns; non-init namespaces fall back to file-only dumps.
+
+Per-doc rationale: `execve` is the privilege-transition syscall; every other defense in the kernel depends on the binfmt path correctly clearing `secureexec`, propagating `AT_SECURE`, honoring NNP, and rejecting malformed ELF before the new mm is committed. PaX/grsec reinforcement here is what makes `nosuid` mounts, capability bounding sets, and seccomp confinement actually load-bearing rather than advisory.
+
 ## Open Questions
 
 (none — exec/binfmt syscalls are exhaustively specified; the new ELF note ABI is locked in `00-security-principles.md`)
