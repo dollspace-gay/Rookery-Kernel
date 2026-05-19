@@ -1,0 +1,10 @@
+{
+  "uuid": "7ea1d1ac-0c21-49ea-ad17-8867c6e0cf47",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Wave-D5 partial: 16 of 50 syscall docs salvaged despite all 5 agents hitting usage limits. Re-dispatch needed for remaining 34. Phase D: 147/~430 (~34%).",
+  "created_at": "2026-05-19T19:00:23.536705465Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPU38nHAjNURzoRMcAGw7vTVMcT75uUDqGFWb9mmTKrnh/s4m1GYutuyZND5ecmM9UqxKZfxvlGy6bS9TrqkFAQ=="
+}
