@@ -1,0 +1,10 @@
+{
+  "uuid": "963e6728-1db5-4408-b6ca-d2efe8c4a3ba",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase D started: wave-D1 dispatched 5 agents writing 12 Tier-5 UAPI header docs (io_uring, bpf, kvm, seccomp, stat, fcntl, socket, mman, signal, inotify, fanotify, landlock). Each includes a new Grsecurity/PaX-style Reinforcement section. Phase D progress: 12/~430.",
+  "created_at": "2026-05-19T16:26:15.105315770Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA3asgpKjxyaYdNbhVJ5Yv+FDsYApfGopEolbzNeotyiE4MOOBAHF9wjrLJcf+HvlA2UfVwPhls55Z7EvIb5IlBA=="
+}
