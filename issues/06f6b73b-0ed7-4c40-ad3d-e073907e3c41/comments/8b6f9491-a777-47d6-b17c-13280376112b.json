@@ -1,0 +1,10 @@
+{
+  "uuid": "8b6f9491-a777-47d6-b17c-13280376112b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Phase D COMPLETE: wave-D10 closed out per-syscall Tier-5 coverage. ~419 Tier-5 docs (UAPI headers + syscalls) with grsec/PaX-style Reinforcement sections integrated. Goal sub-task 1 done; next is long-tail driver enumeration + grsec annotation pass on existing 651 Tier-3 docs.",
+  "created_at": "2026-05-19T21:03:50.324262626Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA0T2jFv/paGWkeRsE3Dndmf10SvdhRaJOr3l9+4UiP9b1sG9f+0JM66S/7KylCH++ORtsMIdtNbiQM7miFTIxCg=="
+}
