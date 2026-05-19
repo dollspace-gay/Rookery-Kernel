@@ -1,0 +1,10 @@
+{
+  "uuid": "2c1095b8-0bc3-4f77-812c-7696762aabc3",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Wave-D5b: 27 docs landed (4 of 5 agents succeeded; sigprocmask-completion agent overloaded). Phase D: 174/~430 (~40%).",
+  "created_at": "2026-05-19T19:26:33.434993536Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4JPp1TlPGKSaUrQReH7khAuKhS/xCZTt2QSThRV2dTUCQoL0rdJpvHa7KHDyB8F51modA5d0oSzza3Rb6zDFCg=="
+}
