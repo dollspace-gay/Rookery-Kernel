@@ -1,0 +1,10 @@
+{
+  "uuid": "bc875259-df74-4d37-83b1-925e812e7289",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 176 (467 docs, +10 via wave-21): arch/x86/setup+apic, net/mac80211/tx+rx, fs/btrfs/raid56+scrub, drivers/clk/clk-fixed-rate+gate, kernel/dma/swiotlb+coherent. 21 waves, 210 new docs. ~94%.",
+  "created_at": "2026-05-19T14:58:53.358840648Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsYPx/d1sASrm7tz+eWC7s07zwzxFuXEXDTrwGJg/RpEUZN55U+MVA3TWL+yhX3yWfNEnoI4Sk6q7/S2xMdZ7Cw=="
+}
