@@ -444,6 +444,22 @@ Miscellaneous-syscall reinforcement:
 - **Per-`mmap_write_lock_killable` for PR_SET_MEMORY_MERGE / PR_SET_THP_DISABLE** — defense against per-mm corruption during prctl.
 - **Per-`task_set_no_new_privs` required for unprivileged seccomp** — chain-of-trust enforcement.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `prctl`, `setrlimit`, `sysinfo`, `uname`, `gethostname` user-buffer copies bounds-checked; no `task_struct` / `rlimit` slab leakage.
+- **PAX_KERNEXEC** — `do_prctl`, `__sys_setresuid`, `setrlimit`, and per-personality entrypoints reside in W^X kernel text.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so repeated `prctl(PR_SET_*)` flooding cannot rely on predictable kstack layout.
+- **PAX_REFCOUNT** — `cred->usage`, `task_struct->signal->rlim`, and personality refs saturating-refcounted; underflow on `commit_creds` oopses.
+- **PAX_MEMORY_SANITIZE** — freed `cred` / `signal_struct` slabs scrubbed so reused task slots cannot inherit stale uid/gid/rlimit.
+- **PAX_UDEREF** — `prctl` and `setrlimit` arg pointers dereferenced via `copy_from_user` only; no implicit user-page deref during ID transitions.
+- **PAX_RAP / kCFI** — `prctl` dispatch table and per-personality `set_personality` callbacks type-signatured; mismatched signature is a hard CFI fault.
+- **GRKERNSEC_HIDESYM** — `init_task`, `init_cred`, and per-task `cred` addresses hidden from `/proc/kallsyms` and `uname` leaks.
+- **GRKERNSEC_DMESG** — sys-call WARN splats (bad rlimit, PR_SET refused) gated to CAP_SYSLOG.
+- **prctl(PR_SET_*) audit** — each `PR_SET_*` op logged via the audit subsystem and gated by capability checks (CAP_SYS_RESOURCE for limits, CAP_SETPCAP for caps, CAP_SYS_ADMIN for memory-merge/THP-disable).
+- **sys_personality bounded** — only `PER_LINUX`, `PER_LINUX32`, and a known-safe subset accepted; unknown personality bits rejected so an attacker cannot flip `READ_IMPLIES_EXEC` to weaken NX/PAX_MPROTECT.
+- **uname HIDESYM** — `uname()` and `/proc/version` redacted under GRKERNSEC_HIDESYM to deny attackers the exact kernel version+config string used for exploit selection.
+- **Rationale** — `sys.c` is the catch-all for "modify the calling task's identity, limits, and personality" — every PR_SET, setresuid, setrlimit and personality switch can directly relax later mitigations. Grsec/PaX hardening forces all of them through capability + refcount + audit gates.
+
 ## Open Questions
 
 (none at this Tier-3 level)

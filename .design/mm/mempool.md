@@ -409,6 +409,28 @@ Mempool reinforcement:
 - **Per-fault-injection `fail_mempool_alloc[ _bulk]`** — defense against per-untested reserve-fallback code path.
 - **Per-`mempool_destroy(NULL)` no-op** — defense against per-cleanup-double-call on init failure unwind.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to the mempool reserve-fallback allocator:
+
+- **PAX_USERCOPY** — `mempool_alloc` slabs that flow into user-copyable buffers are whitelisted; arbitrary reserves are not.
+- **PAX_KERNEXEC** — `pool->alloc` / `pool->free` function pointers reside in read-only `.rodata` after `mempool_create`; no runtime patching.
+- **PAX_RANDKSTACK** — reserve-fallback path executes with randomized kernel stack offset on entry from syscall context.
+- **PAX_REFCOUNT** — `pool->curr_nr` saturating: overflow on `add_element` traps before reserve corruption; underflow on `remove_element` traps before negative-count UAF.
+- **PAX_MEMORY_SANITIZE** — reserved element is wiped on push (`poison_element`) and re-checked on pop (`check_element`), preventing stale-data leak between consumers.
+- **PAX_UDEREF** — reserve-fallback never dereferences user pointers; `pool->pool_data` and `elements[]` are kernel-only.
+- **PAX_RAP / kCFI** — indirect calls to `pool->alloc` / `pool->free` are type-checked against `mempool_alloc_t` / `mempool_free_t` signatures.
+- **GRKERNSEC_HIDESYM** — `mempool_t *` addresses scrubbed from oops/lockdep traces visible to unprivileged users.
+- **GRKERNSEC_DMESG** — mempool exhaustion warnings (`mempool_alloc failed, GFP_ATOMIC retry`) gated behind dmesg_restrict to prevent leak of reserve-pressure as a side channel.
+
+Reserve-fallback-specific reinforcement:
+
+- **Reserve-fallback bounded** — `min_nr` is fixed at create-time; no runtime path can grow the reserve, so an attacker cannot pin arbitrary memory by forcing fallback.
+- **Refcount saturation** — `curr_nr++` / `curr_nr--` use `refcount_t` semantics so a double-`mempool_free` cannot drive `curr_nr > min_nr` and overflow `elements[]`.
+- **Fault-injection gated** — `fail_mempool_alloc` is `CAP_SYS_ADMIN`-only; cannot be enabled by an unprivileged container to DoS the reclaim path.
+
+Rationale: mempools sit in the OOM/reclaim/IO path, where a corrupted reserve count or a tampered `pool->alloc` pointer becomes a kernel-wide write primitive. The above turn the pool into a stable, attestable last-resort allocator even under adversarial pressure.
+
 ## Open Questions
 
 (none at this Tier-3 level)

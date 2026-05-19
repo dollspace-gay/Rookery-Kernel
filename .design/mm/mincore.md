@@ -409,6 +409,29 @@ mincore reinforcement:
 - **Per-PTE-marker treated as hole** — defense against per-uffd-wp / per-swapin-error misclassified as present.
 - **Per-rcu-free for tmp page (free_page after final dereference)** — defense against per-UAF on the bounce buffer.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to the `mincore(2)` page-residency probe:
+
+- **PAX_USERCOPY** — the `unsigned char *vec` output buffer is bounded by `nr_pages` and `copy_to_user` size-checked against the user mapping.
+- **PAX_KERNEXEC** — the pagewalk `mm_walk_ops` (`mincore_pte_range`, `mincore_hugetlb`) reside in `.rodata`.
+- **PAX_RANDKSTACK** — syscall entry randomizes stack offset; `tmp[PAGE_SIZE]` bounce buffer sits at an unpredictable kernel-stack position.
+- **PAX_REFCOUNT** — `folio_get` / `folio_put` around filemap / swap-cache lookups use saturating refcounts; race-with-truncation cannot wrap to free.
+- **PAX_MEMORY_SANITIZE** — `tmp` bounce buffer is zeroed before user copy; freed swap-cache folio cleared before reuse to avoid residency-pattern leak.
+- **PAX_UDEREF** — `start`, `len`, `vec` are all userspace; access-side uses `access_ok` + `copy_to_user`; pagewalk dereferences kernel PTE pointers only.
+- **PAX_RAP / kCFI** — `walk_page_range` dispatches through the `mm_walk_ops` vector with kCFI hash check on each callback.
+- **GRKERNSEC_HIDESYM** — kernel folio addresses never reach the user-visible `vec`; only a 1-bit residency flag is returned.
+- **GRKERNSEC_DMESG** — `mincore`-triggered WARN_ONs (e.g. unexpected swap-cache miss) gated behind `dmesg_restrict`.
+
+`mincore`-specific reinforcement:
+
+- **CVE-2019-5489 side-channel gate** — `mincore` of a `MAP_SHARED` file the caller cannot `open(O_RDONLY)` returns the `MAP_PRIVATE` residency view only; this prevents an unprivileged process from probing the page cache of a file owned by another user (the "page-cache side-channel" fix).
+- **Page-residency leak mitigation** — for read-only access, the residency bit reflects only the *caller's* PTE state, not the global filemap; cross-process residency oracle is removed.
+- **`huge_pte_lock` around hugetlb probe** — concurrent hugetlb fault cannot race the probe into observing a transient half-installed mapping.
+- **`cond_resched` per PMD** — long probes do not become an RT-latency denial of service.
+
+Rationale: `mincore` is a famous side-channel oracle; the above ensure it remains a per-caller residency view, never a cross-process page-cache leak, and never an OOPS vector under truncate races.
+
 ## Open Questions
 
 (none at this Tier-3 level)

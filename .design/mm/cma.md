@@ -487,6 +487,30 @@ CMA reinforcement:
 - **Per-CMA_ACTIVATED check in cma_reserve_early** — defense against per-bump-allocator-after-bitmap-init corruption.
 - **Per-kmemleak_ignore_phys on non-fixed reservations** — defense against per-false-positive leak report on unmapped physical memory.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — CMA pages handed to DMA drivers tracked via whitelist slabs when copied to userspace; coherent mapping bypass disallowed.
+- **PAX_KERNEXEC** — CMA region descriptors live in W^X kernel data; cma_areas[] table read-only after init.
+- **PAX_RANDKSTACK** — cma_alloc / cma_release entry stack offsets randomized per call.
+- **PAX_REFCOUNT** — cma_area->count and per-page _refcount saturate; release-of-still-pinned traps before double-free.
+- **PAX_MEMORY_SANITIZE** — released CMA pages zero-poisoned before return to MIGRATE_CMA freelist; no DMA-residual leaks.
+- **PAX_UDEREF** — user-supplied size/align to cma_alloc ioctl boundary checked before bitmap traversal.
+- **PAX_RAP / kCFI** — cma_init_reserved_areas callbacks type-tagged; activator function table integrity verified.
+- **GRKERNSEC_HIDESYM** — `cma_alloc`, `cma_release`, `cma_areas` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — CMA reserve trace lines and per-area dump redacted from dmesg for non-CAP_SYSLOG.
+
+CMA-specific reinforcements:
+
+- **MIGRATE_CMA pageblock-type validation** — every page returned from cma_alloc verified to belong to MIGRATE_CMA pageblock; foreign-type pages rejected with WARN.
+- **cma_release refcount saturation** — page_count of released range must equal pin-count; under-release / over-release traps under PAX_REFCOUNT.
+- **Per-area bitmap bounds checked under cma.lock** — bit index ≥ count refuses allocation rather than wrapping.
+- **CMA_RESERVE_PAGES_ON_ERROR keeps failed activations out of buddy** — never silently donates firmware-reserved frames to general allocator.
+- **alloc_contig_range failure path quarantines pages** — migration-failed pages held under cma_alloc_mutex; never returned to caller half-migrated.
+
+Rationale: CMA hands physically-contiguous DMA-capable memory to drivers; a refcount underflow on cma_release would let a freed bounce buffer be reallocated while a peripheral still DMAs to it (classic DMA-after-free). Grsec emphasis: saturate refcounts, sanitize on release, and validate MIGRATE_CMA pageblock type so a malicious or buggy driver cannot trick CMA into laundering arbitrary pages.
+
 ## Open Questions
 
 (none at this Tier-3 level)

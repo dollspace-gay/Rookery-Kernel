@@ -268,6 +268,28 @@ Migration/compaction reinforcement:
 - **Per-isolate count caps** — defense against per-batch unbounded list.
 - **Per-folio_set_movable not removed mid-isolate** — defense against per-isolate inconsistent.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to the migration / compaction worker:
+
+- **PAX_USERCOPY** — `migrate_pages` source/dest folios are kernel pages; any user-visible mapping is re-installed via fault, not direct copy_to/from_user.
+- **PAX_KERNEXEC** — `address_space_operations->migrate_folio` lives in `.rodata`; the AOps vector cannot be patched to redirect a migrating folio.
+- **PAX_RANDKSTACK** — kcompactd / per-task `compact_zone` enter with randomized stack offset on each scheduler entry.
+- **PAX_REFCOUNT** — `folio->_refcount` and `folio->_mapcount` use saturating refcount; a torn isolation step traps instead of wrapping into a free folio.
+- **PAX_MEMORY_SANITIZE** — freed source folio is wiped before return to the buddy allocator post-migration so stale contents do not leak into a subsequent allocator consumer.
+- **PAX_UDEREF** — page-table walkers in `migrate_pages` never deref a user pointer; PFN→page goes through `pfn_to_online_page` to refuse offlined sections.
+- **PAX_RAP / kCFI** — `migrate_folio` / `putback_movable_folio` / `isolate_movable_folio` are called through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — page/folio kernel addresses redacted from `/proc/vmstat`-derived oops dumps when not privileged.
+- **GRKERNSEC_DMESG** — compaction-failure / migrate-retry storm messages gated to root.
+
+Migration / compaction-specific reinforcement:
+
+- **`migrate_pages` CAP_SYS_NICE** — `MPOL_MF_MOVE_ALL` and any cross-task `migrate_pages(2)` require `CAP_SYS_NICE` so an unprivileged process cannot force-evict pages from a target task's address space.
+- **Page-fault on migration entry** — readers/writers that race a migration take a fault on the migration PTE marker and wait via `migration_entry_wait`; the marker is non-present so no speculative side channel can observe in-flight migration content.
+- **CMA / MIGRATE_ISOLATE strictness** — folios with `folio_test_isolated` are refused for further isolation, preventing double-pin that would defeat the migration barrier.
+
+Rationale: migration touches every refcount and mapcount in the mm; a corrupted migration entry or wrapped refcount turns into an arbitrary cross-process page swap. The above ensure compaction stays a privileged, type-checked, refcount-safe primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

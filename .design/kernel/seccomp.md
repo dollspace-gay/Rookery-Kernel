@@ -503,6 +503,22 @@ Seccomp reinforcement:
 - **Per-`PT_SUSPEND_SECCOMP` requires CAP_SYS_ADMIN + CONFIG_CHECKPOINT_RESTORE** — defense against per-trace-bypass abuse.
 - **Per-`arch_seccomp_spec_mitigate` unless `SPEC_ALLOW`** — defense against per-Spectre v2/v4 in sandboxed code.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `sock_fprog` / `seccomp_notif_*` copies bounds-checked at the user boundary; no `seccomp_filter` slab leakage.
+- **PAX_KERNEXEC** — installed cBPF/eBPF filters JIT-compiled into W^X kernel pages (or interpreted from RO interpreter); no RW+X seccomp text.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so seccomp filter execution cannot be groomed via predictable stack layout from a sandbox.
+- **PAX_REFCOUNT** — `seccomp_filter.refs`, `seccomp_filter.users`, and `notif_id` use saturating refcount; underflow on filter detach oopses.
+- **PAX_MEMORY_SANITIZE** — freed `seccomp_filter` slabs scrubbed so a reused filter slot cannot inherit stale `prog` / `notif`.
+- **PAX_UDEREF** — filter installation reads `sock_fprog` once into kernel memory; no implicit user-page reach during BPF execution.
+- **PAX_RAP / kCFI** — `seccomp_filter->prog->bpf_func` and per-filter run-shim type-signatured; attacker-rewritten `bpf_func` is a hard CFI fault.
+- **GRKERNSEC_HIDESYM** — `seccomp_filter`, `seccomp_notif`, and JIT-image addresses hidden from `/proc/kallsyms` / dmesg leaks.
+- **GRKERNSEC_DMESG** — seccomp install/notif WARN splats gated to CAP_SYSLOG (no attacker-readable timing signal of filter failures).
+- **BPF filter PAX_KERNEXEC** — JIT-compiled seccomp filters allocated via `bpf_jit_binary_alloc()` into RX-only pages; interpreter path itself sits in `__kernel_text`.
+- **no_new_privs irreversible** — once `PR_SET_NO_NEW_PRIVS` is set, the bit is sticky across exec and inheritable to children; PAX_REFCOUNT on `task_struct.no_new_privs` prevents tamper-clear.
+- **USER_NOTIF CAP_SYS_PTRACE** — `SECCOMP_FILTER_FLAG_NEW_LISTENER` and `SECCOMP_IOCTL_NOTIF_RECV` require the supervisor hold CAP_SYS_PTRACE (or be the parent under ptrace-mode); listener fds cannot be passed to an unprivileged process to escape policy.
+- **Rationale** — seccomp is the kernel's primary syscall-sandbox boundary; a corrupted filter or notifier is a direct sandbox-escape primitive, often into the highest-privileged supervisor. Grsec/PaX hardening keeps filter installation, JIT codegen, and notifier delivery on RX-only pages, refcounted handles, and capability-gated supervisor channels.
+
 ## Open Questions
 
 (none at this Tier-3 level)

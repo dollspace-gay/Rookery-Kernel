@@ -257,6 +257,30 @@ NUMA-mempolicy reinforcement:
 - **Per-WEIGHTED_INTERLEAVE per-node-weight cap** — defense against per-config insane weight.
 - **Per-NUMA-balancing rate-limited** — defense against per-thrash.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to `set_mempolicy(2)` / `mbind(2)` / `get_mempolicy(2)`:
+
+- **PAX_USERCOPY** — `nodemask` ingress/egress sized by `maxnode` and `copy_{to,from}_user` bounded against the kernel-side `nodemask_t`.
+- **PAX_KERNEXEC** — `mpol_ops`, `mpol_new`, `mpol_set_nodemask` vector reside in `.rodata`.
+- **PAX_RANDKSTACK** — `do_set_mempolicy`, `do_mbind` entered with randomized kernel stack offset.
+- **PAX_REFCOUNT** — `struct mempolicy->refcnt` is `refcount_t`; saturation traps before a UAF on an old policy.
+- **PAX_MEMORY_SANITIZE** — policy structures freed via `mpol_put` zeroed before slab reuse so stale nodemask data does not leak.
+- **PAX_UDEREF** — `nodemask` and `addr` arguments validated; pagewalkers walk kernel PTEs only.
+- **PAX_RAP / kCFI** — `mpol_ops->create`, `mpol_ops->rebind` dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — kernel addresses for `struct mempolicy` redacted from any user-visible WARN.
+- **GRKERNSEC_DMESG** — NUMA-balancing rate-limit / mbind warning storms restricted from unprivileged dmesg.
+
+NUMA-mempolicy-specific reinforcement:
+
+- **CAP_SYS_NICE for `MPOL_*` mode change on cross-task targets** — `MPOL_MF_MOVE_ALL` and `mbind`/`migrate_pages` of another task's pages require `CAP_SYS_NICE`; an unprivileged process cannot force-migrate another tenant's memory.
+- **Nodemask validation** — `nodemask` is masked against `node_states[N_MEMORY]` so a caller cannot bind to an offlined or never-existed node and trip an allocator OOPS.
+- **`MPOL_PREFERRED_MANY` backoff** — strict-bind alloc failure falls back to a soft preference rather than livelocking the allocator.
+- **`WEIGHTED_INTERLEAVE` per-node-weight cap** — per-node weights are bounded so a config error cannot drive interleave into a divide-by-zero or an unbounded loop.
+- **`mpol_put` on old policy** — every `set_mempolicy` releases the prior policy reference, eliminating the classic mempolicy memory-leak / refcount-imbalance bug.
+
+Rationale: NUMA mempolicy is the only userspace knob that influences allocator placement decisions; the above keep that knob bounded, refcount-safe, and unable to cross task boundaries without `CAP_SYS_NICE`.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -635,6 +635,29 @@ RCU-Tasks reinforcement:
 - **Per-rcu_request_urgent_qs_task in check_holdout** — defense against per-CPU-bound holdout never reaching scheduler.
 - **Per-rcu_barrier_tasks_generic_cb container_of via barrier_q_head** — defense against per-stale barrier callback misrouting.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **call_rcu_tasks{,_trace,_rude} callback under PAX_RAP** — every variant invokes `rcu_head->func` through a kCFI-signed indirect call; a corrupted RCU-Tasks callback fails the signature check before it can execute as a kernel-mode gadget.
+- **GP-stall reports under GRKERNSEC_DMESG** — `rcu_task_stall_timeout` triggered stall messages emitted into the syslog-restricted stream, including any holdout task `comm` and addresses.
+- **force_quiescent_state IPI under PAX_RAP** — `rcu_request_urgent_qs_task` indirect dispatch into the scheduler quiescent-state hook is kCFI-signed.
+- **rtp->cbs_gp_seq saturating** — under PAX_REFCOUNT semantics, sequence wrap detected and reported rather than silently invalidating GP ordering.
+- **Holdout list traversal under PAX_RAP** — task scan iterators that dispatch per-task `->t_rcu_tasks_holdout`-clearing helpers go through kCFI signatures.
+- **PAX_MEMORY_SANITIZE on rtp tear-down** — the global RCU-Tasks state arrays zeroed when reconfigured (e.g. CONFIG_TASKS_RCU disabled at runtime, rare) so stale callback pointers cannot be observed transiently.
+- **Trace variant CONFIG_TASKS_TRACE_RCU gated** — only enabled when explicitly required (BPF trampolines); otherwise the subsystem and its indirect-call surface are absent from the kernel image.
+
+Per-doc rationale: RCU-Tasks variants are the primitive that BPF, tracing, and ftrace use to wait for "all tasks have voluntarily switched context" before freeing trampoline code. A corrupted callback fires after that wait — meaning the attacker who hijacks one gets the CPU at exactly the moment the kernel believes the freed memory is now safe. PAX_RAP/kCFI on every callback invocation and on the force_quiescent_state IPI dispatch is the load-bearing defense; GRKERNSEC_DMESG hides the stall-report kallsyms leaks.
+
 ## Open Questions
 
 (none at this Tier-3 level — RCU-Tasks-Trace's pertask-scan implementation history is captured by the comment "implemented via a straightforward mapping onto SRCU-fast" in the upstream source; Rookery follows the 7.1.0-rc2 baseline.)

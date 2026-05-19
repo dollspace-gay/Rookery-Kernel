@@ -275,6 +275,30 @@ DAMON-specific reinforcement:
 - **Per-filter per-scheme** — defense against per-VMA cross-target leak.
 - **Per-MIGRATE_HOT/COLD requires NUMA + tiered config** — defense against per-non-tiered system mis-migrate.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — DAMON sysfs result buffers (access frequencies, region maps) routed via whitelist slabs.
+- **PAX_KERNEXEC** — damon_operations vtables read-only post-registration; kdamond function table W^X.
+- **PAX_RANDKSTACK** — kdamond per-aggregation-interval entry stack randomized.
+- **PAX_REFCOUNT** — damon_ctx, damon_target refcounts saturate; UAF on race between kdamond exit and sysfs remove blocked.
+- **PAX_MEMORY_SANITIZE** — damon_region / damos slab caches zero-poisoned on free; access-pattern history not recoverable post-free.
+- **PAX_UDEREF** — sysfs region/scheme inputs validated within paddr/vaddr bounds before kdamond consumes.
+- **PAX_RAP / kCFI** — damon_operations ops fn-pointers type-tagged; mismatched paddr vs vaddr ops dispatch faults.
+- **GRKERNSEC_HIDESYM** — `damon_new_ctx`, `damon_destroy_ctx`, `damon_sysfs_*` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — DAMON sample/aggregation trace output redacted from dmesg for non-CAP_SYSLOG.
+
+DAMON-specific reinforcements:
+
+- **CAP_SYS_ADMIN strict gating** — every DAMON sysfs write (target, scheme, quota) requires capable() check; bypass via fd inheritance refused.
+- **PTRACE_MODE_ATTACH_REALCREDS for VADDR target** — DAMON_VADDR monitoring another task's address space requires ptrace-equivalent permission, blocking unprivileged side-channels.
+- **damon_target->pid pinned via get_pid()** — task refcount held across kdamond samples; target exit races resolve to safe stop, not UAF.
+- **DAMOS_PAGEOUT / DAMOS_LRU_* gated by per-scheme quota** — bytes/sz/charged budgets cannot be exceeded between watermark checks.
+- **Region merge/split bounded by max_nr_regions** — region-bomb attempts via misconfigured min/max are clamped before allocation.
+
+Rationale: DAMON observes other tasks' access patterns and can take destructive action (reclaim, migrate, pageout) against them — exactly the kind of monitoring primitive grsec treats as ptrace-class. CAP_SYS_ADMIN plus PTRACE_MODE_ATTACH for VADDR targets prevents DAMON from becoming an unprivileged covert channel into another process's working set.
+
 ## Open Questions
 
 (none at this Tier-3 level)

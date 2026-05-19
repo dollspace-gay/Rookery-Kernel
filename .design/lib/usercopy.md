@@ -202,6 +202,28 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — this *is* the PAX_USERCOPY surface: every copy_from/to_user path validates the kernel buffer against (a) `__rodata` / `__bss` extents, (b) per-stack `current_thread_info()` bounds, (c) slab cache `useroffset`/`usersize` whitelist, (d) `vmalloc` / `kmap` ranges.
+- **PAX_KERNEXEC** — copy_*_user accessors live in `.text`; the SMAP/PAN-toggling stubs (`stac`/`clac`, `uaccess_enable`/`disable`) are non-instrumentable.
+- **PAX_RANDKSTACK** — re-randomizes per syscall, so stack-overlap checks reflect current base.
+- **PAX_REFCOUNT** — N/A internally; callers' refcounts saturate.
+- **PAX_MEMORY_SANITIZE** — usercopy never leaves slab content unsanitized: kasan + init_on_free + init_on_alloc complement usercopy whitelist.
+- **PAX_UDEREF** — built into `copy_*_user` itself: SMAP/PAN explicitly enabled/disabled around the accessor; bare `__get_user`/`__put_user` outside `uaccess_begin/end` traps.
+- **PAX_RAP / kCFI** — usercopy accessors are direct calls; no indirect dispatch in this layer.
+- **GRKERNSEC_HIDESYM** — `__check_object_size`, `usercopy_abort`, slab whitelist symbols hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — usercopy abort messages (`Bad or missing usercopy whitelist...`) gated behind CAP_SYSLOG; abort still BUG()s the offending task.
+
+Subsystem-specific reinforcement:
+
+- **PAX_USERCOPY zones** — every slab cache that exports any sub-range to user is created with `kmem_cache_create_usercopy(name, size, align, flags, useroffset, usersize, ctor)`; `__check_heap_object` validates copies against `[useroffset, useroffset+usersize)`. Slabs not so declared are forbidden as usercopy source/dest.
+- **Hardened-copy validation** — `__check_object_size` rejects copies that (a) span multiple pages of a non-compound allocation, (b) straddle a slab-cache boundary, (c) overlap stack-frame-end (preventing return-address leak), (d) reach into module text / `__init` regions.
+- **Pinned user-page audit** — `pin_user_pages` paths emit an audit record when an unprivileged process pins more than `RLIMIT_MEMLOCK`-derived budget; PaX additionally hard-clamps total pinned pages per-userns.
+- **Architectural enforcement** — SMAP (x86), PAN (arm64), SUM (riscv) toggled around every `copy_*_user`; outside that window, any user-address access faults.
+- **Rationale** — usercopy is the kernel/user boundary; every failed-validation path is either a kernel-info-leak or a kernel-memory-corruption primitive. The hardening here is load-bearing for the entire kernel — every other subsystem's PAX_USERCOPY bullet ultimately routes through this code.
+
 ## Open Questions
 
 (none — usercopy semantics are exhaustively specified by Linux's user-handle convention)

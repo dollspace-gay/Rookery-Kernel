@@ -571,6 +571,29 @@ mlock reinforcement:
 - **Per-ucounts namespace for shm-lock** — defense against per-user-namespace
   cross-tenant `RLIMIT_MEMLOCK` confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to the mlock / mlockall / munlock family:
+
+- **PAX_USERCOPY** — mlock copies no payload to userspace; only `start`/`len`/`flags` flow in via syscall args, all bounded by `access_ok`.
+- **PAX_KERNEXEC** — `mlock_folio` / `munlock_folio` paths and the `lru_add_drain` callbacks live in `.rodata`.
+- **PAX_RANDKSTACK** — `do_mlock` / `apply_mlockall` entered with randomized kernel stack offset.
+- **PAX_REFCOUNT** — `folio->_mlock_count` uses saturating refcount semantics; double-mlock cannot wrap to zero and bypass the unevictable LRU placement.
+- **PAX_MEMORY_SANITIZE** — folios released back from `unevictable` LRU after `munlock` are sanitized before re-entering buddy allocator.
+- **PAX_UDEREF** — page-walker portion of `populate_vma_page_range` dereferences kernel PTE pointers only.
+- **PAX_RAP / kCFI** — `pagewalk`-based mlock callbacks dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — folio / VMA kernel addresses never leak into `mlockall`-induced WARN_ONs visible to non-root.
+- **GRKERNSEC_DMESG** — `mlock`-related RLIMIT-violation warnings restricted from unprivileged dmesg.
+
+mlock-specific reinforcement:
+
+- **RLIMIT_MEMLOCK enforcement** — `user->locked_vm + new_pages > rlimit(RLIMIT_MEMLOCK)` is checked atomically under `mm->mmap_lock` write; no TOCTOU between check and account.
+- **CAP_IPC_LOCK** — bypass of RLIMIT_MEMLOCK requires `CAP_IPC_LOCK`; the bypass is scoped *only* to the rlimit check, not to side-effects like writeability, so a non-root caller cannot escalate mappings.
+- **mlock_count refcount** — `folio_mlock_count` is `refcount_t`; saturation traps before a stale-counter folio can be returned to evictable LRU while still page-table-pinned.
+- **ucounts namespace** — locked-pages tally is per-`ucounts` so a user-namespace tenant cannot drain the host's locked-pages budget.
+
+Rationale: mlock pins kernel memory by user request; the above ensure pinning stays bounded by rlimit, traceably refcounted, and unforgeable across namespaces.
+
 ## Open Questions
 
 (none at this Tier-3 level)

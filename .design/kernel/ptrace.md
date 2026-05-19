@@ -439,6 +439,30 @@ ptrace reinforcement:
 - **Per-`valid_signal(data)` gate on resume / detach** — defense against per-bogus-signal injection.
 - **Per-Yama `kernel.yama.ptrace_scope` (LSM-layer)** — defense against per-cross-process inspection in default-deny distros.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **GRKERNSEC_HARDEN_PTRACE** — non-CAP_SYS_PTRACE users cannot ptrace siblings even within the same UID; ptrace_scope effectively pinned at 3 ("admin-only").
+- **Yama scope clamped >= 1** — sysctl writes to lower yama.ptrace_scope from grsec's enforced floor return -EPERM.
+- **PTRACE_MODE_ATTACH_FSCREDS strict** — all attach paths (including PEEK/POKE family) re-evaluated against current fscreds, never cached effective creds, so a setuid-during-attach transition is caught.
+- **/proc/<pid>/mem write under PAX_UDEREF + FOLL_FORCE strictness** — write requires `current` to already be the tracer that successfully attached, not merely ptrace-capable.
+- **cred_guard_mutex held over exec PAX_RAP** — the indirect call into `bprm->cred` setup carries a kCFI signature so an attacker who corrupted `bprm` mid-exec cannot redirect the cred install.
+- **PT_SUSPEND_SECCOMP requires init-ns CAP_SYS_ADMIN** — userns-root rejected by grsec's namespace tightening so a container's root cannot use a tracer to disable its tracees' seccomp.
+- **ptrace_setoptions PT_* bits validated** — unknown bits return -EINVAL rather than being silently stored, preventing future ABI-expansion gadgets.
+- **PAX_MEMORY_SANITIZE on detach** — `task_struct->ptrace_message` and `last_siginfo` zeroed on PTRACE_DETACH so a subsequent attacher cannot read the previous tracer's signal payload.
+
+Per-doc rationale: ptrace is a historically catastrophic primitive — it grants write access to another task's VM, registers, and seccomp policy. Yama and PTRACE_MODE_ATTACH_FSCREDS are the upstream defenses; GRKERNSEC_HARDEN_PTRACE raises Yama's floor so distros can't accidentally relax it. PAX_RAP on cred_guard_mutex's exec-time indirect calls and init-ns CAP_SYS_ADMIN strictness on PT_SUSPEND_SECCOMP close the two CVE patterns that recur — setuid-bypass during exec and seccomp-bypass via tracer.
+
 ## Open Questions
 
 (none at this Tier-3 level)

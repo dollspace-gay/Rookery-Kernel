@@ -412,6 +412,22 @@ SMP-boot reinforcement:
 - **Per-`selfparking` honoured by external park/unpark** — defense against per-double-park deadlock with self-parking threads (e.g., migration).
 - **Per-`fork_idle` failure logged and slot left NULL** — defense against per-silent-fail bringing up CPU with no idle.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — smpboot kthread parameters and sysfs CPU hotplug controls bounds-checked; no `smpboot_thread_data` slab leakage.
+- **PAX_KERNEXEC** — `smp_init`, `secondary_startup_64`, and the AP-bringup trampoline reside in W^X kernel text; the trampoline page never becomes RW+X concurrently.
+- **PAX_RANDKSTACK** — per-syscall kstack offset extended to per-AP-bringup idle kstack so secondary CPU stacks are not at predictable offsets.
+- **PAX_REFCOUNT** — `smpboot_threads.refcount`, `smp_hotplug_thread` registration counts, and `per_cpu(cpu_online_mask)` accounting saturating-refcounted.
+- **PAX_MEMORY_SANITIZE** — freed `task_struct` of decommissioned idle threads scrubbed at hotplug-down so a future bringup cannot inherit stale state.
+- **PAX_UDEREF** — AP bringup paths dereference `cpu_init` / per-CPU data via kernel mappings only; user mappings unreachable until the AP joins `init_mm`'s normal context.
+- **PAX_RAP / kCFI** — `smp_hotplug_thread` op callbacks (`thread_fn`, `setup`, `park`, `unpark`, `cleanup`) type-signatured; mismatched signature is a hard CFI fault.
+- **GRKERNSEC_HIDESYM** — `smpboot_threads`, AP trampoline addresses, and `cpu_present_mask` hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — AP bringup failure splats (`smpboot: CPU N failed to come online`) gated to CAP_SYSLOG.
+- **AP bringup PAX_KERNEXEC** — secondary startup vector (`trampoline_start64`, `secondary_startup_64`) lives in `.text`; the trampoline page is RX-only at the moment of `cpu_up()`.
+- **Trampoline page W^X** — real-mode trampoline allocated below 1 MiB is mapped RX during bringup and either reclaimed or made RO after `cpu_online`; never RW+X simultaneously, defeating "AP-bringup-as-W^X-bypass" tricks.
+- **Per-CPU thread isolation** — each `smp_hotplug_thread` has its own per-CPU `task_struct` and `thread_fn`; PAX_REFCOUNT prevents an attacker-controlled register/unregister race from leaking a kthread into another CPU's slot.
+- **Rationale** — AP bringup is the only path where the kernel is single-threaded yet executing a trampoline at a chosen physical address; corrupted trampoline or per-CPU idle creates a permanent kernel-mode foothold that survives every later defence. Grsec/PaX hardening keeps the bringup window an RX-only, refcounted, CFI-checked transition.
+
 ## Open Questions
 
 (none at this Tier-3 level)

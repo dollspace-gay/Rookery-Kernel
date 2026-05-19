@@ -242,6 +242,30 @@ Memory-hotplug reinforcement:
 - **Per-MEM_*-event notifier failure handling** — defense against per-subscriber-fail-leaving-inconsistent-state.
 - **Per-/sysfs-write CAP_SYS_ADMIN** — defense against per-unprivileged hotplug-trigger.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — hot-added page descriptors (struct page) live in vmemmap; whitelist invariants of slabs unchanged by hotplug.
+- **PAX_KERNEXEC** — arch_add_memory direct-map updates honor W^X; new linear-map PTEs default to NX, kernel text remains read-only.
+- **PAX_RANDKSTACK** — hotplug notifier and add_memory_resource entry stack randomized.
+- **PAX_REFCOUNT** — zone present/spanned/managed page counters saturate; under/overflow during online/offline traps before zone metadata corruption.
+- **PAX_MEMORY_SANITIZE** — vmemmap pages associated with offlined ranges zero-poisoned on release; no stale struct-page metadata leaks across hotplug cycles.
+- **PAX_UDEREF** — sysfs hot-add inputs (start, size, online_type) range-validated against installable resource limits.
+- **PAX_RAP / kCFI** — memory_notifier callbacks type-tagged; subsystem-registered hotplug listeners verified at registration.
+- **GRKERNSEC_HIDESYM** — `add_memory`, `offline_pages`, `online_pages`, `arch_add_memory` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — hotplug add/online/offline trace lines (with physical addresses and node IDs) redacted from dmesg for non-CAP_SYSLOG.
+
+Memory-hotplug-specific reinforcements:
+
+- **CAP_SYS_ADMIN strict on every entry point** — sysfs writes to `/sys/devices/system/memory/memoryN/state`, ACPI hotplug events surfaced to userspace, and add_memory_driver_managed paths all require CAP_SYS_ADMIN; no per-namespace bypass.
+- **Zone-online validation** — online_pages refuses ZONE_MOVABLE designation if the range overlaps unmovable allocations; pageblock migrate-type set deterministically before zone span update.
+- **Pageblock isolation pre-offline** — every pageblock in the offline range placed in MIGRATE_ISOLATE before scan; concurrent allocators cannot grab pages from the offlining range.
+- **Non-movable migration verified** — offline path refuses to complete if any unmovable allocation remains; no silent data-loss via forced-free of pinned pages.
+- **MHP_MEMMAP_ON_MEMORY size-bounded** — vmemmap-on-memory mode caps the vmemmap fraction so a hotplug-add cannot consume itself with vmemmap overhead, preventing self-DoS.
+
+Rationale: memory hotplug rewrites the kernel's view of physical memory at runtime — direct map, vmemmap, zone spans, and per-node pgdat all mutate. A refcount underflow or a pageblock isolation gap here can either (a) leak a freed range back into buddy with stale struct-page state, or (b) let a malicious userspace trigger zone-bookkeeping corruption via repeated online/offline. Grsec emphasis: CAP_SYS_ADMIN strict gating on every entry, saturating zone counters under PAX_REFCOUNT, and HIDESYM/DMESG redaction on physical-address disclosure so an unprivileged observer cannot use hotplug traces to map kernel layout.
+
 ## Open Questions
 
 (none at this Tier-3 level)

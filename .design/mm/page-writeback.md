@@ -689,6 +689,31 @@ Writeback-throttle reinforcement:
 - **Per-sysctl handler mutual-exclusion (dirty_ratio vs dirty_bytes)** — defense against per-stale-setting confusion.
 - **Per-vm.highmem_is_dirtyable default 0** — defense against per-32-bit highmem starvation.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to dirty-page accounting and writeback throttling:
+
+- **PAX_USERCOPY** — `balance_dirty_pages` performs no `copy_to_user`; dirty accounting is internal.
+- **PAX_KERNEXEC** — `balance_dirty_pages`, `tag_pages_for_writeback`, `wb_domain_writeout_add` reside in `.rodata`.
+- **PAX_RANDKSTACK** — `balance_dirty_pages` and `write_cache_pages` entered with randomized kernel stack offset.
+- **PAX_REFCOUNT** — `bdi_writeback->refcnt` / `wb_completion` use saturating refcount_t; an unbalanced get/put traps before a UAF on the bdi.
+- **PAX_MEMORY_SANITIZE** — folios completed off `writeback` and freed are sanitized before slab/buddy reuse.
+- **PAX_UDEREF** — writeback paths dereference kernel folio pointers only; user dereference happens at PTE install via the fault path.
+- **PAX_RAP / kCFI** — `address_space_operations->writepages`, `writeback_control` callbacks dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — folio / bdi addresses in `mm_vmscan_*` / `mm_writeback_*` WARNs redacted for non-root.
+- **GRKERNSEC_DMESG** — `over_bground_thresh` / `dirty-bytes warning` floods restricted from unprivileged dmesg.
+
+page-writeback-specific reinforcement:
+
+- **`balance_dirty_pages` CAP_SYS_ADMIN for dirty_ratio** — sysctls `vm.dirty_ratio`, `vm.dirty_bytes`, `vm.dirty_background_*` writable only with `CAP_SYS_ADMIN` on the global namespace; an unprivileged container cannot expand the host's dirty budget.
+- **Writeback PAX_USERCOPY discipline** — writeback bios carry kernel folio pages; the user-mapped-side dirty bit is propagated through `folio_mark_dirty` which respects per-FS `dirty_folio` ops via kCFI-checked vtables.
+- **`folio_clear_dirty_for_io` keeps xarray TAG_DIRTY** — sync walks under truncate cannot lose in-flight folios, eliminating a class of data-loss races.
+- **`folio_test_set_dirty` atomic** — concurrent dirtying cannot double-account, so an attacker cannot inflate `BDI_DIRTY` to starve other tenants.
+- **`tag_pages_for_writeback` preemption-safe** — XA_CHECK_SCHED rebatch on enormous mappings prevents soft-lockup that could mask other activity.
+- **Sysctl mutual-exclusion** — `dirty_ratio` vs `dirty_bytes` are mutually exclusive at the handler level; stale-setting confusion that could disable throttling is refused.
+
+Rationale: dirty-page accounting is the kernel's gate against unbounded write-pressure DoS; making the throttle CAP_SYS_ADMIN-gated, refcount-safe and atomic ensures it cannot be widened by unprivileged tenants or torn by races.
+
 ## Open Questions
 
 (none at this Tier-3 level)

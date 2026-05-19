@@ -403,6 +403,21 @@ PELT reinforcement:
 - **Per-`scale_load_down` of cfs_rq weight** — defense against per-overflow in `load_sum * scale_load_down(weight)`.
 - **Per-`PELT_MIN_DIVIDER` floor** — defense against per-divide-by-tiny-divider near a freshly-initialised `period_contrib == 0`.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — PELT signals exposed via `/proc/<pid>/sched` and tracepoints bounds-checked; no `sched_avg` slab leakage.
+- **PAX_KERNEXEC** — `___update_load_sum`, `___update_load_avg`, and the per-class `update_load_avg` shims reside in W^X kernel text.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so PELT-side-channel grooming via tight wake/sleep loops cannot rely on predictable stack alignment.
+- **PAX_REFCOUNT** — `cfs_rq->avg`, `rt_rq->avg`, `dl_rq->avg`, `irq->avg` `load_sum`/`util_sum`/`runnable_sum` accumulators clamped via saturating helpers.
+- **PAX_MEMORY_SANITIZE** — freed `sched_avg` substructures scrubbed during task/cgroup teardown so a reused entity cannot inherit stale load.
+- **PAX_UDEREF** — PELT updates dereference `task_struct` / `cfs_rq` exclusively via kernel mappings; no implicit user-page reach.
+- **PAX_RAP / kCFI** — per-class `update_load_avg` callbacks type-signatured; mismatched signature is a hard CFI fault on the PELT fast path.
+- **GRKERNSEC_HIDESYM** — `sched_avg`, `cfs_rq->avg`, and PELT internal symbol addresses hidden from `/proc/kallsyms` and dmesg leak paths.
+- **GRKERNSEC_DMESG** — PELT WARN splats (negative `load_sum`, divide-by-zero floor) gated to CAP_SYSLOG.
+- **load_avg accumulation bounded** — `LOAD_AVG_MAX` and `PELT_MIN_DIVIDER` clamp the geometric series so a malicious churn pattern cannot push `load_sum * scale_load_down(weight)` past `u64`; PAX_REFCOUNT enforces saturation.
+- **util_avg side-channel mitigation** — fine-grained `util_avg` readout via `/proc/<pid>/sched` is rate-limited and quantised at `SCHED_CAPACITY_SHIFT` so attackers cannot use it as a high-resolution covert channel between cgroups.
+- **Rationale** — PELT signals drive cpufreq selection, load-balance migration, and uclamp-aware capacity decisions; corrupting a tracked load is corrupting effectively every downstream scheduler decision. The overflow/precision/side-channel hardening above is what keeps PELT from becoming an attacker oracle and a fairness pivot.
+
 ## Open Questions
 
 (none at this Tier-3 level)

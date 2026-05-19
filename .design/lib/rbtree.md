@@ -422,6 +422,28 @@ rbtree reinforcement:
 - **Per-`__rb_erase_color` exposed for augmented variants** — defense against per-augment-reimplementation drift.
 - **Per-tree contents are intrusive (no allocation)** — defense against per-OOM during structural op (alloc-free fastpath).
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — rbtree itself does no user copies; embedding objects' usercopy discipline applies.
+- **PAX_KERNEXEC** — no writable text; augmented-tree callbacks reside in `.text`.
+- **PAX_RANDKSTACK** — caller's syscall entry randomizes stack base.
+- **PAX_REFCOUNT** — rb_node has no internal refcount; embedding object's refcount saturates.
+- **PAX_MEMORY_SANITIZE** — rbtree is intrusive; nothing allocated by rbtree code — sanitization is the embedder's responsibility.
+- **PAX_UDEREF** — no user-pointer deref.
+- **PAX_RAP / kCFI** — augmented-tree `rb_augment_callbacks` op-table type-tagged.
+- **GRKERNSEC_HIDESYM** — `rb_*`, `__rb_erase_color`, `__rb_insert` hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — `WARN_ON(RB_EMPTY_NODE)` gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **Intrusive design, no allocation** — `rb_link_node` / `rb_insert_color` cannot fail; embedding objects must already be allocated. PaX exploits this for the alloc-free fast path: structural ops in atomic/IRQ context cannot OOM, denying allocation-failure side channels.
+- **Color-balancing invariants** — `__rb_insert` / `__rb_erase_color` maintain red-black invariants (every path same black depth, no two consecutive reds); `CONFIG_DEBUG_RBTREE` (PaX-promoted to BUG()) verifies on every structural mutation.
+- **`__rb_erase_color` exposed for augmented variants** — re-implementations are forbidden; subsystems (interval tree, deadline IO, EDF) build on the canonical helpers, eliminating drift where a fork would silently miss a fix.
+- **Parent-back-pointer integrity** — `rb_parent`/`__rb_parent_color` packs parent pointer + color into one word with low-bit tag; PaX asserts pointer alignment on every read, refusing torn writes from concurrent mutators (rbtree requires external synchronization).
+- **Rationale** — rbtree backs sched-entities, EDF deadlines, interval trees, virtual memory mappings; corruption is silent and catastrophic. Mandatory DEBUG promotion + intrusive-only API + canonical helper-only mutation make corruption immediately fatal.
+
 ## Open Questions
 
 (none at this Tier-3 level)

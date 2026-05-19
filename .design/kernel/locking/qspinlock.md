@@ -181,6 +181,28 @@ qspinlock-specific reinforcement:
 - **Paravirt vCPU yield bounded** — pv_wait timeout ensures even if pv_kick is missed (host bug), waiter eventually retries spinning + makes progress.
 - **No allocator dependency** — all state in per-cpu static + lock word; no slab alloc → safe from inside slab/page allocator.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **Per-CPU MCS node array bounded** — `qnodes[MAX_NODES]` index derived from `qnode_idx = (val >> _Q_TAIL_IDX_OFFSET)` masked against `MAX_NODES` (4); a corrupted tail word can never index beyond the static per-CPU array.
+- **Pending bit fairness invariant** — the `_Q_PENDING_VAL` transition is single-bit, single-cmpxchg; PAX_REFCOUNT-style saturation is not needed but a sanity assertion catches the case where pending is set with a tail already queued (corrupt state aborts to slowpath).
+- **Tail encoding integrity** — `encode_tail(cpu, idx)` uses fixed bit positions; `decode_tail` validates `cpu < NR_CPUS` before dereferencing the per-CPU MCS node.
+- **Paravirt hash table under PAX_RAP** — `pv_hash`/`pv_unhash` indirect lookups carry kCFI signatures; gadgetized `pv_kick`/`pv_wait` callbacks fail before vCPU yield.
+- **MCS node poisoning on release** — `node->locked = 0` and `node->next = NULL` cleared before return so a use-after-free of the per-CPU slot reads zero rather than attacker state.
+- **No kallsyms exposure** — `__pv_queued_spin_lock_slowpath` hidden under GRKERNSEC_HIDESYM.
+
+Per-doc rationale: qspinlock is the universal spinlock in the kernel — a corrupted tail encoding or a hijacked paravirt callback turns every contended `spin_lock` into an attacker primitive. The per-CPU MCS array's static bound, the tail-encoding sanity check, PAX_RAP on pv_kick/pv_wait, and MCS-node poisoning on release ensure that even with malicious values written into a lock word, the slowpath cannot be steered out of bounds or into an attacker-controlled callback.
+
 ## Open Questions
 
 (none at this Tier-3 level)

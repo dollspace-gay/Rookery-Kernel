@@ -260,6 +260,29 @@ SRCU-specific reinforcement:
 - **Reader counter overflow capped (u64)** — defense against ~10^11/sec persistent counter overflow (impossible-in-practice but worth-bound).
 - **Per-domain GP latency reported** via dmesg if exceeds threshold — defense against pathologically-long readers stalling GP.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **call_srcu callback indirect dispatch under PAX_RAP** — `rcu_head->func` invoked through kCFI; a tampered callback function pointer fails the signature check before being executed in soft-IRQ context.
+- **GP-stall detection emits via GRKERNSEC_DMESG-restricted log** — stall messages (and any pointer they contain) sanitized for unprivileged dmesg readers.
+- **force_quiescent_state path under PAX_RAP** — `srcu_invoke_callbacks` workqueue dispatch kCFI-signed; cannot be hijacked to call a gadget at "GP complete" time.
+- **srcu_struct->srcu_sda per-CPU bounds** — accesses indexed by `smp_processor_id()` masked against `nr_cpu_ids` so a CPU-hotplug race cannot OOB the per-CPU data.
+- **PAX_MEMORY_SANITIZE on cleanup_srcu_struct** — sda counters and node spinlocks zeroed before free so a use-after-free read returns zeros rather than stale reader-counter state (which would otherwise be a powerful timing oracle).
+- **Reader counter saturation** — the u64 counter is reinforced with a sanity wrap-detect that triggers a stall report rather than silently invalidating GP discipline.
+- **call_srcu cb-list traversal RCU-protected** — list nodes freed via call_rcu after detach so a brief UAF reads sanitized state.
+
+Per-doc rationale: SRCU is widely used to protect sleepable readers in subsystems that the kernel itself must trust (notifier chains, KVM, fs notification). The single highest-value attacker move would be to install a callback function pointer that runs at GP-complete time with kernel privileges. PAX_RAP on the call_srcu callback and on the srcu_invoke_callbacks workqueue dispatch turns that into a CFI fault. PAX_MEMORY_SANITIZE on cleanup closes the reader-counter timing oracle, and GRKERNSEC_DMESG hides the stall reports from unprivileged kallsyms-harvesters.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -320,6 +320,28 @@ lockref reinforcement:
 - **Per-no-memory-barriers-in-fastpath** — defense against per-overcautious-stalls; caller code is responsible for any further ordering via standard atomic_t.txt rules.
 - **Per-`__lockref_is_dead` inline + "call under spinlock" comment** — defense against per-unsynchronized-test producing actionable false negatives (a dying lockref might still read live, but a live lockref will never read dead because the transition happens under spinlock).
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **CMPXCHG loop bounded iterations** — the `CMPXCHG_LOOP(...)` macro caps retries (LOCKREF_RETRY_COUNT); runaway contention from a malicious priority-inversion drops to the slow path under spinlock instead of looping unboundedly.
+- **Dead-flag canonicalization** — `mark_dead` sets `count = -128`, a value PAX_REFCOUNT recognizes as poisoned; any subsequent `++` saturates rather than resurrecting the lockref to a live count.
+- **Aligned `struct lockref` for atomic128** — alignment asserted at compile time so a misaligned attacker-influenced placement cannot split the cmpxchg into two non-atomic halves on x86-64.
+- **No-userspace surface** — lockref has no /proc, /sys, or syscall consumer; PAX_USERCOPY scope is purely transitive through dcache callers.
+- **Slow-path lock acquisition under PAX_RAP** — fallback `spin_lock + lockref_get_not_zero` indirect dispatch matches kCFI signature; gadgetized override of the fallback fails before touching `->count`.
+- **EXPORT_SYMBOL hidden symbols** — under GRKERNSEC_HIDESYM, exported lockref helpers do not leak addresses through `/proc/kallsyms` to unprivileged readers.
+
+Per-doc rationale: lockref's value to an attacker is the cmpxchg fastpath — a wrap from `-128` back to a positive count, or an unbounded retry against a victim CPU, would resurrect a freed dentry or pin a CPU. PAX_REFCOUNT saturation on the count, a bounded CMPXCHG_LOOP, alignment guarantees for the 128-bit CAS, and PAX_RAP on the slow-path indirect dispatch close these holes; GRKERNSEC_HIDESYM keeps the exported helpers off the kallsyms leak surface for unprivileged callers.
+
 ## Open Questions
 
 - Future arch enablement (RISC-V with Zacas): USE_CMPXCHG_LOCKREF can be set; verify SPINLOCK_SIZE check still holds.

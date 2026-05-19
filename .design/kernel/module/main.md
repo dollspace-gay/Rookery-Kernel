@@ -546,6 +546,30 @@ Module-loader reinforcement:
 - **Per-request_module_nowait throttle (kmod_concurrent)** — defense against per-modprobe fork-bomb.
 - **Per-audit_log_kern_module** — defense against per-stealth load.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **CONFIG_MODULE_SIG_FORCE** — signature verification on every `finit_module`; unsigned modules rejected before any symbol resolution or layout copy.
+- **MODHARDEN-equivalent** — strict ELF section validation (no rwx, no overlapping `.text`/`.data`, no unexpected `.modinfo` keys) before allocating execmem.
+- **finit_module under lockdown** — when `kernel_locked_down == LOCKDOWN_CONFIDENTIALITY_MAX`, all module loads are gated; even root cannot bypass without breaking the lockdown chain.
+- **module->refcnt under PAX_REFCOUNT** — saturating, so `try_module_get` cannot wrap to free a still-referenced module.
+- **execmem pages PAX_KERNEXEC** — module `.text` is rx-only after `complete_formation`; write attempt traps via W^X fault.
+- **Init-text PAX_MEMORY_SANITIZE on free** — `do_free_init` zeroes init pages before returning to execmem allocator so leftover code/strings cannot leak via reallocation.
+- **Indirect-call signatures on init/exit** — `mod->init` and `mod->exit` invoked under PAX_RAP/kCFI; a tampered `init_module` symbol table fails the signature check.
+- **CAP_SYS_MODULE strict** — capability checked against the init user namespace (not the caller's, via grsec's namespace tightening) to prevent userns-confined containers from gaining module-load.
+
+Per-doc rationale: module loading is the single largest attack surface for kernel-code injection — bypass signing once and the attacker owns ring 0. PAX_KERNEXEC on `.text`, PAX_MEMORY_SANITIZE on init-text release, PAX_RAP/kCFI on the module's own `init/exit` indirect calls, and PAX_REFCOUNT-saturating refcounts close the post-load attack surface; MODHARDEN-style strict ELF validation and CONFIG_MODULE_SIG_FORCE under lockdown shut the load-time door.
+
 ## Open Questions
 
 (none at this Tier-3 level)

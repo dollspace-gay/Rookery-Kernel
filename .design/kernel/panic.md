@@ -559,6 +559,29 @@ panic-core reinforcement:
 - **Per-emergency_restart honors panic_reboot_mode** — defense against per-wrong-reboot-method on panic.
 - **Per-__crash_kexec ordering documented** — defense against per-kdump-loses-notifier-data (or notifier-corrupts-kdump).
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **panic_notifier chain under PAX_RAP** — each `notifier_call` is invoked via kCFI-signed indirect call; an attacker who corrupts the notifier list with a function pointer to a gadget triggers a CFI fault instead of executing the gadget at panic time (the most reliable arbitrary-code moment).
+- **panic_on_oops=1 default** — converts any oops into a hard panic, denying the attacker the "oops, retry the exploit" iteration loop.
+- **oops_count saturating under PAX_REFCOUNT** — cannot wrap to zero to evade `oops_limit`.
+- **panic_print bitmask CAP_SYS_ADMIN-gated** — even with /proc/sys writable, only init-user-ns admin can flip the dump-task-state / dump-memory bits that leak pointers.
+- **panic_blink under PAX_RAP** — the architecture-supplied blink callback (often a function pointer set early) checked for kCFI signature before invocation.
+- **GRKERNSEC_HIDESYM sanitizes panic banner** — register dumps and stack pointers in the panic banner masked for unprivileged log readers via the dmesg restriction.
+- **smp_send_stop ordering preserved** — panic_print runs before stopping CPUs, but stop is non-cancellable; an attacker cannot defer the stop to keep a backdoor CPU live.
+
+Per-doc rationale: panic is the kernel's last-chance code path — it runs with interrupts off, locks bypassed, and notifier callbacks invoked in undefined order. That makes it the prime target for an attacker who has corrupted a function pointer somewhere and wants the kernel to execute it deterministically. PAX_RAP/kCFI on the panic_notifier chain and on `panic_blink` neutralizes the most common gadget path, PAX_REFCOUNT prevents oops_count rollover from defeating the iteration limit, and GRKERNSEC_HIDESYM keeps the panic banner from leaking the symbols an attacker needs for the next attempt.
+
 ## Open Questions
 
 (none at this Tier-3 level)

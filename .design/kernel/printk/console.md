@@ -256,6 +256,30 @@ Console reinforcement:
 - **Per-console_mutex avoids re-entry** — defense against per-recursive-printk deadlock.
 - **Per-replay CON_PRINTBUFFER bounded** — defense against per-replay-storm.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **CAP_SYSLOG required for /dev/console writes that affect filtering** — even when /dev/console is opened, level-changing escape sequences honored only for CAP_SYSLOG-bearing writers.
+- **dmesg_restrict honored by /dev/kmsg + /proc/kmsg consumers** — unprivileged readers receive the sanitized stream regardless of the console driver in use.
+- **console_lock under PAX_RAP** — the `console->write` indirect dispatch is kCFI-signed; a tampered `struct console` whose `write` pointer doesn't match `console_write_t` fails the signature.
+- **console_drivers list under PAX_RAP** — list traversal calls each driver's `write/exit/match` through kCFI.
+- **console->seq saturating** — under PAX_REFCOUNT semantics so replay sequence numbers cannot wrap to expose old (potentially sensitive) records as "new."
+- **CON_ANYTIME audit** — panic-time CON_ANYTIME emit path is restricted; only consoles whose `flags & CON_ANYTIME` are honored, so a malicious console module cannot install a panic-time gadget hook.
+- **/proc/consoles GRKERNSEC_HIDESYM** — kernel pointers (driver function addresses) sanitized in the readable output.
+- **PAX_MEMORY_SANITIZE on console unregister** — `struct console` zeroed before free so the brief RCU window doesn't expose stale `write` pointers.
+
+Per-doc rationale: the console driver list is an indirect-call table that fires from every printk and from panic itself — exactly the gadget surface an attacker wants. PAX_RAP/kCFI on `console->write` and on the panic-time CON_ANYTIME emit path is the key defense; CAP_SYSLOG and dmesg_restrict close the side channel that lets unprivileged callers turn console output into a kallsyms-leak oracle.
+
 ## Open Questions
 
 (none at this Tier-3 level)

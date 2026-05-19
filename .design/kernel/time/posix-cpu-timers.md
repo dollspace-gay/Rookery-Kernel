@@ -748,6 +748,28 @@ POSIX CPU timers reinforcement:
 - **Per-tick_dep_set / _clear paired** — defense against per-stuck-tick on idle CPUs after timer disarm (nohz_full).
 - **Per-update_gt_cputime cmpxchg-monotone** — defense against per-thread-group accounting regression on concurrent thread reads.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — `itimerspec64` / `sigevent` boundaries validated on copy_from/to_user; reject straddling slab caches.
+- **PAX_KERNEXEC** — expiry callbacks (`cpu_timer_fire`, `posix_cpu_timer_rearm`) reside in `.text`; W^X enforced.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on `timer_create`/`timer_settime` entry.
+- **PAX_REFCOUNT** — `k_itimer.it_signal` reference saturates rather than wraps; refcount over-/underflow trap.
+- **PAX_MEMORY_SANITIZE** — `k_itimer` slab objects zeroed on free; clock-id and signal data not leaked across allocations.
+- **PAX_UDEREF** — kernel never dereferences user pointers in timer paths without `copy_from_user`; SMAP/PAN enforced.
+- **PAX_RAP / kCFI** — `posix_cpu_timer_set/get/del/rearm` function-pointer table type-tagged; indirect calls forward-edge checked.
+- **GRKERNSEC_HIDESYM** — `cpu_timers_expired`, `update_gt_cputime` symbols hidden from non-CAP_SYSLOG `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — timer fastpath warnings (e.g. `WARN_ON(!list_empty)`) require CAP_SYSLOG to read.
+
+Subsystem-specific reinforcement:
+
+- **`timer_t` per-task** — `posix_timer_id` allocated via per-process IDR; bound by RLIMIT_SIGPENDING and a per-namespace ceiling to prevent ID exhaustion attacks on `signal_struct.posix_timer_id`.
+- **RLIMIT_SIGPENDING** — `cpu_timer_fire` charges queued signal against task's sigpending limit; rejected signals leave timer armed (no silent drop), defeating signal-flood DoS.
+- **CAP_WAKE_ALARM** — `CLOCK_BOOTTIME_ALARM` / `CLOCK_REALTIME_ALARM` rejected without CAP_WAKE_ALARM (CPU-time clocks unaffected); audit log entry on denial.
+- **Per-thread cputime read** — `thread_group_cputime_adjusted` clamps against monotonic prior snapshot under cmpxchg, denying attacker-observable rollback on concurrent read.
+- **Rationale** — POSIX CPU timers are attacker-facing (any process can create them) and run callbacks from softirq with task creds; refcount saturation + RAP-typed callback dispatch + RLIMIT charging together close the wakeup-storm and UAF-on-exit classes that have historically plagued this subsystem.
+
 ## Open Questions
 
 (none at this Tier-3 level)

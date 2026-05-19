@@ -539,6 +539,28 @@ User-namespace reinforcement:
 - **Per-`from_kuid_munged` overflow fallback** — defense against per-stat/getuid failure on unmapped target ns.
 - **Per-`RCU-delayed user_namespace free` (`kfree_rcu`)** — defense against per-UAF on concurrent `current_user_ns()` readers.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — `uid_map` / `gid_map` / `projid_map` writes copy through size-bounded slab whitelist (`PAGE_SIZE` cap per `proc_id_map_write`).
+- **PAX_KERNEXEC** — userns init / free paths are pure data; no writable text.
+- **PAX_RANDKSTACK** — `unshare`, `setns`, `clone` re-randomize kernel stack base.
+- **PAX_REFCOUNT** — `user_namespace.ns.count`, `kref` for each `user_namespace` saturates.
+- **PAX_MEMORY_SANITIZE** — `user_namespace` slab freed via kfree_rcu; cred-related fields zeroed.
+- **PAX_UDEREF** — id-map writes use `copy_from_user`; no `__get_user`.
+- **PAX_RAP / kCFI** — `user_namespace_operations` and `ns_common.ops` indirect calls type-tagged.
+- **GRKERNSEC_HIDESYM** — `create_user_ns`, `map_write`, `commit_creds` hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — userns warnings (e.g. nested-depth exhausted) gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **Nesting depth bound (32)** — `create_user_ns` rejects with `-EUSERS` once `parent->level == 32`; PaX additionally counts the depth into the task's RLIMIT_NPROC-like accounting to defeat fork-bomb-via-nested-userns DoS.
+- **`uid_map` setgroups gate** — writing `uid_map` while `setgroups == "allow"` requires CAP_SETUID in the parent userns; once any map is written, `setgroups` is forced to `"deny"` and irreversible. PaX additionally requires CAP_SYS_ADMIN in the initial userns for any non-identity uid_map in non-init userns.
+- **GRKERNSEC_USERNS_DISABLE option** — when set (a common hardened-config default), `unshare(CLONE_NEWUSER)` and `clone3(CLONE_NEWUSER)` return `-EPERM` for unprivileged callers regardless of `kernel.unprivileged_userns_clone`; only CAP_SYS_ADMIN in the init userns can create user namespaces. This single switch closes the majority of historical unprivileged-userns escalations.
+- **Audit on commit** — every `setresuid`-equivalent map commit emits an audit record carrying the (parent uid, child uid) range; tamper-evident trail of privilege boundary crossings.
+- **Rationale** — user namespaces are the single biggest historical source of LPE kernel CVEs; combining the 32-deep cap, irreversible setgroups gate, and the kill-switch CONFIG denies the entire attack surface in hardened deployments while leaving the API available for trusted callers.
+
 ## Open Questions
 
 (none at this Tier-3 level)

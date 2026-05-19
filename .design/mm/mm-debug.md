@@ -195,6 +195,29 @@ mm-debug-specific reinforcement:
 - **Per-PAGE_POISON 0xAA bytes recognizable** — defense against per-oops misdiagnosis.
 - **Per-dump_pte / dump_pmd / dump_pud / dump_pgd use arch-specific decoders** — defense against per-arch bit-misinterpret.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to the mm debug / dump / poison infrastructure:
+
+- **PAX_USERCOPY** — debug dumpers never `copy_to_user`; output goes through `printk` and is filtered by `dmesg_restrict`.
+- **PAX_KERNEXEC** — `dump_page`, `dump_vma`, `dump_pte` and arch decoders live in `.rodata`; no runtime patching of the decode table.
+- **PAX_RANDKSTACK** — oops-time dumpers run with randomized stack offset preserved from the faulting context.
+- **PAX_REFCOUNT** — `_refcount` / `_mapcount` printed by `dump_page` use the underlying saturating refcount; an overflow-on-bug is recorded rather than wrapping.
+- **PAX_MEMORY_SANITIZE** — `PAGE_POISON 0xAA` distinct from PAX poison value; mm-debug recognizes both patterns so a poisoned page that re-surfaces does not get misread as live data.
+- **PAX_UDEREF** — debug pagewalkers walk kernel PTEs only; user dereference path is the same as production walker, no debug-only bypass.
+- **PAX_RAP / kCFI** — dump callbacks invoked via type-checked function-pointer tables.
+- **GRKERNSEC_HIDESYM** — `%p` in dump output uses `%pK` so symbol/address leaks are scrubbed when `kptr_restrict` is on.
+- **GRKERNSEC_DMESG** — entire dump_page / dump_vma stream gated behind `dmesg_restrict` so an unprivileged BUG-trigger cannot harvest kernel addresses.
+
+mm-debug-specific reinforcement:
+
+- **CONFIG_DEBUG_VM strict** — `VM_BUG_ON`, `VM_WARN_ON` panic on production builds when `panic_on_warn=1`; debug builds use `BUG()` so a corrupted mm cannot be papered over.
+- **Slab-corruption detect** — `debug_pagealloc` and `page_table_check` validate refcount and mapcount invariants on every state change; a mismatch is a kernel BUG, not a silent recovery.
+- **`debug_vm_pgtable_init` synthetic mm freed** — the boot-time pagetable self-test mm is torn down before init returns, so its mappings are not present at runtime.
+- **`rodata_test` gated by CONFIG_DEBUG_RODATA_TEST** — the prod kernel does not carry the writability probe code.
+
+Rationale: mm-debug is the kernel's last line of self-attestation; making it CFI-typed, refcount-saturating, dmesg-restricted and panic-strict means an attacker who tries to silently corrupt mm state trips a hard stop.
+
 ## Open Questions
 
 (none at this Tier-3 level)

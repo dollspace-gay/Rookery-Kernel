@@ -546,6 +546,30 @@ KASAN reinforcement:
 - **Per-static-key kasan_flag_enabled gating** — defense against per-cold-path overhead when HW-Tags off at boot.
 - **Per-kfence + KASAN cooperation in mempool path** — defense against per-conflicting-ownership UAF reports.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — KASAN shadow memory acts as a runtime PAX_USERCOPY-equivalent: every kernel access (including copy_to_user/copy_from_user paths under instrumentation) is range-validated against shadow.
+- **PAX_KERNEXEC** — KASAN shadow region itself mapped W^X; shadow accesses are reads-only from instrumented code, writes only by allocator hooks.
+- **PAX_RANDKSTACK** — kasan_report entry-stack randomized so OOB report itself is not predictable.
+- **PAX_REFCOUNT** — quarantine_batch counters and stackdepot refcounts saturate; overflow on attacker-induced quarantine churn refuses rather than wraps.
+- **PAX_MEMORY_SANITIZE** — quarantine free path zero-poisons + KASAN_FREE_PAGE shadow byte; double-sanitize harmonized.
+- **PAX_UDEREF** — KASAN-instrumented copy_*_user variant validates user pointer before shadow load on the kernel-side scratch.
+- **PAX_RAP / kCFI** — KASAN runtime callbacks (`__kasan_check_read`, `__asan_loadN`) type-tagged; instrumentation hot-patch verified.
+- **GRKERNSEC_HIDESYM** — `kasan_report`, `__kasan_check_*`, shadow base addresses absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — KASAN OOB/UAF reports redacted from dmesg for non-CAP_SYSLOG; full report only visible to root.
+
+KASAN-specific reinforcements:
+
+- **Shadow-memory bounded kasan_report** — report path uses a fixed-size scratch buffer; OOB during report itself prevented by KASAN_REPORT_MAX_FRAMES cap.
+- **Quarantine timing** — quarantine_put delay (per-cache batch) prevents immediate-reuse UAF on hot caches without exposing quarantine-bypass primitives.
+- **Pointer-tag round-trip integrity** — set_tag / get_tag on HW-Tags KASAN verifies tag was preserved across allocator/caller boundary; tag-drop refuses to free.
+- **stackdepot graceful degrade** — STACK_DEPOT_FLAG_CAN_ALLOC handles depot OOM without losing the report; KASAN never silently drops a UAF discovery.
+- **Static-key gating** — kasan_flag_enabled keeps cold-path overhead near zero when KASAN compiled-in but boot-disabled, preventing perf-pressure to remove instrumentation in prod.
+
+Rationale: KASAN is the kernel's runtime tripwire for memory-safety violations — under grsec doctrine it complements PAX_USERCOPY (compile-time slab whitelist) with runtime byte-granular detection. The hardening focus is making KASAN itself unbypassable and unforgeable: shadow memory writable only by allocator hooks, reports redacted to root via GRKERNSEC_DMESG so a UAF discovery doesn't leak addresses to the attacker, and refcount/quarantine arithmetic saturated to refuse rather than corrupt under adversarial pressure.
+
 ## Open Questions
 
 (none at this Tier-3 level)

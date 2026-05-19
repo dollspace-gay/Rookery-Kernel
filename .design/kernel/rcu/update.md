@@ -472,6 +472,21 @@ RCU-update reinforcement:
 - **Per-WARN_ON_ONCE in torture_sched_setaffinity** — defense against per-rcutorture silent affinity-failure.
 - **Per-RCU_GET_STATE_COMPLETED sentinel** — defense against per-poll-of-uninitialized-cookie false-pending.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounds-check copies of RCU cookies / gp_state across the user/kernel boundary; no slab→user bleed of `rcu_state` internals.
+- **PAX_KERNEXEC** — `rcu_callback_t` invocation paths reside in W^X kernel text; `call_rcu` cannot be redirected to writable RX-flipped pages.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so `synchronize_rcu` waiters cannot be groomed via predictable stack layout.
+- **PAX_REFCOUNT** — `rcu_torture_*` per-test refs and `rcu_tasks_holdouts` lists use saturating refcount; under/overflow forces oops, not silent reuse.
+- **PAX_MEMORY_SANITIZE** — kfree_rcu objects scrubbed at slab free so deferred-reclaim windows cannot leak prior contents to a reused allocation.
+- **PAX_UDEREF** — `rcu_segcblist` and head pointers dereferenced strictly via per-CPU/kernel mappings; no implicit user-mapping reach during callback invocation.
+- **PAX_RAP / kCFI** — `rcu_callback_t` and `func` field type-signatured; mismatched callback prototype is a hard CFI fault before `func(head)` executes.
+- **GRKERNSEC_HIDESYM** — `rcu_state`, `rcu_data`, `rnp` addresses and gp_seq values are hidden from `/proc/kallsyms` / dmesg leak paths.
+- **GRKERNSEC_DMESG** — RCU stall splats and gp-kthread dumps gated to CAP_SYSLOG to deny side-channel into scheduler/RCU timing.
+- **synchronize_rcu_expedited CAP_SYS_NICE** — expedited GPs (IPI broadcast, cost-multiplier on busy systems) require CAP_SYS_NICE so unprivileged tasks cannot weaponise them as a soft-DoS.
+- **rcu_barrier integrity** — `rcu_barrier` enqueues a barrier callback per CPU with a refcounted completion; PAX_REFCOUNT prevents the barrier count from wrapping under malicious offline/online races.
+- **Rationale** — RCU is the load-bearing synchronization primitive of the kernel: its callbacks fire in softirq with the most privileged kernel context, and its grace-period state is the basis for life-cycle decisions across VFS, networking, and the scheduler. Hardening it under grsec/PaX closes the largest single class of "use-after-grace-period" pivots into arbitrary code execution.
+
 ## Open Questions
 
 (none at this Tier-3 level)

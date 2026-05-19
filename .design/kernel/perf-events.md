@@ -611,6 +611,29 @@ perf-event-subsystem reinforcement:
 - **Per-set_output cycle detection** — defense against per-redirect-loop (event A → B → A).
 - **Per-sigtrap deferred via irq_work** — defense against per-NMI-context signal-delivery deadlock.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **GRKERNSEC_PERF_HARDEN** — perf_event_paranoid floor raised to 3 (no unprivileged kernel-event creation); even paranoid=2 is rejected at sysctl write time when grsec hardening is set.
+- **CAP_PERFMON not CAP_SYS_ADMIN** — perf scoped to its own capability so admin-isolation doesn't grant full kernel control; CAP_PERFMON itself capability-bound to init user-ns.
+- **kptr_restrict=2 for sample addrs** — kernel addresses in PERF_SAMPLE_IP / PERF_SAMPLE_CALLCHAIN sanitized for unprivileged readers via the kallsyms-restriction sysctl.
+- **perf_event_paranoid=3 default** — unprivileged perf is off by default; userspace must explicitly relax to use it, never the reverse.
+- **pmu->add/del/read under PAX_RAP** — every PMU indirect call carries a kCFI signature; a rogue PMU registration whose function pointers don't match perf-PMU prototypes fails to install.
+- **Ring-buffer mmap PAX_USERCOPY-bounded** — `copy_to_user` on the ring buffer header bounded by the AUX/data page count to defeat OOB read-from-userspace via crafted offsets.
+- **Tombstone owner sanitization under PAX_MEMORY_SANITIZE** — events transitioning to TASK_TOMBSTONE have their owner pointer zeroed before the wait so a UAF reads zero.
+
+Per-doc rationale: perf_events has historically been a top vulnerability source (multiple CVEs allowing unprivileged kernel compromise via tiny config bugs). GRKERNSEC_PERF_HARDEN raising the paranoid floor, CAP_PERFMON narrowing the capability, and PAX_RAP/kCFI on the PMU op-table are the three layers that turn "one bug → ring 0" into "one bug → CFI fault." kptr_restrict on sample addresses keeps the leaked-pointer side channel closed against unprivileged readers.
+
 ## Open Questions
 
 - (none at this Tier-3 level; ring-buffer sample-record layout in `kernel/perf/ring-buffer.md`)

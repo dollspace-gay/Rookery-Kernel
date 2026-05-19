@@ -291,6 +291,30 @@ RCU-specific reinforcement:
 - **Per-CPU per-context (sched/bh/preempt) qs tracking** — defense against missed qs in hardirq path.
 - **PREEMPT_RT preemptible-RCU per-rcu_node blkd_tasks** — defense against preemption losing qs context.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **call_rcu callback invocation under PAX_RAP** — every `rcu_head->func` invoked from `rcu_do_batch` is dispatched through a kCFI-signed indirect call; a tampered callback function pointer (the classic UAF-into-arbitrary-call gadget) fails the signature check before executing in soft-IRQ context.
+- **GP-stall detection emits via GRKERNSEC_DMESG** — `rcu_check_gp_kthread_starvation` and related stall messages routed to the syslog-restricted stream so the addresses they print are not exposed to unprivileged dmesg readers.
+- **force_quiescent_state IPI under PAX_RAP** — the per-CPU `rcu_implicit_dynticks_qs` callback fired by FQS dispatched through kCFI.
+- **rnp->gp_seq saturation** — sequence numbers monitored for wrap; a wrap triggers a stall report rather than silently re-using a sequence.
+- **NOCB offload kthread wakeups PAX_RAP** — `wake_nocb_gp` indirect dispatch into the offload kthread is kCFI-signed.
+- **rcu_barrier callback PAX_RAP** — barrier-completion callback function pointer kCFI-signed; cannot be hijacked at module-unload-completion time.
+- **PAX_MEMORY_SANITIZE on per-CPU rcu_data tear-down** — segcblist state zeroed when a CPU is offlined so a stale cb pointer cannot be observed transiently by an attacker watching the per-CPU page.
+- **expedited GP IPI scope bounded to nr_cpu_ids** — `cpumask_t` index validated; no OOB cpumask write through expedited GP triggers.
+
+Per-doc rationale: tree RCU is the universal "wait until safe to free" primitive in the kernel, and its callback list is one of the most attractive UAF-to-arbitrary-call gadgets — corrupt a `rcu_head->func` and you control the CPU at GP-complete time, in soft-IRQ context, with all locks dropped. PAX_RAP/kCFI on every call_rcu callback and on the rcu_barrier completion is therefore the load-bearing hardening. PAX_MEMORY_SANITIZE on offlined per-CPU segcblist and GRKERNSEC_DMESG on stall reports close the remaining side channels.
+
 ## Open Questions
 
 (none at this Tier-3 level)

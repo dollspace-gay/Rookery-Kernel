@@ -249,6 +249,30 @@ HWPoison-specific reinforcement:
 - **Per-recovery sysctl gates panic** — defense against per-system policy mismatch.
 - **Per-MF_COUNT_INCREASED ref-balance** — defense against per-PFN double-decref.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — HWPoison reports (sysfs, /proc) routed through whitelist slabs; PFN strings never leak adjacent slab content.
+- **PAX_KERNEXEC** — memory_failure dispatch table and per-page-type handlers W^X; mce-callback function pointers read-only.
+- **PAX_RANDKSTACK** — memory_failure entry from MCE / madvise path randomized.
+- **PAX_REFCOUNT** — MF_COUNT_INCREASED bookkeeping uses saturating arithmetic; double-decref on the poisoned folio refcount refused.
+- **PAX_MEMORY_SANITIZE** — non-recoverable poisoned pages are quarantined (PG_hwpoison), never returned to buddy; sanitize sweep skips them.
+- **PAX_UDEREF** — MADV_HWPOISON / MADV_SOFT_OFFLINE user inputs (start/len) bounded by TASK_SIZE before walk.
+- **PAX_RAP / kCFI** — rmap_walk callbacks during kill-pre-poison type-tagged; kernel-page panic handler dispatch verified.
+- **GRKERNSEC_HIDESYM** — `memory_failure`, `unpoison_memory`, `__get_hwpoison_page` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — HWPoison reports and per-PFN failure traces redacted from dmesg for non-CAP_SYSLOG; PFN / phys-addr disclosure restricted to root.
+
+HWPoison-specific reinforcements:
+
+- **MADV_HWPOISON / unpoison_memory CAP_SYS_ADMIN gating** — only privileged callers may synthetically inject or clear poison; eliminates unprivileged induction of SIGBUS_AR on cooperating victims.
+- **GRKERNSEC_PROC info-leak hidden** — /sys/kernel/mm/hwpoison /, per-zone hwpoison counters, and PFN-level error logs gated behind GRKERNSEC_PROC visibility class so attackers cannot survey poisoned-PFN distribution.
+- **rmap_walk pre-poison kill mandatory** — every mapping of the poisoned folio is unmapped or SIGBUS-targeted before PG_hwpoison is published; no live alias remains.
+- **MCE action-required synchronous** — MCE-class events run through memory_failure synchronously (AR), preventing async race where the same PFN is allocated to a new caller before SIGBUS delivered.
+- **Kernel-page poison panic-or-FAILED** — corruption on kernel-owned pages refuses silent recovery; either panic (configurable via sysctl by root) or hard-fail with diagnostic, never silently re-use.
+
+Rationale: memory-failure handling is both a safety mechanism (recover from real ECC errors) and an attack-shaped API (MADV_HWPOISON lets users mark their own pages bad). Grsec emphasis: gate every synthetic poison/unpoison path behind CAP_SYS_ADMIN, hide PFN-level disclosure behind GRKERNSEC_PROC so the unprivileged attacker cannot infer kernel layout from poison counters, and treat kernel-page poison as a non-recoverable event by default.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -596,6 +596,28 @@ Trace-core reinforcement:
 - **Per-`tr.ref` strict get/put balanced** — defense against per-instance-UAF on rmdir-race.
 - **Per-`saved_func`/`ops->func` distinct copies** — defense against per-pid-filter mutating live func.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — tracefs `write` paths copy command lines (`set_ftrace_filter`, `trace_marker`) through size-bounded slab whitelists; `trace_marker_raw` enforces `TRACE_BUF_SIZE` upper bound on every copy.
+- **PAX_KERNEXEC** — `trace_event_call->probe` callbacks live in `.text`; W^X enforced by static-call patching.
+- **PAX_RANDKSTACK** — re-randomized per syscall entry to tracefs.
+- **PAX_REFCOUNT** — `trace_array.ref`, `trace_event_file.flags` user-counter and `tracer->ref` saturate.
+- **PAX_MEMORY_SANITIZE** — `trace_array` slab freed via call-RCU with zero-on-free.
+- **PAX_UDEREF** — tracefs reads/writes only via `copy_from/to_user`.
+- **PAX_RAP / kCFI** — tracer's `init/reset/start/stop/print_line` op-table type-tagged.
+- **GRKERNSEC_HIDESYM** — tracefs file ops (`tracing_open_file_tr` etc.) hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — `WARN_ONCE` inside `trace.c` gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **tracefs CAP_SYS_ADMIN** — `tracefs_create_file` permission mask is `0644` for root only; opens of `set_ftrace_filter`, `current_tracer`, `set_event` and per-instance equivalents require CAP_SYS_ADMIN in the initial userns. Userns CAP_SYS_ADMIN explicitly insufficient under GRKERNSEC_FTRACE strict.
+- **trace_event filter validation** — `apply_subsystem_event_filter` / `create_filter` walk the parsed predicate AST validating field offsets against the event's `trace_event_fields[]` table; out-of-range or type-mismatched comparisons rejected with `-EINVAL` before commit, preventing OOB-read via crafted filter string.
+- **Instance lifecycle (`tr->ref`)** — `instance_rmdir` waits for `tr->ref == 0`; PAX_REFCOUNT saturation prevents underflow that would race-free a live instance and produce UAF on concurrent `trace_pipe` reader.
+- **`saved_func` distinct copy** — `set_ftrace_pid` updates a side `saved_func` rather than mutating the live `ops->func`; flip is via static-call swap atomically.
+- **Rationale** — `trace.c` is the front door to ftrace/tracefs; capability gating + filter-AST validation + refcounted instance lifecycle collapse the historical "write a filter, get a kernel read primitive" and "rmdir-during-read UAF" classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -497,6 +497,28 @@ rhashtable reinforcement:
 - **Per-lockdep_rht_mutex_is_held / per-bucket lockdep** — defense against per-incorrect-lock-class deadlock.
 - **Per-rht_grow_above_max ENOSPC** — defense against per-OOM via attacker insertion flood.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — rhashtable itself does no user copies; embedded payloads (e.g. netlink, conntrack) traverse owner's whitelist.
+- **PAX_KERNEXEC** — no writable text; `rht_hashfn` / `obj_hashfn` reside in `.text`.
+- **PAX_RANDKSTACK** — caller's syscall entry randomizes stack base.
+- **PAX_REFCOUNT** — `rhashtable.nelems` (atomic_t) saturates rather than wraps.
+- **PAX_MEMORY_SANITIZE** — `bucket_table` and `rhash_head` slabs zero-on-free.
+- **PAX_UDEREF** — no user-pointer deref.
+- **PAX_RAP / kCFI** — `rhashtable_params.hashfn`, `.obj_hashfn`, `.obj_cmpfn` type-tagged.
+- **GRKERNSEC_HIDESYM** — `rht_*`, `__rhashtable_*` hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — `WARN_ON(rht_dereference_protected)` gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **Resizable hashtable with two-table rehash** — `rhashtable_rehash_chain` walks the old table moving entries into a new larger/smaller table; both tables visible during rehash via `rht_for_each` reading the `future_tbl` pointer; PaX asserts `rht_dereference` callsites hold either the bucket lock or RCU read-side, preventing torn-pointer reads during the swap.
+- **`rht_grow_above_max` ENOSPC** — `params.max_size` clamp returns `-ENOMEM` on insert flood; PaX additionally bumps a per-namespace counter so audit can correlate rhashtable-DoS attempts.
+- **`SipHash`-derived `hashfn` by default** — `siphash` keyed with a per-table boot-random secret; defeats algorithmic complexity attacks where an attacker crafts colliding inputs to degrade O(1) lookup to O(n).
+- **Per-bucket lockdep** — `lockdep_rht_mutex_is_held` / per-bucket lockdep classes catch cross-bucket lock-order violations under concurrent rehash + insert.
+- **Rationale** — rhashtable underpins netfilter conntrack, netlink sockets, nft sets, BPF maps; all of these face attacker-controlled keys. SipHash + max_size clamp + atomic two-table rehash + per-bucket lockdep collapse algorithmic-complexity DoS and the rehash-race UAF.
+
 ## Open Questions
 
 (none at this Tier-3 level)

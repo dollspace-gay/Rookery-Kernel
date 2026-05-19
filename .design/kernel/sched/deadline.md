@@ -185,6 +185,22 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `sched_attr` copies for `sched_setattr`/`getattr` bounds-checked at the user boundary; no `sched_dl_entity` slab leakage via short reads.
+- **PAX_KERNEXEC** — `dl_sched_class` vtable resides in read-only W^X kernel text; `enqueue_task_dl` / `task_tick_dl` cannot be patched live.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so DL admission grooming via repeated `sched_setattr` cannot exploit predictable stack layout.
+- **PAX_REFCOUNT** — `dl_bw` total-bandwidth counter and `dl_rq->dl_nr_running` use saturating refcount; admission overflow oopses rather than silently over-admits.
+- **PAX_MEMORY_SANITIZE** — freed `task_struct` DL fields (`dl_se`) scrubbed so a reused task slot cannot inherit stale `dl_runtime`/`dl_deadline`.
+- **PAX_UDEREF** — DL bandwidth control reads cgroup attributes via kernel mappings only; no implicit user-page reach during admission.
+- **PAX_RAP / kCFI** — `sched_class` function-pointer set type-signatured; mismatched `pick_next_task_dl`/`task_fork_dl` signature is a hard CFI fault.
+- **GRKERNSEC_HIDESYM** — `dl_bw`, `dl_rq`, and rb-tree internal addresses hidden from `/proc/kallsyms` and dmesg leaks.
+- **GRKERNSEC_DMESG** — DL admission rejection / overrun WARN backtraces gated to CAP_SYSLOG.
+- **SCHED_DEADLINE CAP_SYS_NICE** — switching a task into `SCHED_DEADLINE` and tightening `dl_runtime`/`dl_period` requires CAP_SYS_NICE so unprivileged users cannot starve `SCHED_OTHER`.
+- **Admission control bounded** — total `dl_bw` per root domain capped at `sched_rt_runtime_us / sched_rt_period_us`-derived ceiling; PAX_REFCOUNT keeps the running sum from wrapping under hostile `sched_setattr` flooding.
+- **DL_OVERRUN signal** — `SIGXCPU` (or DL_OVERRUN-flagged SIGXCPU) raised through the standard `send_signal` path so overrun handling cannot be redirected; signal_struct refcounted under PAX_REFCOUNT.
+- **Rationale** — `SCHED_DEADLINE` directly controls CPU time and IRQ-context preemption; an attacker who can corrupt admission, the EDF rb-tree, or the bandwidth accumulator can starve the system or escalate into kernel-mode redirection. Grsec/PaX hardening enforces that even root must traverse capability, refcount, and CFI gates before influencing the deadline class.
+
 ## Open Questions
 
 (none — SCHED_DEADLINE semantics are exhaustively specified by upstream + the underlying EDF/CBS literature)

@@ -264,6 +264,31 @@ Per-CPU allocator reinforcement:
 - **Per-page->private = chunk** — defense against per-page misattribution.
 - **Per-free-balance re-link to slot** — defense against per-fragmented chunk lookup-fail.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to the per-CPU allocator (`alloc_percpu` / `free_percpu`):
+
+- **PAX_USERCOPY** — per-CPU areas hold kernel-only state; no user-copy path.
+- **PAX_KERNEXEC** — `pcpu_alloc`, `pcpu_free`, `pcpu_balance_work` reside in `.rodata`.
+- **PAX_RANDKSTACK** — percpu allocator entered with randomized kernel stack offset on syscall paths.
+- **PAX_REFCOUNT** — chunk refcounts and `pcpu_nr_populated` use saturating refcount_t; an unbalanced alloc/free traps before chunk-list corruption.
+- **PAX_MEMORY_SANITIZE** — freed per-CPU slots zeroed before they re-enter the slot free-list, preventing leak of one subsystem's per-CPU state into the next consumer.
+- **PAX_UDEREF** — `this_cpu_*` operations are kernel-internal; never indexed by user-supplied values.
+- **PAX_RAP / kCFI** — `pcpu_alloc` callbacks (page-allocator backing, vmalloc backing) dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — per-CPU chunk and offset addresses redacted from non-root WARN output.
+- **GRKERNSEC_DMESG** — chunk-balance / OOM-on-percpu warnings restricted from unprivileged dmesg.
+
+percpu-specific reinforcement:
+
+- **Per-CPU allocator PAX_REFCOUNT** — `chunk->nr_populated` and chunk slot occupancy use saturating semantics so a double-`free_percpu` cannot wrap a chunk into a "fully free" state while still pinned.
+- **Alloc/free integrity** — `pcpu_chunk_addr_search` validates that a freed pointer lies inside an existing chunk; out-of-range frees are rejected before they corrupt the chunk free-list.
+- **Reserved chunk only for module load** — the reserved percpu chunk is consumed only during early module init; runtime allocations cannot drain the reserve and starve module loading.
+- **`this_cpu_*` macros preempt-safe** — wrap-around to the right CPU's offset is enforced; a preempted access cannot land on a different CPU's slot.
+- **`page->private = chunk`** — back-pointer from page to its owning chunk validated on free; cross-chunk free attempts are refused.
+- **Balance work periodic** — leaked chunks are reclaimed by the balance worker so a slow leak cannot turn into an unbounded percpu OOM.
+
+Rationale: the percpu allocator backs critical kernel state (sched, cgroup, network); a refcount underflow or cross-chunk free becomes a kernel-wide write primitive. The above keep percpu chunks attestable, refcount-safe, and immune to cross-CPU slot confusion.
+
 ## Open Questions
 
 (none at this Tier-3 level)

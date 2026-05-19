@@ -508,6 +508,30 @@ GUP reinforcement:
 - **Per-fast-walk irq-disabled** — defense against per-RCU-table-free / per-TLB-IPI race on page-table pages.
 - **Per-FOLL_HONOR_NUMA_FAULT respect** — defense against per-NUMA-hinting-fault-while-pinning correctness drift.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — get_user_pages output array boundary-checked; pinned-page-to-user copy path enforces whitelist slab provenance.
+- **PAX_KERNEXEC** — gup walker function tables (gup_pte_range, gup_huge_pmd) W^X; vtable corruption refused.
+- **PAX_RANDKSTACK** — pin_user_pages / get_user_pages entry stack randomized per-call.
+- **PAX_REFCOUNT** — folio _refcount and _pincount both saturating; pin overflow traps before wrap allows freed-page reuse.
+- **PAX_MEMORY_SANITIZE** — unpin_user_pages path participates in zero-on-free for the pin-only lifetime when SetPageDirty not set.
+- **PAX_UDEREF** — user-supplied start/nr_pages range-checked against TASK_SIZE before walker enters; %gs/%fs strict.
+- **PAX_RAP / kCFI** — follow_page / gup-fast slow-fallback indirect dispatch type-tagged; mismatched fault handler refused.
+- **GRKERNSEC_HIDESYM** — `get_user_pages`, `pin_user_pages_fast`, `__get_user_pages` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — gup_must_unshare / pin-mismatch WARN backtraces redacted from dmesg for non-CAP_SYSLOG.
+
+GUP-specific reinforcements:
+
+- **FOLL_LONGTERM requires CAP_IPC_LOCK or RLIMIT_MEMLOCK accounting** — unprivileged long-term pinning bounded by mlock budget; CAP_IPC_LOCK bypasses the budget but is auditable.
+- **FOLL_PIN refcount saturation** — page_maybe_dma_pinned() uses GUP_PIN_COUNTING_BIAS arithmetic with PAX_REFCOUNT trap on overflow before bias is breached.
+- **COW-trigger validation (gup_must_unshare)** — anon shared-via-fork page forced through COW before pin returns, preventing the CVE-2020-29368-class class.
+- **VM_IO / VM_PFNMAP / secretmem hard reject** — driver MMIO and secretmem pages never returned through GUP regardless of FOLL_FORCE.
+- **Fast-path IRQ-disabled walker** — protects against concurrent page-table teardown / TLB shootdown IPI; fallback to slow path on irq_disable failure.
+
+Rationale: GUP is the kernel's primary way of materialising "user memory pinned for kernel use" — pinned pages bypass the normal page-fault contract, so every refcount, COW, and migration interaction is a potential UAF or shared-memory disclosure. Grsec emphasis: saturate both refcount and pincount, treat FOLL_LONGTERM as a capability-class action with mlock accounting, and reject VM_IO/secretmem absolutely so GUP cannot become a backdoor into device memory or sealed-secret VMAs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

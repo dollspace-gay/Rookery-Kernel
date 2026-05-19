@@ -203,6 +203,21 @@ Idle reinforcement:
 - **Per-play_idle test-only** — defense against per-prod idle-inject.
 - **Per-sysfs CAP_SYS_ADMIN for governor change** — defense against unprivileged power-policy.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — cpuidle sysfs attribute reads/writes bounds-checked; no `cpuidle_state` slab leakage via short reads of `/sys/devices/system/cpu/cpuX/cpuidle/`.
+- **PAX_KERNEXEC** — `cpuidle_driver->enter` and per-state `enter` callbacks reside in W^X kernel text; mwait/halt entry cannot be redirected mid-boot.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so idle-injection / `play_idle` paths cannot be groomed via predictable stack alignment.
+- **PAX_REFCOUNT** — `cpuidle_driver_ref`, governor registration count, and `cpuidle_curr_governor` use saturating refcount; underflow on driver unload oopses.
+- **PAX_MEMORY_SANITIZE** — freed `cpuidle_state_usage` per-CPU buffers scrubbed so post-CPU-hotplug reuse cannot leak prior idle-residency statistics.
+- **PAX_UDEREF** — cpuidle governor decisions read sched/PM state via kernel mappings only; no implicit user-page reach during `cpuidle_select`.
+- **PAX_RAP / kCFI** — `cpuidle_governor->select` and `cpuidle_driver->enter` function pointers type-signatured; mismatched signature is a hard CFI fault.
+- **GRKERNSEC_HIDESYM** — `cpuidle_driver` and per-CPU `cpuidle_dev` addresses hidden from `/proc/kallsyms` and dmesg leak paths.
+- **GRKERNSEC_DMESG** — cpuidle WARN splats (mwait validation, broken state table) gated to CAP_SYSLOG.
+- **cpuidle governor PAX_RAP** — `menu_select` / `teo_select` / `ladder_select` dispatched through CFI-checked pointer; an attacker cannot swap in a governor that returns attacker-chosen state indices.
+- **mwait/halt validation** — `mwait_idle_with_hints` argument range checked; PAX_KERNEXEC guarantees the inline-asm trampoline is RX-only, blocking SMM-confused-deputy patterns.
+- **Rationale** — idle is the dominant CPU mode on most systems and has direct hardware-level control (mwait hints, C-state entry, PM transitions). A corrupted governor or `enter` callback is effectively kernel-mode code-execution gated by C-state entry; hardening these paths under grsec/PaX denies the entire "idle-as-primitive" class.
+
 ## Open Questions
 
 (none at this Tier-3 level)

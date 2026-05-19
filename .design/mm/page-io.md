@@ -477,6 +477,32 @@ Page-IO reinforcement:
 - **Per-zswap writeback gate via mem_cgroup_zswap_writeback_enabled** — defense against per-cgroup-policy bypass.
 - **Per-arch_prepare_to_swap pre-IO hook** — defense against per-arch-state-loss (e.g. ARMv8 MTE tags) on swap-out.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to swap / zswap page-IO:
+
+- **PAX_USERCOPY** — swap IO is bio-based, kernel-page to block-device; no `copy_to_user` involved.
+- **PAX_KERNEXEC** — `swap_writepage`, `swap_readpage`, `swap_writepage_bdev_sync` reside in `.rodata`.
+- **PAX_RANDKSTACK** — swap reclaim path entered from `shrink_folio_list` with randomized kernel stack offset.
+- **PAX_REFCOUNT** — `swap_info_struct->users` and per-swap-entry counts use saturating refcount semantics; double-`put_swap_device` traps.
+- **PAX_MEMORY_SANITIZE** — folios released back from swap-cache wiped before re-entering buddy/slab.
+- **PAX_UDEREF** — swap IO touches kernel folio pages exclusively; user dereferences only happen on the fault-in path through PTE installation.
+- **PAX_RAP / kCFI** — `address_space_operations->writepage` / `swap_aops` dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — swap-cache and bio kernel addresses redacted in non-root WARNs.
+- **GRKERNSEC_DMESG** — swap-IO failure / hole-rejection messages restricted from unprivileged dmesg.
+
+page-io-specific reinforcement:
+
+- **`swap_writepage` encryption-at-rest** — when CONFIG_FS_ENCRYPTION_SWAP is enabled, swap pages are AEAD-encrypted with a per-boot ephemeral key before they hit the block device; a captured swap partition cannot be replayed.
+- **zswap PAX_MEMORY_SANITIZE** — zswap-compressed entries are sanitized on eviction and the underlying compressed buffer wiped before slab return.
+- **`SWAP_CLUSTER_MAX` batch cap** — per-bio plug growth bounded so a single reclaim cannot pin unbounded swap-out submission.
+- **`swap_writepage_bdev_sync` on-stack bio** — the OOM-time write path uses an on-stack bio to avoid `bio_alloc` during reclaim, preventing OOM-during-OOM.
+- **`generic_swapfile_activate` hole rejection** — non-contiguous swapfiles are refused with `-EINVAL`, preventing on-disk-slot-mapping corruption.
+- **zswap writeback memcg gate** — `mem_cgroup_zswap_writeback_enabled` is honored so a cgroup with zswap-writeback disabled cannot be bypassed by a sibling.
+- **`arch_prepare_to_swap` pre-IO hook** — per-arch state (ARM64 MTE tags) saved before swap-out so the page returns with its tag identity intact.
+
+Rationale: swap IO crosses the user/kernel persistence boundary; the above keep that boundary type-checked, refcount-safe, sanitized, encrypted-at-rest where configured, and immune to OOM-during-OOM allocation failures.
+
 ## Open Questions
 
 (none at this Tier-3 level)

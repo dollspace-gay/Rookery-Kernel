@@ -496,6 +496,31 @@ Page-isolation reinforcement:
 - **Per-RCU/online checks via `pfn_to_online_page`** — defense against per-isolating-pfn-of-just-removed-section UAF.
 - **Per-`zone->nr_isolate_pageblock` accounted** — defense against per-allocator misbehavior when freepages cross migratetype boundaries.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to pageblock isolation (CMA, memory-hotplug, alloc_contig):
+
+- **PAX_USERCOPY** — page-isolation never copies to userspace; it manipulates pageblock migratetype only.
+- **PAX_KERNEXEC** — `start_isolate_page_range`, `undo_isolate_page_range`, `has_unmovable_pages` reside in `.rodata`.
+- **PAX_RANDKSTACK** — alloc_contig / hotplug-offline entry randomized stack offset.
+- **PAX_REFCOUNT** — `zone->nr_isolate_pageblock` uses saturating semantics so an unbalanced isolate/undo cannot wrap into a free-page leak.
+- **PAX_MEMORY_SANITIZE** — pages drained off isolated pageblocks are sanitized before the pageblock is reassigned a new migratetype.
+- **PAX_UDEREF** — PFN→page resolution goes through `pfn_to_online_page`; offlined sections are refused, preventing a UAF on a just-removed memmap.
+- **PAX_RAP / kCFI** — isolation callbacks (`isolate_movable_folio`, `migrate_folio`) dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — pageblock / folio kernel addresses redacted from non-root WARNs.
+- **GRKERNSEC_DMESG** — `dump_page` from unmovable-probe rate-limited and dmesg-restricted.
+
+page-isolation-specific reinforcement:
+
+- **MIGRATE_ISOLATE strict** — pageblocks marked ISOLATE are excluded from buddy merging; a freed page in an isolated block cannot satisfy a downstream allocation, preserving the CMA / hotplug invariant.
+- **`has_unmovable_pages` probe** — before commit, the range is scanned for unmovable refs (slab, hugetlb-not-migratable, reserved); a probe failure aborts isolation rather than half-isolating.
+- **`pfn_to_online_page` RCU/online checks** — concurrent hotplug-remove cannot race isolation into deref'ing a freed memmap.
+- **Boundary buddy-split via `pageblock_isolate_and_move_free_pages`** — cross-pageblock buddies are split so isolated free pages cannot leak into adjacent migratetypes during accounting.
+- **`accept_page` before set on `PageUnaccepted`** — TDX / SEV-SNP unaccepted-memory pages are accepted before isolation, preventing pre-accept enumeration.
+- **`dump_page` outside `zone->lock`** — diagnostic dumps never happen while holding the zone lock, eliminating a printk-while-locked deadlock that would otherwise be exploitable.
+
+Rationale: page-isolation is the primitive that promises "this range is quiescent and migrateable"; if that promise is broken, CMA fails and hotplug-offline corrupts the memmap. The above ensure isolation is atomic, refcount-safe, dump-safe, and TDX/SEV-aware.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -737,6 +737,28 @@ ftrace-specific reinforcement:
 - **Per-`ftrace_rec_count` capped at `FTRACE_REF_MAX`** — defense against per-refcount-overflow flag corruption.
 - **Per-pid-list RCU update + per-cpu `ftrace_ignore_pid` cache** — defense against per-pid-filter race observing torn list.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — `/sys/kernel/tracing/*` write buffers validated against slab whitelists.
+- **PAX_KERNEXEC** — ftrace's runtime text patching (`ftrace_modify_code`) explicitly transitions the affected page to RW, patches, then restores RX; no permanent W+X mapping exists.
+- **PAX_RANDKSTACK** — re-randomized on syscall entry to tracefs files.
+- **PAX_REFCOUNT** — `ftrace_ops->trampoline_size`, `ftrace_rec_count` and `dyn_ftrace.flags` refcount lanes saturate, never wrap.
+- **PAX_MEMORY_SANITIZE** — freed `dyn_ftrace` records and trampoline pages zeroed before reuse.
+- **PAX_UDEREF** — tracefs read/write paths use `copy_to/from_user` exclusively; SMAP/PAN enforced.
+- **PAX_RAP / kCFI** — `ftrace_func_t` callbacks and `ftrace_ops->func` indirect calls type-tagged; live-patched trampolines validated against the CFI tag table.
+- **GRKERNSEC_HIDESYM** — function names hidden from non-CAP_SYSLOG readers of `/proc/kallsyms`; ftrace's `available_filter_functions` correspondingly gated.
+- **GRKERNSEC_DMESG** — ftrace `BUG()` / `FTRACE_WARN_ON` messages gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **GRKERNSEC_FTRACE strict mode** — when set, all of `/sys/kernel/tracing/`, `/sys/kernel/debug/tracing/` and `/proc/sys/kernel/ftrace_enabled` reject write access unconditionally even from CAP_SYS_ADMIN within a non-init userns; only an initramfs-time bring-up window may configure tracing.
+- **CAP_SYS_ADMIN for tracefs** — opens of `tracefs` require CAP_SYS_ADMIN in the initial userns; userns CAP_SYS_ADMIN insufficient. Mount option `gid=` honored but bounded by `securityfs_mount`'s parent capset.
+- **ftrace text-poke W^X** — `ftrace_arch_code_modify_prepare/post_process` use `text_mutex` + `stop_machine` and explicit `set_memory_rw`/`set_memory_ro` flips; KAISER/KPTI shadow mapping kept RX-only. PaX additionally forbids text-poke from non-init namespaces.
+- **Trampoline allocation** — `arch_ftrace_update_trampoline` allocates from a per-ops module space; PaX places these in a vmalloc range that participates in PAX_KERNEXEC and is invisible to `/proc/kcore` under HIDESYM.
+- **Rationale** — ftrace is one of the most powerful in-kernel primitives: an attacker with write access to its control files can redirect arbitrary kernel call sites. Strict mode + capability tightening + W^X discipline collapse the attack surface to a boot-time configuration window.
+
 ## Open Questions
 
 (none at this Tier-3 level)

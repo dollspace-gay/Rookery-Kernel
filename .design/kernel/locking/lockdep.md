@@ -589,6 +589,28 @@ Lockdep reinforcement:
 - **Per-print_lockdep_off + dump_stack on first bug** — defense against silent corruption (preserves forensic record).
 - **Per-pending_free RCU-deferred zap** — defense against per-class-free use-after-free.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **lock_class_key under PAX_RAP** — static keys treated as code-pointer-adjacent metadata; tampered keys fail signature check before being installed into the class hash.
+- **lockdep_init_map call sites** — indirect calls into per-class init helpers carry kCFI signatures matching `lockdep_init_map_type`.
+- **Class hash table bounds** — `classhash_table` index masking validated against `CLASSHASH_SIZE` to prevent OOB read during PAX_UDEREF transitions.
+- **Chain hash collision dump** — chain hash dump in /proc gated by GRKERNSEC_HIDESYM so `class->key` pointers are sanitized.
+- **lockdep_off/on counters** — per-task `lockdep_recursion` under PAX_REFCOUNT saturating semantics; runaway recursion saturates rather than wraps.
+- **Pending-free RCU callback** — `free_zapped_classes` invocation carries PAX_RAP signature; mismatched callback aborts before touching the class array.
+
+Per-doc rationale: lockdep's class keys, chain hashes, and per-task recursion counters are high-value targets for an attacker seeking either silent disablement of all kernel deadlock checking or a controllable indirect-call gadget through the class-zap RCU path. PaX_RAP/kCFI on key-init and callback paths, plus PAX_REFCOUNT on the recursion counters, close those gadgets while GRKERNSEC_HIDESYM keeps the class pointers themselves out of debugfs and /proc leaks.
+
 ## Open Questions
 
 (none at this Tier-3 level)

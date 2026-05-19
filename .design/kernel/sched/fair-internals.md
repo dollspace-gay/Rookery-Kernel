@@ -587,6 +587,22 @@ CFS / EEVDF C-internals reinforcement:
 - **Per-`set_protect_slice`/`protect_slice`** — defense against per-pathological wake-preempt-thrash.
 - **Per-`assert_list_leaf_cfs_rq`** — defense against per-broken cfs_rq leaf list during cgroup churn.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — sched_attr / sched_stat copies through procfs and sysfs are bounds-checked; no `sched_entity` slab leakage on `/proc/<pid>/sched`.
+- **PAX_KERNEXEC** — `fair_sched_class` vtable resides in W^X kernel text; `enqueue_task_fair`/`pick_next_task_fair` cannot be live-patched at runtime.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so EEVDF lag-grooming attacks via repeated wake/sleep cycles cannot use predictable stack alignment.
+- **PAX_REFCOUNT** — `cfs_rq->nr_running`, `tg->load_avg`, and `cfs_bandwidth->throttled_cfs_rq` counters use saturating refcount; under/overflow oopses instead of corrupting fairness.
+- **PAX_MEMORY_SANITIZE** — freed `sched_entity` and `task_group` slabs scrubbed so a reused entity cannot inherit stale `vruntime`/`vlag`/`slice`.
+- **PAX_UDEREF** — `cgroup_subsys_state` traversal stays in kernel mappings; no implicit user-page reach during fair-class hierarchy walks.
+- **PAX_RAP / kCFI** — `sched_class` function pointers (`enqueue_task`, `dequeue_task`, `pick_next_task`, `task_tick`, `task_fork`) type-signatured; mismatched signature is a hard CFI fault before dispatch.
+- **GRKERNSEC_HIDESYM** — `cfs_rq`, `rq`, and `task_group` symbol addresses hidden from `/proc/kallsyms` and dmesg side-channels.
+- **GRKERNSEC_DMESG** — fair-class WARN_ON splats (negative vruntime, broken cfs_rq leaf list) gated to CAP_SYSLOG.
+- **EEVDF math integrity** — vruntime / vlag / `entity_eligible` arithmetic clamped via `WARN_ON_ONCE(s64 overflow)`; PAX_REFCOUNT prevents weight-sum wrap that would invert "eligible" decisions.
+- **sched_class vtable PAX_RAP** — picking the next fair task dispatches through a CFI-checked pointer; an attacker cannot rewrite `pick_next_task_fair` to a userspace gadget address.
+- **cgroup nesting bounded** — `MAX_NESTED_LEVELS` enforced on `task_group` parent chains; PAX_USERCOPY ensures attribute writes from `cpu.shares` / `cpu.weight` validate caller credentials before mutating hierarchy.
+- **Rationale** — the fair scheduler is the default class for every userspace task; its rb-tree, EEVDF eligibility, and PELT-driven load are touched on every context switch. Hardening it under grsec/PaX is what prevents "wake-storm" or "cgroup nesting" tricks from corrupting the runqueue into a kernel-mode primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

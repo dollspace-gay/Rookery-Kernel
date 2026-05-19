@@ -552,6 +552,30 @@ DMA-pool reinforcement:
 - **Per-mem_flags & ~__GFP_ZERO for page alloc** — defense against per-double-zero / per-coherent-zero-uselessness.
 - **Per-zone-aware kmalloc_node + dma_alloc_coherent on pool.node** — defense against per-cross-NUMA cacheline pingpong.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — DMA-coherent buffers never copied across user boundary directly; whitelist enforced on adjacent metadata slabs.
+- **PAX_KERNEXEC** — dma_pool descriptor list head and per-page metadata in W^X kernel data.
+- **PAX_RANDKSTACK** — dma_pool_alloc / dma_pool_free entry randomized; predictable stack layout for DMA-completion paths prevented.
+- **PAX_REFCOUNT** — pool refcount and per-page in_use counter saturate; destroy-of-busy-pool refuses rather than free-while-used.
+- **PAX_MEMORY_SANITIZE** — POOL_POISON_FREED/_ALLOCATED extended to production builds (lightweight); released buffers zero-poisoned before reuse.
+- **PAX_UDEREF** — pool name and size args from drivers boundary-checked before strscpy / list insertion.
+- **PAX_RAP / kCFI** — dma_pool_create / dma_pool_destroy callbacks type-tagged; mismatched managed-pool devres callback refused.
+- **GRKERNSEC_HIDESYM** — `dma_pool_alloc`, `dma_pool_free`, `pools_lock` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — pool_block_err / busy-on-destroy WARN traces redacted from dmesg for non-CAP_SYSLOG.
+
+DMA-pool-specific reinforcements:
+
+- **Per-page in_use saturating refcount** — block alloc/free arithmetic uses cmpxchg trap; under/overflow on free path blocks corruption.
+- **Free-list integrity (next_block pointer)** — every free-list link verified within page bounds before dereference; OOB next-block traps under PAX_USERCOPY.
+- **DMA-coherent region pinned across pool lifetime** — busy-pool destroy refused; coherent regions never freed while peripheral may still DMA.
+- **Poison-marker check on alloc-from-freelist** — POOL_POISON_FREED pattern verified before handoff; write-after-free detected at allocation.
+- **align/size/boundary validated pre-create** — non-power-of-two align, size > INT_MAX, boundary < size all rejected before any allocation.
+
+Rationale: DMA pools hand bus-addressable coherent memory to peripherals; a refcount underflow lets a free'd buffer be reallocated while a NIC/disk continues DMA writes — a classic DMA-after-free escalation. Grsec emphasis: saturate refcounts, validate free-list links so a corrupted next_block cannot redirect a future alloc onto arbitrary kernel memory, and refuse busy-pool destruction outright.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -400,6 +400,30 @@ XArray reinforcement:
 - **Per-xa_head NULL singleton for empty xarray** — defense against per-spurious-allocation on read-only use.
 - **Per-XA_BUG_ON debug asserts compile-out in production** — defense against per-debug-bloat in hot path.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — XArray internal nodes never copied across user boundary; whitelist-only slab caches.
+- **PAX_KERNEXEC** — xa_node allocation pages W^X; xops dispatch via read-only function tables.
+- **PAX_RANDKSTACK** — xas_load / xas_store recursive descent randomized per syscall entry.
+- **PAX_REFCOUNT** — xa_node->count saturating; cmpxchg trap on overflow prevents UAF-via-wraparound.
+- **PAX_MEMORY_SANITIZE** — xa_node freed slabs zero-poisoned; XA_ZERO sentinel never aliased to stale data.
+- **PAX_UDEREF** — xas user-supplied indices range-checked before pointer arithmetic; %gs/%fs strict.
+- **PAX_RAP / kCFI** — xa_lock/xa_unlock indirect calls type-tagged; xops fn-pointer mismatch faults.
+- **GRKERNSEC_HIDESYM** — xarray internals (`xas_descend`, `xa_node`) absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — xa_dump / XA_BUG_ON trace lines redacted from dmesg for non-CAP_SYSLOG.
+
+XArray-specific reinforcements:
+
+- **Atomic xa_store under xa_lock** — store path serialized; RCU readers see fully-published nodes only, no half-initialized slot races.
+- **Mark-bit validation** — mark indices 0..XA_MAX_MARKS-1 enforced; out-of-range mark requests rejected pre-traversal.
+- **xas_pause cookie validated on resume** — stale xa_state after lock drop refuses to re-descend, forcing fresh root walk.
+- **XA_FLAGS_ALLOC ID-uniqueness invariant** — duplicate-id allocation traps under PAX_REFCOUNT before publication.
+- **Sibling-marker (xa_mk_sibling) never escapes internal API** — caller-visible entries always concrete values or XA_ZERO.
+
+Rationale: XArray is a foundational data structure used across VFS, IDR, page cache, and IDA; per-node count overflow, mark-bit OOB, or sibling-marker leakage compromise dozens of subsystems simultaneously. Grsec-style refcount saturation plus PAX_USERCOPY-controlled slab caches localize the blast radius.
+
 ## Open Questions
 
 (none at this Tier-3 level)

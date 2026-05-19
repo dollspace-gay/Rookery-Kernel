@@ -495,6 +495,30 @@ madvise reinforcement:
 - **Per-anon_vma_name kref refcount** — defense against per-name-UAF on concurrent set/clear.
 - **Per-MADV_HWPOISON CAP_SYS_ADMIN** — defense against per-unprivileged-page-corruption injection.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — madvise() does not move user data; anon_vma_name strscpy bounded slab path validated.
+- **PAX_KERNEXEC** — per-advice dispatch table read-only post-init; behavior-to-handler function pointers W^X.
+- **PAX_RANDKSTACK** — madvise / process_madvise syscall entry randomized per call.
+- **PAX_REFCOUNT** — anon_vma_name kref saturates; concurrent set/clear cannot underflow into UAF.
+- **PAX_MEMORY_SANITIZE** — MADV_DONTNEED / MADV_FREE / MADV_REMOVE zap paths integrate with sanitize: pages released to buddy are zero-poisoned.
+- **PAX_UDEREF** — start/len arguments range-checked against TASK_SIZE before any VMA walk.
+- **PAX_RAP / kCFI** — per-advice op-table entries type-tagged; mismatched handler/argument profile refused.
+- **GRKERNSEC_HIDESYM** — `do_madvise`, `madvise_vma_behavior`, `process_madvise` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — madvise WARN_ON / VM_BUG_ON_VMA traces redacted from dmesg for non-CAP_SYSLOG.
+
+madvise-specific reinforcements:
+
+- **Per-advice capability gating** — destructive advices route through capability checks: MADV_HWPOISON / MADV_SOFT_OFFLINE require CAP_SYS_ADMIN; MADV_COLLAPSE under CAP_SYS_NICE (via khugepaged path); process_madvise requires CAP_SYS_NICE + PTRACE_MODE_READ_FSCREDS plus a remote allow-list that excludes destructive advices.
+- **MADV_DONTNEED bounded by VMA extent** — start/len clamped to vma extent under mmap_read_lock; mmu_gather batched flush ensures no stale-TLB window after PTE clear.
+- **MADV_WIPEONFORK anon-only enforcement** — file-backed VMAs refused so shared file pages cannot be wiped via fork().
+- **mseal-aware can_madvise_modify** — sealed VMAs refuse destructive advices regardless of capability; mseal is a hard boundary.
+- **anon_vma_name input strict** — ANON_VMA_NAME_INVALID_CHARS rejects format-injection chars before name reaches /proc/<pid>/maps display.
+
+Rationale: madvise() is the kernel's "trust the caller's hint about their own memory" API — but several advice values are destructive (DONTNEED/FREE/REMOVE/HWPOISON) and process_madvise extends those to other processes. Grsec emphasis: every destructive advice is capability-gated, every cross-process advice goes through PTRACE_MODE_READ_FSCREDS, and MADV_DONTNEED is strictly bounded to prevent it from being repurposed as an oracle for kernel internal state.
+
 ## Open Questions
 
 (none at this Tier-3 level)

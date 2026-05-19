@@ -239,6 +239,22 @@ wait-specific reinforcement:
 - **Per-waiter exclusive bit cleared on dequeue** — defense against re-enqueue accidentally inheriting exclusive flag.
 - **Per-waiter func validated as default OR explicit** — defense against attacker-controlled function-pointer in wqe.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `pollfd`/`epoll_event` copies that feed wait_queue plumbing are bounds-checked; no `wait_queue_entry` slab leakage.
+- **PAX_KERNEXEC** — `default_wake_function`, `autoremove_wake_function`, and `__wake_up_common` reside in W^X kernel text; wake callbacks cannot be live-patched.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so `wait_event` loops cannot be groomed via predictable stack layout under contended wake races.
+- **PAX_REFCOUNT** — `wait_queue_head.wq_lock`-protected counts and `completion.done` use saturating refcount; complete_all + complete overflow oopses.
+- **PAX_MEMORY_SANITIZE** — freed `wait_queue_entry` slabs scrubbed so a re-enqueued waiter cannot inherit stale exclusive/flag bits.
+- **PAX_UDEREF** — `wait_queue_head` and `wait_queue_entry` dereferenced via kernel mappings only; no implicit user-page reach during wake.
+- **PAX_RAP / kCFI** — `wait_queue_func_t` callbacks type-signatured; mismatched `func` signature (e.g., attacker-rewritten `wq_entry->func`) is a hard CFI fault.
+- **GRKERNSEC_HIDESYM** — `default_wake_function` address and per-subsystem waitqueue head addresses hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — wait_queue WARN splats (unbalanced add/remove, dangling waiter) gated to CAP_SYSLOG.
+- **wait_queue PAX_REFCOUNT** — `wq_head.head` list operations and `nr_exclusive` counts saturating-refcounted so a UAF on a waitqueue cannot be parlayed into wake-count corruption.
+- **wake-callback PAX_RAP** — `__wake_up_common` dispatches through `curr->func(curr, mode, wake_flags, key)` under CFI; attacker-controlled `func` pointer fails the type check before invocation.
+- **autoremove discipline** — `autoremove_wake_function` requires the waiter own the entry; `finish_wait` re-validates `entry->task` under `wq_head->lock` so a racing wake cannot leave a dangling entry on the list.
+- **Rationale** — wait_queue underlies completion, semaphore, mutex slow paths, poll/epoll, and every IRQ→task wakeup; a corrupted `wq_entry->func` is direct kernel-mode code execution in soft-IRQ context. Grsec/PaX hardening makes the wake path the strongest CFI gate in the synchronization stack.
+
 ## Open Questions
 
 (none at this Tier-3 level)

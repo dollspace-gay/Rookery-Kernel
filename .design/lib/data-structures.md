@@ -266,6 +266,28 @@ None beyond what `lib/00-overview.md` already documents (vsprintf %p extensions,
 
 (See § Verification above; consolidated table covers Layers 1–4.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — every helper that ferries bytes between kernel slab and userspace (`hex_dump_to_buffer`, `klist`/`kobject_uevent` env copies) routes through `copy_to/from_user` with slab-cache whitelist tagging.
+- **PAX_KERNEXEC** — collection callbacks (`list_for_each_entry`'s body, `xa_for_each`'s iterator function) reside in `.text`; W^X enforced for any kprobe/livepatch overlay.
+- **PAX_RANDKSTACK** — re-randomized per syscall entry; data-structure helpers inherit a fresh base.
+- **PAX_REFCOUNT** — `klist_node.n_ref`, `kref.refcount`, every counter exposed via `refcount_t` saturates rather than wraps.
+- **PAX_MEMORY_SANITIZE** — slab caches backing list nodes, xarray nodes, hashtable buckets zero-on-free.
+- **PAX_UDEREF** — no helper dereferences user pointers without `copy_*_user`.
+- **PAX_RAP / kCFI** — comparator and iterator callbacks (`list_sort` cmp, `xa_for_each` callback) type-tagged.
+- **GRKERNSEC_HIDESYM** — `__list_add_valid`, `__list_del_entry_valid`, `xa_*` internals hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — `CHECK_DATA_CORRUPTION` / list-debug `WARN`s gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **Foundational types USERCOPY-protected** — `kmem_cache_create_usercopy(...)` used for any cache whose objects (or sub-ranges) are exported to user; `list_head` / `hlist_node` embedded within such objects are kept outside the usercopy whitelist window, preventing OOB reads from leaking adjacent list pointers.
+- **Refcount saturation across the library** — `kref_get` / `refcount_inc` saturate at `INT_MAX` and trap on underflow; lib helpers never silently re-incarnate freed objects.
+- **List poisoning** — `LIST_POISON1` / `LIST_POISON2` placed in unmapped pages; dereferencing a poisoned next/prev faults rather than ranges into userspace (PaX additionally ensures these addresses are blocked from mmap by `mmap_min_addr`).
+- **`CONFIG_DEBUG_LIST` / `CONFIG_DEBUG_PLIST` always on** — corruption checks become BUG() rather than WARN() under grsec.
+- **Rationale** — these foundational collections underpin nearly every subsystem; cheap pervasive hardening (poison, saturation, BUG-on-corruption) eliminates a broad class of exploit primitives at negligible cost.
+
 ## Open Questions
 
 (none — all collections fully scoped against upstream behavior; no architectural ambiguities at this tier)

@@ -247,6 +247,28 @@ timer-specific reinforcement:
 - **timer_migrate per-tmigr-group** — defense against incorrect timer migration target.
 - **schedule_timeout return-value** distinguishes timeout vs signal — defense against caller misinterpretation.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — no direct user copies in timer core; any `timer_list` payload reachable from user must traverse a `usercopy_struct_must_not_be_user` slab whitelist.
+- **PAX_KERNEXEC** — `function` pointer in `struct timer_list` points into `.text`; runtime W^X enforced on the dispatch site (`call_timer_fn`).
+- **PAX_RANDKSTACK** — softirq entry (`TIMER_SOFTIRQ`) re-randomizes per-CPU kernel stack base.
+- **PAX_REFCOUNT** — `tvec_base->running_timer` and lockdep refcount fields saturate; never underflow.
+- **PAX_MEMORY_SANITIZE** — `timer_list` slab caches sanitized on free; defeats heap-spray of stale function pointers.
+- **PAX_UDEREF** — timer callbacks may never `__get_user`/`__put_user` without SMAP/PAN reaffirmation.
+- **PAX_RAP / kCFI** — `void (*function)(struct timer_list *)` callbacks type-tagged at compile time; `call_timer_fn` enforces forward-edge match.
+- **GRKERNSEC_HIDESYM** — `__run_timers`, `expire_timers`, `tmigr_*` symbols hidden from `/proc/kallsyms` without CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — `WARN_ON(timer_pending)` / `TIMER_BUG` messages gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **`timer_list` PAX_RAP type tag** — every `void (*func)(struct timer_list *)` callsite shares a single CFI tag; mismatched indirect call (e.g. attacker overwrote `function` with a syscall entry) traps before `call_timer_fn`.
+- **Callback signature unification** — legacy `setup_timer(fn, data)` removed; only `timer_setup(timer, callback, flags)` accepted, eliminating the `unsigned long data` lane that was a frequent type-confusion primitive.
+- **Deferrable-timer discipline** — `TIMER_DEFERRABLE | TIMER_PINNED | TIMER_IRQSAFE` flags validated at `add_timer`; conflicting combinations rejected with `WARN_ON`, preventing nohz-stall side channels.
+- **`timer_shutdown_sync`** — required before kfree of the embedding object; lockdep + KASAN cross-check that no enqueued timer outlives its memory.
+- **Rationale** — `timer_list.function` is a writable kernel pointer reachable from many subsystem objects; without RAP/kCFI, a single OOB write into a long-lived `timer_list` yields immediate `.text`-relative call-gadget control. Saturating refcounts and shutdown_sync close the parallel UAF lane.
+
 ## Open Questions
 
 (none at this Tier-3 level)

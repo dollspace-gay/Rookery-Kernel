@@ -488,6 +488,31 @@ page_owner reinforcement:
 - **Per-`copy_to_user` after `page_ext_put`** — defense against per-fault-while-holding-page_ext-ref deadlock.
 - **Per-`cond_resched()` in init_pages_in_zone** — defense against per-early-boot soft-lockup on huge zones.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to `page_owner` allocation-tracking infrastructure:
+
+- **PAX_USERCOPY** — `/sys/kernel/debug/page_owner` reads go through `simple_read_from_buffer` with bounded kernel buffer; no direct user-pointer deref.
+- **PAX_KERNEXEC** — `__set_page_owner`, `__reset_page_owner`, debugfs ops reside in `.rodata`.
+- **PAX_RANDKSTACK** — page_owner recording entered from allocator with randomized kernel stack offset.
+- **PAX_REFCOUNT** — stackdepot handle counters use saturating `refcount_t`; a stack-of-record overflow traps instead of wrapping into another caller's handle.
+- **PAX_MEMORY_SANITIZE** — `page_ext` storage zeroed on allocation and on reset so a freed page's prior owner stack is not leaked to its next consumer.
+- **PAX_UDEREF** — page_owner walks kernel page-ext structures only.
+- **PAX_RAP / kCFI** — debugfs `file_operations` and `seq_operations` dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — stack-trace symbols rendered via `%pS` honor `kptr_restrict` so unprivileged readers cannot harvest kernel addresses.
+- **GRKERNSEC_DMESG** — page_owner WARN/dump output gated behind `dmesg_restrict`.
+
+page-owner-specific reinforcement:
+
+- **stackdepot PAX_REFCOUNT** — stackdepot handle refcounts saturate; a recursive alloc-from-stackdepot cycle is bounded so an attacker cannot exhaust the depot through nested fault paths.
+- **`/sys/kernel/debug/page_owner` CAP_SYS_ADMIN** — debugfs node is root-readable only (and only when CONFIG_DEBUG_FS is mounted with the standard permissions); unprivileged users cannot exfiltrate per-page stack traces.
+- **`smp_store_release` / `smp_load_acquire` on stack_list** — torn-list reads avoided; a reader sees a fully-linked entry or none.
+- **`gfpflags_allow_spinning` gate** — `stack_list_add` refuses to take a spin-lock from a non-blocking context, preventing a deadlock that crash-dump readers could exploit to freeze the system.
+- **`gfp_nested_mask` for nested kmalloc** — page_owner's own allocations cannot recurse into reclaim, eliminating an OOM-via-debug loop.
+- **`static_branch_unlikely(page_owner_inited)`** — when disabled, page_owner adds zero hot-path overhead, so an attacker cannot use page_owner being compiled-in as a DoS lever.
+
+Rationale: page_owner is a high-resolution allocator-traceback feature that, if leaked or corrupted, becomes an oracle for kernel layout and a UAF-into-stackdepot primitive. The above keep it root-gated, refcount-safe, and free of reclaim recursion.
+
 ## Open Questions
 
 (none at this Tier-3 level)

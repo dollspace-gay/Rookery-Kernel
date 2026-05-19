@@ -271,6 +271,30 @@ Memcg-specific reinforcement:
 - **Per-MAX_RECLAIM_RETRIES** — defense against per-charge livelock.
 - **Per-task-move (v1) reparent** — defense against per-page-stale-attribution.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — memcg statistics exposed via cgroupfs reads use whitelist slabs; per-cpu counter snapshot copy bounded.
+- **PAX_KERNEXEC** — mem_cgroup vtables and cgroup_subsys ops read-only post-init; charge dispatch table W^X.
+- **PAX_RANDKSTACK** — try_charge / mem_cgroup_charge syscall-adjacent entry-stack randomized.
+- **PAX_REFCOUNT** — mem_cgroup ref, objcg ref, css_set ref all saturate; UAF on race between memcg-offline and last-page-uncharge blocked.
+- **PAX_MEMORY_SANITIZE** — freed mem_cgroup / objcg slabs zero-poisoned; per-memcg per-CPU stat arrays sanitized on free.
+- **PAX_UDEREF** — cgroupfs write inputs (memory.max, memory.high, memory.swap.max) range-validated before commit.
+- **PAX_RAP / kCFI** — mem_cgroup_iter callbacks, OOM notifier function pointers type-tagged.
+- **GRKERNSEC_HIDESYM** — `mem_cgroup_charge`, `try_charge_memcg`, `mem_cgroup_oom_synchronize` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — memcg OOM-killer / charge-failure traces redacted from dmesg for non-CAP_SYSLOG.
+
+memcg-specific reinforcements:
+
+- **Atomic-add-return saturating counters** — page_counter / memcg stat counters use PAX_REFCOUNT semantics; charge wraparound traps before bypassing limit.
+- **Cgroup creation / configuration gated by CAP_SYS_ADMIN** — only cgroup-namespace root or CAP_SYS_ADMIN may mkdir new cgroups and write protection knobs (memory.min / memory.low); attacker cannot create rival memcgs to siphon protection.
+- **OOM-killer accountability** — memcg OOM scope strictly bounded to the offending subtree; host tasks and unrelated cgroups never SIGKILL'd as collateral. oom_score and oom_score_adj inputs validated.
+- **objcg reparent on memcg-die** — objects allocated under a dying memcg are reparented to parent before css_free; saturating refcount enforces all-uncharged invariant before reparent commits.
+- **mem_cgroup_iter RCU-protected against dying memcg** — iterators never enter a memcg already past css_offline; CSS_DYING flag checked before use.
+
+Rationale: memcg is the kernel's primary resource-isolation boundary for containers, and a refcount underflow here either lets a dead cgroup come back to life (UAF) or lets a charge accidentally credit the wrong cgroup (limit-bypass). Grsec emphasis: PAX_REFCOUNT saturation on every counter, CAP_SYS_ADMIN gating on policy knobs, and strict OOM-scope so a noisy-neighbor cannot weaponize memcg OOM against unrelated workloads.
+
 ## Open Questions
 
 (none at this Tier-3 level)

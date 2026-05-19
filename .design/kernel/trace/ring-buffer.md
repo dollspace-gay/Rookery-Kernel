@@ -655,6 +655,28 @@ Ring-buffer reinforcement:
 - **Per-rb_check_pages after disable** — defense against per-corrupted-list undetected.
 - **Per-`__GFP_RETRY_MAYFAIL | __GFP_COMP | __GFP_ZERO` for data pages** — defense against per-uninitialized-leak and per-OOM-cascade.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — `ring_buffer_read_page` / mmap copy paths validate buffer-page boundaries against a slab/page whitelist; oversized straddles refused.
+- **PAX_KERNEXEC** — ring-buffer hot path is pure data manipulation; no executable text in buffer pages, ever (verified by `pageattr` lockdown on RB page pool).
+- **PAX_RANDKSTACK** — softirq / NMI / IRQ entries randomize per-CPU stack base; RB writers (which may run from any context) inherit fresh base.
+- **PAX_REFCOUNT** — `cpu_buffer->resize_disabled`, `record_disabled`, and `ring_buffer.reader_lock` debug refcounts saturate, never wrap.
+- **PAX_MEMORY_SANITIZE** — RB pages and `buffer_page` slab objects zeroed via `__GFP_ZERO` on alloc and re-zeroed on free.
+- **PAX_UDEREF** — only `ring_buffer_read_page` exposes data to user; uses page-cache splice + copy_to_user with explicit length cap.
+- **PAX_RAP / kCFI** — `ring_buffer_consume` and reader-iterator function pointers type-tagged.
+- **GRKERNSEC_HIDESYM** — `rb_*` symbols hidden from non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — `RB_WARN_ON` outputs gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **Per-CPU lockless ring + PAX_USERCOPY** — each `buffer_page->data` is allocated from a per-CPU slab/page pool registered with `kmem_cache_create_usercopy(..., useroffset=0, usersize=PAGE_SIZE, ...)`; the usercopy guard rejects any read crossing the page boundary, defeating OOB-read primitives that have historically leaked adjacent kernel slab contents.
+- **`/sys/kernel/debug/tracing` CAP_SYS_ADMIN** — opens of `tracing_pipe`, `trace`, `per_cpu/cpuN/trace_pipe_raw` require CAP_SYS_ADMIN in the init userns; under GRKERNSEC_FTRACE strict mode they additionally require CONFIG_GRKERNSEC_PROC_USERGROUP membership.
+- **NMI-safe writer + commit-counter clamp** — `rb_handle_nmi_overrun` clamps `commit_overrun` against a wrap-guard; PAX_REFCOUNT traps if a malicious probe contrives wraparound to reorder commit/write sequence.
+- **Reader page swap atomicity** — `rb_get_reader_page` uses cmpxchg on the reader page pointer; on failure the buffer state is verified by `rb_check_pages` before retry to defeat torn-pointer reads.
+- **Rationale** — the trace ring buffer is concurrently written from every context (process, IRQ, NMI) and read by user; usercopy-typed pool allocations + cmpxchg-on-reader-page + capability-gated tracefs collapse the OOB-read / TOCTOU vector that has produced multiple historical CVEs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

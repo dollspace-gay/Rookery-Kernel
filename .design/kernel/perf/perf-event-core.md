@@ -240,6 +240,30 @@ perf-event-core specific reinforcement:
 - **Per-task event inheritance bounded** — total inherited events per task capped at `inherit_stat ? 16384 : 8192`; defense against fork-bomb-amplified perf-event-flood.
 - **Per-event mmap CAP_SYS_ADMIN-mediated** for kernel-only events.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **GRKERNSEC_PERF_HARDEN** — sysctl `perf_event_paranoid` minimum clamped to 3; writes attempting to lower it return -EPERM.
+- **CAP_PERFMON discrete** — capability split out from CAP_SYS_ADMIN so perf access does not require full admin.
+- **kptr_restrict=2 honored in samples** — `perf_sample_data_init` zeroes IP/callchain entries for unprivileged consumers regardless of the event's own attr.
+- **perf_event_paranoid=3 default** — kernel-event creation forbidden to unprivileged tasks; only same-task user-only events permitted.
+- **event->pmu indirect ops under PAX_RAP** — `pmu->add/del/read/start/stop/event_init` invoked through kCFI dispatch; rogue PMUs cannot register gadget-pointer ops.
+- **perf_event struct PAX_MEMORY_SANITIZE on free** — `__free_event` zeroes the struct so RCU readers who briefly observe a freed event see zeros, not stale function pointers.
+- **AUX/ring buffer mmap PAX_USERCOPY** — copies to/from the rb header bounded by the allocated page count; OOB attempts truncated and audited.
+- **perf_event->refcount under PAX_REFCOUNT** — saturating at u32::MAX, not wrapping; `atomic_long_inc_not_zero` cannot revive a freed event.
+
+Per-doc rationale: the perf core has carried multiple critical CVEs because it sits at the intersection of unprivileged-user access, RCU-deferred frees, and PMU indirect dispatch — exactly the substrate an attacker needs. GRKERNSEC_PERF_HARDEN raising the paranoid floor, CAP_PERFMON keeping the capability scoped, PAX_RAP on the PMU op-table, and PAX_REFCOUNT-saturated event refcounts together turn the historical "perf trick" exploit class into a CFI-fault or saturating-counter dead end.
+
 ## Open Questions
 
 (none at this Tier-3 level)

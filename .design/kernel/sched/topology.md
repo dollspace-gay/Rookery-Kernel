@@ -170,6 +170,21 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `/proc/sys/kernel/sched_domain/*` and isolcpus sysfs read/write bounds-checked; no `sched_domain` slab leakage.
+- **PAX_KERNEXEC** — `build_sched_domains`, `partition_sched_domains_locked`, and per-level setup callbacks reside in W^X kernel text.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so cpuset-rebuild grooming via tight cgroup attach/detach cannot rely on predictable stack alignment.
+- **PAX_REFCOUNT** — `sched_domain` ref, `sched_domain_topology_level` ref, and `root_domain->refcount` saturating-refcounted; underflow on hotplug oopses.
+- **PAX_MEMORY_SANITIZE** — freed `sched_domain` / `sched_group` / `sched_group_capacity` slabs scrubbed during topology rebuild.
+- **PAX_UDEREF** — topology walks read CPU masks and capacity values via kernel mappings only; no implicit user-page reach.
+- **PAX_RAP / kCFI** — `sched_domain_flags_f` and per-level `sd_init` callbacks type-signatured; mismatched signature is a hard CFI fault.
+- **GRKERNSEC_HIDESYM** — `sched_domain_topology`, `default_topology`, `root_domain` symbol addresses hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — topology-build WARN splats (broken domain hierarchy, empty `sg_capacity`) gated to CAP_SYSLOG.
+- **sched_domain hierarchy CAP_SYS_ADMIN** — mutating sched-domain flags, isolcpus, or cpuset hierarchies requires CAP_SYS_ADMIN; PAX_USERCOPY guarantees the attribute write traverses capability check first.
+- **isolcpus integration** — `housekeeping_cpumask` / `isolcpus=` taints validated at boot and locked under `cpus_read_lock()`; an attacker cannot post-hoc re-attach a SCHED_OTHER task to an isolated CPU without CAP_SYS_NICE + cpuset rebuild.
+- **Rationale** — sched-domain topology is the basis of every cross-CPU placement decision (load-balance, NUMA, EAS, isolated/nohz_full partitions). A corrupted topology is corrupted placement plus a wedge into RCU/timer infrastructure that assumes the domain hierarchy is well-formed.
+
 ## Open Questions
 
 (none — sched-domain topology is exhaustively specified by upstream)

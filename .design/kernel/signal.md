@@ -651,6 +651,22 @@ Signal reinforcement:
 - **Per-multiprocess delayed signal propagation on fork-in-flight** — defense against per-fork-race signal loss.
 - **Per-pidfd cred capture at open** — defense against per-pid-reuse signaling wrong task.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `siginfo`, `sigset_t`, `sigaction`, `stack_t` copies bounds-checked; no `signal_struct` / `sighand_struct` slab leakage.
+- **PAX_KERNEXEC** — `do_signal`, `get_signal`, and per-arch `setup_rt_frame` reside in W^X kernel text; signal-frame builders cannot be live-patched.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so signal-frame grooming via repeated `kill`/`sigreturn` cannot rely on predictable kstack layout.
+- **PAX_REFCOUNT** — `signal_struct.sigcnt`, `sighand_struct.count`, and `pending->signal` masks/counts use saturating refcount.
+- **PAX_MEMORY_SANITIZE** — freed `sigqueue` slabs scrubbed so a reused queue entry cannot leak prior `siginfo` payload to a different task.
+- **PAX_UDEREF** — signal delivery reads `sas_ss_sp`, ucontext, and `sa_handler` via the proper `access_ok`-checked user mapping; no implicit user-page deref.
+- **PAX_RAP / kCFI** — `__sighandler_t` signature checked at delivery; SIG_DFL/SIG_IGN sentinels short-circuit; attacker-rewritten `sa_handler` is a CFI fault on dispatch.
+- **GRKERNSEC_HIDESYM** — `init_sighand`, `init_signals`, and per-task `sighand_struct` addresses hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — signal-delivery WARN splats (bad frame, sigreturn-from-altstack) gated to CAP_SYSLOG.
+- **signal_struct PAX_REFCOUNT** — `signal_struct.sigcnt` and `sighand_struct.count` saturating-refcounted so a racing `clone(CLONE_SIGHAND)` / exit cannot under/overflow into UAF.
+- **SIG_DFL/IGN sane defaults** — `__sighandler_t` checked against `SIG_DFL` / `SIG_IGN` / `SIG_ERR` sentinels first; only a non-sentinel goes through `setup_rt_frame` + CFI validation.
+- **GRKERNSEC_SIGNALS spoof prevention** — `kill_pid_info_check_permission` enforces `CAP_KILL` + `same_thread_group` + `uid`/`euid` match; PAX_USERCOPY ensures `si_uid`/`si_pid` come from the caller's verified `cred`, not from a forged `siginfo`.
+- **Rationale** — the signal subsystem is one of two paths that injects userspace code execution from kernel context (sigreturn being the other half); a corrupted handler, frame, or sender-cred check is direct kernel→user privilege confusion. Grsec/PaX hardening forces every signal hop through capability, refcount, and CFI gates.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -210,6 +210,30 @@ HMM-specific reinforcement:
 - **Per-mmap_read_lock during range_fault** — defense against per-VMA mutation race.
 - **Per-pfns array bounds-checked** — defense against per-out-of-range pfn-write.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — HMM pfns[] array returned to driver routed via whitelist slabs; user-visible mirror buffers strict.
+- **PAX_KERNEXEC** — mmu_interval_notifier_ops vtables read-only post-registration; W^X enforced on hmm walker dispatch.
+- **PAX_RANDKSTACK** — hmm_range_fault entry stack randomized per-call across driver invocations.
+- **PAX_REFCOUNT** — dev_pagemap refcount and per-folio _refcount saturate; UAF on concurrent migrate-back blocked.
+- **PAX_MEMORY_SANITIZE** — MEMORY_DEVICE_PRIVATE folios zero-poisoned on free; GPU residency leakage prevented.
+- **PAX_UDEREF** — driver-supplied start/end range validated against TASK_SIZE / vma extent before walker entry.
+- **PAX_RAP / kCFI** — mmu_notifier ops (invalidate_start/end) type-tagged; cross-driver callback swap refused.
+- **GRKERNSEC_HIDESYM** — `hmm_range_fault`, `mmu_interval_notifier_insert`, `dev_pagemap` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — HMM migrate/invalidate trace lines redacted from dmesg for non-CAP_SYSLOG.
+
+HMM-specific reinforcements:
+
+- **CAP_SYS_ADMIN for HMM-enabled driver open** — GPU/accelerator drivers requiring HMM register their open path under CAP_SYS_ADMIN gating (or specific device-class capability) to prevent unprivileged installation of MMU notifiers on arbitrary mm.
+- **MMU-notifier integrity** — notifier_seq compared via mmu_interval_read_retry; driver dereferences pfns only after seq validation, eliminating stale-pfn UAF window.
+- **MEMORY_DEVICE_PRIVATE strict non-CPU** — page_to_pfn for device-private folio never resolves to CPU-addressable PFN; faults forced through vma.vm_ops.fault for migrate-back.
+- **mmap_read_lock held across hmm_range_fault** — VMA mutation (mprotect/munmap) cannot race with driver walker; teardown serialized via mmu_notifier invalidate.
+- **dev_pagemap refcount pinned across walker** — region-free during in-flight HMM walk refused; saturating arithmetic traps under PAX_REFCOUNT.
+
+Rationale: HMM lets accelerator drivers mirror a CPU process's address space and DMA into its pages — a notifier-stale or refcount-underflow bug here is a direct UAF visible to the GPU. Grsec emphasis: CAP_SYS_ADMIN at driver-open boundary, MMU-notifier seq validation as a hard contract, and saturating dev_pagemap refcount so device-private regions cannot vanish under a live walker.
+
 ## Open Questions
 
 (none at this Tier-3 level)

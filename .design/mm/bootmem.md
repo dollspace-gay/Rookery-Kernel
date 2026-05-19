@@ -240,6 +240,30 @@ memblock-specific reinforcement:
 - **Per-physmem (optional) tracked separately** — defense against per-mem-survey corruption.
 - **Per-memtest gated by CONFIG_MEMTEST** — defense against per-prod runtime cost.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — early-boot memblock allocations never user-reachable; pre-slab phase honors whitelist invariant when handoff occurs.
+- **PAX_KERNEXEC** — memblock-reserved kernel text/rodata regions enforced W^X immediately on handoff to buddy.
+- **PAX_RANDKSTACK** — N/A pre-jiffies; activated post-handoff once per-CPU stacks instantiated.
+- **PAX_REFCOUNT** — memblock_type.cnt saturating arithmetic; overflow on region-array grow traps before corruption.
+- **PAX_MEMORY_SANITIZE** — memblock_free_all sanitization sweep zero-poisons reserved-region leftovers before buddy handoff.
+- **PAX_UDEREF** — N/A in early boot (no user context); enforced from first syscall after switch_to(init).
+- **PAX_RAP / kCFI** — memblock callbacks (`for_each_mem_range` iterators) type-tagged once kCFI active.
+- **GRKERNSEC_HIDESYM** — `memblock_dump_all`, `memblock_alloc_try_nid` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — early memblock region map redacted from dmesg post-boot for non-CAP_SYSLOG.
+
+memblock-specific reinforcements:
+
+- **Bootstrap region-array integrity** — initial static array sized MAX_MEMBLOCK_REGIONS; grow-via-double bounded by INIT_MEMBLOCK_REGIONS until slab live.
+- **Early reservation invariant** — overlapping reserve attempts fail closed; double-reservation panics before buddy handoff.
+- **MEMBLOCK_NOMAP enforced strictly** — firmware-reserved ranges never dropped into buddy regardless of size class.
+- **Post-boot drain validation** — memblock_discard called after slab-up; any residual unfreed memblock metadata triggers WARN_ON.
+- **NUMA node-id ≤ MAX_NUMNODES** — region.nid validated; out-of-range NUMA IDs rejected at insertion to prevent OOB indexing.
+
+Rationale: memblock runs before KASLR fully settled, before slab/buddy/SMP — corruption here is unrecoverable and silent. Grsec emphasis: saturate region.cnt under PAX_REFCOUNT, panic-fail on overlap rather than silently merge questionable regions, and sanitize before buddy handoff so freed early regions can never leak boot-time secrets to userspace.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -472,6 +472,29 @@ Highmem reinforcement:
 - **Per-fork kmap_ctrl.idx = 0 zero** — defense against per-child-inherits-parent-fixmap escape.
 - **Per-WARN_ON_ONCE on hardirq + irqs_enabled at kmap_local push** — defense against per-IRQ-context-kmap_local misuse.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — temporary kmap windows participate in whitelist checks; copy_to_user from kmap_local pointer validated against slab origin.
+- **PAX_KERNEXEC** — PKMAP_BASE / FIXMAP region PTEs enforced W^X; no executable mapping via kmap.
+- **PAX_RANDKSTACK** — kmap_local push stack-offset randomized; predictable per-CPU kmap_ctrl layout disrupted.
+- **PAX_REFCOUNT** — pkmap_count saturating; underflow on unbalanced kunmap traps before TLB-stale window opens.
+- **PAX_MEMORY_SANITIZE** — kunmap teardown zero-poisons the freed kmap slot PTE before TLB flush; no residual mapping leakage.
+- **PAX_UDEREF** — kmap output pointer never trusted as user address; %gs/%fs strict on x86_32 across kmap critical section.
+- **PAX_RAP / kCFI** — kmap callbacks (set_pte_at variant) type-tagged; arch-specific kmap_atomic dispatch validated.
+- **GRKERNSEC_HIDESYM** — `kmap_local_page`, `kunmap_high`, `pkmap_map_wait` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — kmap exhaustion / BUG_ON traces redacted from dmesg for non-CAP_SYSLOG.
+
+Highmem-specific reinforcements (x86_32 only; mostly N/A on x86_64):
+
+- **HIGHMEM compile-out on 64-bit** — kmap/kmap_atomic/kmap_local reduce to direct page_address() on x86_64; attack surface eliminated wholesale.
+- **kmap_ctrl.idx ≤ KM_MAX_IDX hard cap** — per-task fixmap depth bounded so stack overflow into adjacent fixmap slot is impossible.
+- **DEBUG_KMAP_LOCAL guard slots** — KM_INCR=2 leaves a poisoned slot between live mappings; off-by-one writes land in guard, not neighbor data.
+- **fork() resets kmap_ctrl.idx** — child cannot inherit parent's mid-kmap state; no cross-task fixmap escape.
+
+Rationale: highmem is an i386 legacy: on modern 64-bit kernels these paths compile out, so the grsec posture is "ensure attack surface is genuinely zero on x86_64 and bounded on x86_32." The PAX_REFCOUNT saturation on pkmap_count and the KM_MAX_IDX cap matter only for 32-bit deployments but eliminate the entire fixmap-stale-PTE class there.
+
 ## Open Questions
 
 (none at this Tier-3 level)

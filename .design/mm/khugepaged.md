@@ -577,6 +577,30 @@ khugepaged reinforcement:
 - **Per-pmdp_collapse_flush atomic vs GUP-fast** — defense against per-stale-GUP-pin after collapse.
 - **Per-pte_free_defer for retracted page tables** — defense against per-immediate-free vs concurrent gup_fast.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — collapse target pages copied via copy_highpage are slab-whitelist-respecting; metadata transfers boundary-checked.
+- **PAX_KERNEXEC** — khugepaged kthread text W^X; collapse op dispatch table read-only post-init.
+- **PAX_RANDKSTACK** — khugepaged scan loop entry-stack and MADV_COLLAPSE syscall entry randomized.
+- **PAX_REFCOUNT** — folio refcount, mapcount, and mm_slot refcount saturate; expected-vs-actual ref mismatch aborts collapse before publish.
+- **PAX_MEMORY_SANITIZE** — retracted page tables zero-poisoned via pte_free_defer; collapsed-out small pages zero-poisoned before release to buddy.
+- **PAX_UDEREF** — MADV_COLLAPSE start/len validated against vma extent; out-of-range refused before scan.
+- **PAX_RAP / kCFI** — vm_ops collapse-related callbacks type-tagged; cross-fs collapse handler swap refused.
+- **GRKERNSEC_HIDESYM** — `khugepaged_do_scan`, `collapse_huge_page`, `khugepaged_scan_mm_slot` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — khugepaged collapse trace and SCAN_* failure reasons redacted from dmesg for non-CAP_SYSLOG.
+
+khugepaged-specific reinforcements:
+
+- **Collapse PAX_USERCOPY-respecting copy** — copy_highpage from 512 base pages into the THP target stays inside slab whitelist invariants; the destination folio is not exposed until copy verified.
+- **MADV_COLLAPSE CAP_SYS_NICE gating** — forced/synchronous collapse on behalf of userspace requires CAP_SYS_NICE (treating compaction-class pressure as a niceness-style privilege) to prevent unpriv DoS via THP churn.
+- **folio_expected_ref_count + 1 == folio_ref_count strict check** — any extra pin (GUP-fast / driver) aborts the collapse before pmd_populate; eliminates stale-pin-vs-collapse UAF class.
+- **mmap_write_lock held across pmdp_collapse_flush** — VMA mutation cannot race with collapse; mmu_notifier invalidate brackets the flush for secondary MMUs.
+- **mm_slot refcount + collapse_test_exit gate** — mm teardown during scan refused; kthread sees a quiescent or absent mm, never a partially-torn-down one.
+
+Rationale: khugepaged collapses 512 base pages into a 2MB THP while the mm is potentially active across CPUs, GUP-fast, KVM, and IOMMU mirrors — any refcount slip or notifier gap is a multi-subsystem UAF. Grsec emphasis: saturate refcount checks (expected+1 == actual), gate user-driven collapse behind CAP_SYS_NICE so an attacker cannot trigger unbounded THP churn, and treat retracted page tables as quarantine-only via pte_free_defer.
+
 ## Open Questions
 
 (none at this Tier-3 level)

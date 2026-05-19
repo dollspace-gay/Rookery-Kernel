@@ -268,6 +268,30 @@ printk-specific reinforcement:
 - **/proc/sys/kernel/printk per-level gating** — defense against console-flood from low-level messages in production.
 - **Boot-time log_buf_len capped** — defense against attacker requesting GBs of ringbuffer at boot.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **GRKERNSEC_DMESG strict** — unprivileged `dmesg` and unprivileged `/dev/kmsg` reads return -EPERM; only CAP_SYSLOG holders see the buffer.
+- **RingBuf bounded by log_buf_len at compile/boot** — `log_buf_len=` cmdline value clamped to a sane maximum so attacker-influenced boot args can't claim GBs.
+- **printk_ratelimit shared with audit** — per-source rate-limit state under PAX_REFCOUNT saturating semantics; cannot wrap to "send infinitely."
+- **/dev/kmsg permissions 0600 root** — owner write/read only by default; udev does not relax for unprivileged users.
+- **kptr_restrict honored by `%pK`** — `%pK` formatter sanitizes pointers for unprivileged readers when `kptr_restrict >= 1`, and unconditionally when `>= 2`.
+- **Record CRC / sequence sanity** — printk_ringbuffer descriptor state machine forbids out-of-order finalize; corrupt sequence drops the record rather than emitting a malformed entry.
+- **PAX_USERCOPY on `copy_to_user(log_buf...)`** — `/proc/kmsg` / `/dev/kmsg` reads bounded by the user buffer length and the ring-buffer record length.
+- **printk's vprintk_emit indirect calls under PAX_RAP** — `console->write` invoked from `console_unlock` carries kCFI signature.
+
+Per-doc rationale: printk is both a high-frequency emit path and the primary log audit channel. An attacker who can read raw dmesg (kallsyms leaks), forge entries (audit confusion), or flip kptr_restrict from userns gets a fully passive way to defeat KASLR. GRKERNSEC_DMESG, `kptr_restrict>=2`, PAX_USERCOPY-bounded reads, and PAX_RAP on the console emit path collectively close the dmesg-as-oracle threat model.
+
 ## Open Questions
 
 (none at this Tier-3 level)

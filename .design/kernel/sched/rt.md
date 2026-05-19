@@ -169,6 +169,22 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `sched_param`/`sched_attr` copies for RT priorities bounds-checked at the user boundary; no `rt_rq` slab leakage.
+- **PAX_KERNEXEC** — `rt_sched_class` vtable resides in W^X kernel text; `enqueue_task_rt`/`pick_next_task_rt` cannot be live-patched.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so RT priority grooming via `sched_setscheduler` floods cannot exploit predictable stack layout.
+- **PAX_REFCOUNT** — `rt_rq->rt_nr_running`, `rt_nr_boosted`, and per-`task_group` `rt_bandwidth.rt_runtime` accumulators use saturating refcount.
+- **PAX_MEMORY_SANITIZE** — freed `sched_rt_entity` and `rt_rq` slabs scrubbed so a reused entity cannot inherit stale `rt_priority`.
+- **PAX_UDEREF** — RT-class hierarchy walks dereference `task_group` / `rt_rq` via kernel mappings only; no implicit user-page reach.
+- **PAX_RAP / kCFI** — `sched_class` function pointers for RT (`enqueue_task_rt`, `dequeue_task_rt`, `pick_next_task_rt`, `task_tick_rt`) type-signatured.
+- **GRKERNSEC_HIDESYM** — `rt_rq`, `rt_bandwidth`, and `def_rt_bandwidth` addresses hidden from `/proc/kallsyms` / dmesg.
+- **GRKERNSEC_DMESG** — RT throttling and migration WARN splats gated to CAP_SYSLOG.
+- **SCHED_FIFO/RR CAP_SYS_NICE** — entering `SCHED_FIFO` / `SCHED_RR` or raising `rt_priority` requires CAP_SYS_NICE (and the per-user RLIMIT_RTPRIO ceiling); unprivileged tasks cannot starve `SCHED_OTHER`.
+- **RT throttling bounded** — `sched_rt_runtime_us` / `sched_rt_period_us` ratio capped (default 950000/1000000 = 95%); PAX_REFCOUNT keeps the bandwidth accumulator from wrapping under hostile push/pull.
+- **rt_runtime_us limit** — per-`task_group` `rt_runtime_us` cannot exceed parent's allocation; cgroup hierarchy enforcement prevents an attacker-controlled child group from claiming the entire root-domain RT budget.
+- **Rationale** — RT tasks preempt every other class, including the timer softirq if mis-prioritised; corrupting throttling or priority is a one-step CPU-DoS and a wedge for IRQ-context primitives. Grsec/PaX hardening forces every RT promotion through capability + bandwidth + CFI gates.
+
 ## Open Questions
 
 (none — RT class semantics are exhaustively specified by POSIX + upstream)

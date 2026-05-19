@@ -447,6 +447,28 @@ IDR / IDA reinforcement:
 - **Per-rcu_dereference_raw in for_each / get_next** — defense against per-stale-pointer load on weakly-ordered architectures.
 - **Per-kzalloc_obj(*bitmap) sized allocation** — defense against per-undersized bitmap allocation.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — IDR-mapped pointers exposed to user (e.g. `fd -> file *`) traverse owner's usercopy whitelist; IDR itself never copies to user.
+- **PAX_KERNEXEC** — IDR/IDA helpers are pure data manipulation; no writable text.
+- **PAX_RANDKSTACK** — caller-side stack base re-randomized; `idr_alloc`/`idr_remove` inherit fresh base.
+- **PAX_REFCOUNT** — radix-tree slot refcounts (`__radix_tree_lookup` parent refs) saturate.
+- **PAX_MEMORY_SANITIZE** — `radix_tree_node` slab zeroed on free; IDA bitmap slabs sanitized.
+- **PAX_UDEREF** — no user-pointer deref in IDR core.
+- **PAX_RAP / kCFI** — `idr_for_each` callback type-tagged.
+- **GRKERNSEC_HIDESYM** — `idr_get_free`, `__radix_tree_*` hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — IDA `WARN_ON_ONCE(ida_id < 0)` gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **IDR integer alloc bounds** — `idr_alloc(idr, ptr, start, end, gfp)` enforces `0 <= start < end <= INT_MAX`; PaX additionally rejects `end > id_max_per_namespace` for namespace-scoped IDRs (e.g. per-task fd IDR clamped by RLIMIT_NOFILE).
+- **OOR validation on lookup** — `idr_find(idr, id)` returns NULL on `id < 0` or `id > INT_MAX`; PaX_REFCOUNT-style overflow check on the internal `unsigned long` cast prevents sign-extension confusion that has historically produced OOB reads.
+- **Per-namespace ID ceiling** — IDA bitmaps backing pid/userns/ipcns allocators bounded by per-namespace `max_id`; exhaustion returns `-ENOSPC` cleanly with audit log entry, denying ID-exhaustion DoS.
+- **RCU dereference discipline** — `idr_for_each` / `idr_get_next` use `rcu_dereference_raw` only inside RCU read-side critical section; PaX lockdep variant asserts `rcu_read_lock_held()` at every call.
+- **Rationale** — IDR is the substrate for fd, posix-timer-id, pid, sysv-ipc-id and many other ID spaces an attacker can pump; bounded ceilings + OOR validation + RCU discipline collapse the integer-overflow and TOCTOU vectors that have produced multiple historical CVEs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -592,6 +592,28 @@ maple-tree reinforcement:
 - **Per-`__mt_dup` deep-copy under source lock** — defense against per-fork-time tearing of source tree while target tree is built.
 - **Per-`mt_set_external_lock` lockdep linkage** — defense against per-cross-tree lock-class confusion; every embedded tree declares its lockdep parent.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — maple-tree itself does no user copies; values it stores (e.g. VMA pointers) are kernel-only.
+- **PAX_KERNEXEC** — no writable text; iterator callbacks (`mtree_load`/`mas_walk`) reside in `.text`.
+- **PAX_RANDKSTACK** — caller's syscall entry randomizes stack base.
+- **PAX_REFCOUNT** — `ma_state` debug refcounts (under `CONFIG_DEBUG_MAPLE_TREE`) saturate.
+- **PAX_MEMORY_SANITIZE** — `maple_node` slab cache zero-on-free; node-reuse never leaks prior range/value data.
+- **PAX_UDEREF** — no user-pointer deref.
+- **PAX_RAP / kCFI** — augmented-tree callbacks (split/merge ops) type-tagged.
+- **GRKERNSEC_HIDESYM** — `mas_*`, `mtree_*`, `mt_*` internals hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — `MT_BUG_ON` / `MAS_WARN_ON` gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **Range-keyed B+tree traversal integrity** — every node stores its `min`/`max` pivots; `mas_walk` asserts `min <= index <= max` on descent and bails with `mas_set_err(mas, -EINVAL)` rather than continuing into a corrupted child. PaX promotes this to BUG().
+- **Slot/pivot invariants under `CONFIG_DEBUG_MAPLE_TREE`** — `mt_validate` walks the entire tree checking pivot monotonicity, slot/pivot pairing, child parent-back-pointers, and gap accounting; runs at every write under DEBUG, sampled under production-grsec.
+- **`mas_set_external_lock` lockdep linkage** — embedded trees (mm `vma` tree, `kernfs`) declare their lockdep parent; cross-tree lock-class confusion (e.g. taking `mm->mmap_lock` while holding `i_mmap_rwsem`) detected as a class violation.
+- **`__mt_dup` deep-copy under source lock** — fork-time VMA-tree duplication snapshots under `mmap_write_lock(src)`; PaX additionally asserts target tree is empty (refusing partial copy onto a non-empty destination).
+- **Rationale** — maple-tree is the new mm VMA backing structure; corruption here is corruption of every process's address-space mapping. Mandatory pivot-monotonicity checks + lockdep-tracked external locks + DEBUG validation make tree corruption immediately fatal rather than slowly exploitable.
+
 ## Open Questions
 
 - `lib/idr.c` migration: upstream is investigating replacing IDR/IDA with maple-tree-backed implementations; Rookery should track this and decide whether to mirror the migration or maintain the legacy radix-tree IDA.

@@ -437,6 +437,28 @@ PercpuCounter reinforcement:
 - **Per-limited_add precise-sum fallback at boundary** — defense against per-approximate-overshoot of limit (e.g., quota overrun).
 - **Per-WARN_ON_ONCE(!fbc) in destroy** — defense against per-API-misuse with NULL pointer.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — counter snapshots returned via `/proc` (e.g. mm rss) traverse owner's slab whitelist on copy_to_user.
+- **PAX_KERNEXEC** — no writable text; `percpu_counter_*` are pure data ops.
+- **PAX_RANDKSTACK** — caller's syscall entry randomizes stack base.
+- **PAX_REFCOUNT** — `percpu_counter.count` is an `s64`; PAX_REFCOUNT-style saturation applied for known-monotonic counters (e.g. inode count) via wrapping `refcount64_t` variant.
+- **PAX_MEMORY_SANITIZE** — per-CPU shard array `__alloc_percpu` zero-on-alloc and zero-on-free.
+- **PAX_UDEREF** — no user-pointer deref.
+- **PAX_RAP / kCFI** — no indirect calls in core; subsystem callers' wrappers type-tagged independently.
+- **GRKERNSEC_HIDESYM** — `__percpu_counter_*` symbols hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — `WARN_ON_ONCE(!fbc)` gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **Per-CPU shard batch bound** — each shard is an `s32` clamped between `[-batch, +batch]` (typically `2 * num_online_cpus()`); shard overflow drains into the global `count` under `fbc->lock`, never wraps.
+- **Limited-add precise-sum fallback** — `percpu_counter_limited_add` near the limit falls back to `percpu_counter_sum` (precise) rather than the approximate fast-path, defeating quota-overshoot attacks where an attacker contrives many CPUs to race past a limit using stale shard-only reads.
+- **Destroy ordering** — `percpu_counter_destroy` `WARN_ON_ONCE(!fbc)` and removes from `percpu_counters` list under `percpu_counters_lock`; PaX additionally asserts `list_empty(&fbc->list)` invariant on every traversal.
+- **Hotplug shard drain** — CPU-down handler drains the departing CPU's shard into the global counter atomically; PaX-REFCOUNT-style saturation applied to the global accumulator on drain.
+- **Rationale** — percpu_counter underpins memcg/quota/rss/dirty accounting; its job is "fast and almost-right." The hardening makes "almost-right" never breach a hard limit while keeping the fast path lock-free, denying limit-bypass attacks.
+
 ## Open Questions
 
 (none at this Tier-3 level)

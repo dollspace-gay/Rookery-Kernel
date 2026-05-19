@@ -280,6 +280,30 @@ KSM-specific reinforcement:
 - **Per-/sys/kernel/mm/ksm/run = 2 unmerge bulk** — defense against per-system-wide unmerge stall.
 - **Per-volatile counter tracks fluctuating pages** — defense against per-pages_to_scan budget waste.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX features inherited project-wide:
+
+- **PAX_USERCOPY** — KSM-merged pages remain ordinary anon folios; whitelist invariants of copy_*_user unaffected by stable-tree membership.
+- **PAX_KERNEXEC** — ksm_scan / stable_tree code text W^X; rmap-walk dispatch tables read-only.
+- **PAX_RANDKSTACK** — ksm_do_scan and break_ksm entry stack offsets randomized.
+- **PAX_REFCOUNT** — stable_node refcount, rmap_item count, mm_slot refcount saturate; UAF on race between unmerge and scan blocked.
+- **PAX_MEMORY_SANITIZE** — unmerged COW source pages zero-poisoned before return to buddy; stable-tree-evicted folios honor sanitize.
+- **PAX_UDEREF** — MADV_MERGEABLE / MADV_UNMERGEABLE range arguments validated against vma extent.
+- **PAX_RAP / kCFI** — rmap_walk callbacks (rmap_one) type-tagged; cross-class rmap function-pointer swap refused.
+- **GRKERNSEC_HIDESYM** — `ksm_do_scan`, `break_ksm`, `stable_tree_search` absent from `/proc/kallsyms` for unpriv.
+- **GRKERNSEC_DMESG** — KSM merge/unmerge trace lines and per-mm slot dumps redacted from dmesg for non-CAP_SYSLOG.
+
+KSM-specific reinforcements:
+
+- **Same-page merging requires MADV_MERGEABLE opt-in** — system-wide merge is off; only VMAs explicitly opted-in by their owner are eligible, blocking cross-task involuntary content collation.
+- **Page-COW on write enforced via break_ksm** — any write to a KSM-merged PTE triggers break_ksm() before the store completes; PTE write-protect plus COW ensures no two address spaces ever observe a writeable shared mapping.
+- **KSM control (run / advisor / per-knob) gated by CAP_SYS_ADMIN** — `/sys/kernel/mm/ksm/run` and policy knobs require CAP_SYS_ADMIN; unprivileged tasks cannot trigger system-wide unmerge or aggressive scan rates.
+- **pages_identical strict pre-merge byte compare** — checksum prefilter is advisory; the merge itself runs a full byte compare under stable-tree lock to prevent hash-collision corruption.
+- **merge_across_nodes default-off on NUMA** — cross-node merging refused unless administrator opts in, limiting side-channel observability of per-node memory content.
+
+Rationale: KSM is the canonical memory-deduplication side-channel surface (FLUSH+RELOAD, cache-attack on shared pages). Grsec emphasis: keep merging strictly opt-in per VMA via MADV_MERGEABLE, gate the system-wide control knobs behind CAP_SYS_ADMIN, and enforce COW-on-write so a merged page never silently leaks one task's writes to another's read.
+
 ## Open Questions
 
 (none at this Tier-3 level)

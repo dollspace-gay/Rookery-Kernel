@@ -172,6 +172,21 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — sched_domain / sched_group attributes exposed via `/proc/sys/kernel/sched_domain/*` bounds-checked; no `sd` / `sg` slab leakage.
+- **PAX_KERNEXEC** — `load_balance`, `find_busiest_group`, and `nohz_idle_balance` reside in W^X kernel text; balance loop cannot be live-patched.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so attempts to groom `lb_env` via repeated wake-migration cannot rely on predictable stack layout.
+- **PAX_REFCOUNT** — `sched_domain_topology_level` ref, `sg_lb_stats` counters, and per-domain busy/idle accumulators saturating-refcounted.
+- **PAX_MEMORY_SANITIZE** — freed `sched_domain` / `sched_group` slabs scrubbed during hotplug rebuild so a reused domain cannot inherit stale `imbalance_pct`.
+- **PAX_UDEREF** — load-balance reads task_struct fields only through kernel mappings; no implicit user-page reach during `can_migrate_task`.
+- **PAX_RAP / kCFI** — `sched_class->balance` and per-class `migrate_task_rq` pointers type-signatured; mismatched signature is a hard CFI fault.
+- **GRKERNSEC_HIDESYM** — `sched_domain` and `cpu_topology` addresses hidden from `/proc/kallsyms` and dmesg leaks.
+- **GRKERNSEC_DMESG** — load-balance WARN splats (broken topology, group_capacity zero) gated to CAP_SYSLOG.
+- **Per-domain SD_BALANCE flags** — `SD_BALANCE_NEWIDLE`, `SD_BALANCE_FORK`, `SD_BALANCE_EXEC`, `SD_BALANCE_WAKE` set explicitly per level; PAX_USERCOPY ensures sysctl writes that toggle them go through capability checks (CAP_SYS_ADMIN).
+- **cpufreq invariance** — `arch_scale_freq_capacity()` and `arch_scale_cpu_capacity()` validated as bounded `[0, SCHED_CAPACITY_SCALE]`; refcount/clamp prevents attacker-controlled invariance from skewing migration decisions toward a target CPU.
+- **Rationale** — load-balance is the kernel's primary cross-CPU control loop; corrupt balance decisions become arbitrary task placement, including pinning attacker work to an isolated/RT CPU. Hardening it under grsec/PaX closes the "topology pivot" class.
+
 ## Open Questions
 
 (none — load-balance heuristics are exhaustively specified by upstream + the PELT papers)

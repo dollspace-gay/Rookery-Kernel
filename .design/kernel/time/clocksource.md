@@ -253,6 +253,22 @@ Clocksource reinforcement:
 - **Per-source flags validated at register** — defense against per-driver malformed-flags.
 - **Per-rating override capped** — defense against per-driver rating-bomb.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `clocksource` sysfs reads (`current_clocksource`, `available_clocksource`) bounds-checked; no `struct clocksource` slab leakage.
+- **PAX_KERNEXEC** — `clocksource_select`, `watchdog_timer_fn`, and per-driver `read`/`enable`/`disable` callbacks reside in W^X kernel text.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so clocksource override paths via `/sys/devices/system/clocksource` cannot rely on predictable kstack layout.
+- **PAX_REFCOUNT** — `clocksource->refcnt` (registration + watchdog), `tk_core` seqcount, and `clocksource_list` refs saturating-refcounted.
+- **PAX_MEMORY_SANITIZE** — freed `clocksource` slabs scrubbed on unregister so a re-registered source cannot inherit stale `mult`/`shift`/`mask`.
+- **PAX_UDEREF** — clocksource registration reads driver-supplied tables via kernel mappings only; no implicit user-page reach.
+- **PAX_RAP / kCFI** — `clocksource->read`, `enable`, `disable`, `suspend`, `resume`, `mark_unstable` callbacks type-signatured.
+- **GRKERNSEC_HIDESYM** — `clocksource_jiffies`, `clocksource_tsc`, and `tk_core` addresses hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — watchdog "clocksource X unstable" splats and override warnings gated to CAP_SYSLOG.
+- **NTP CAP_SYS_TIME** — `adjtimex`, `settimeofday`, and clocksource override require CAP_SYS_TIME; PAX_USERCOPY enforces caller cred validation before mutating `tk_core`.
+- **Clocksource validation** — registered clocksources pass `__clocksource_update_freq_scale` bounds (mult/shift sanity, mask non-zero); watchdog (`watchdog_threshold`) catches sources drifting >100 ppm.
+- **TSC stability** — boot-time `check_tsc_unstable()` + invariant-TSC CPUID gate plus runtime watchdog cross-check against HPET/PM-timer; an attacker cannot force a hostile TSC frequency into `tk_core` without tripping the watchdog and the rating-override cap.
+- **Rationale** — clocksource feeds every `ktime_get_*` call, scheduler/PELT, RCU, hrtimer, and audit timestamp; a maliciously skewed clocksource is a wedge against rate-limits, expiry checks, and replay-protected protocols. Grsec/PaX hardening keeps the source register / select / read paths capability-gated, refcounted, and CFI-checked.
+
 ## Open Questions
 
 (none at this Tier-3 level)

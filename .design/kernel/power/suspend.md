@@ -476,6 +476,29 @@ Suspend reinforcement:
 - **Per-PM_SUSPEND_PREPARE robust notifier (pairs with PM_POST_SUSPEND on failure)** — defense against per-notifier-leaks asymmetric state.
 - **Per-mutex_unlock in every Unlock path** — defense against per-stuck-system_transition_mutex (no future suspend possible).
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **CAP_SYS_ADMIN strict at /sys/power/state write** — enforced against the init user namespace; userns-root cannot trigger system-wide suspend.
+- **dpm sequence integrity via PAX_RAP** — every `dev->bus/class/type->pm->{suspend,resume,...}` callback dispatched through kCFI; a tampered `dev_pm_ops` table fails the signature check before the device sees the call.
+- **Hibernation key under PAX_MEMORY_SANITIZE** — the swap-encryption key buffer is zero-on-free, and the in-memory copy is wiped immediately after the snapshot is encrypted and written to swap.
+- **system_transition_mutex owner audited** — `mutex_trylock(&system_transition_mutex)` failures logged via GRKERNSEC_DMESG-restricted log so a stuck-mutex DoS is observable to admins only.
+- **suspend_ops indirect dispatch under PAX_RAP** — `suspend_ops->valid/begin/prepare/enter/wake/finish/end` all kCFI-signed.
+- **/sys/power/disk and /sys/power/state PAX_USERCOPY** — sysfs writes bounded by the small mode-string length.
+- **GRKERNSEC_HIDESYM on /sys/power/* address-leaking files** — any debug node that exposed kernel pointers (rare but historically present) sanitized for unprivileged readers.
+
+Per-doc rationale: suspend/resume runs with much of the kernel quiesced, IRQs off, and CPUs hotplugged out — exactly the moment when a tampered indirect call is hardest to debug and easiest to weaponize for arbitrary kernel-mode execution. PAX_RAP/kCFI on the device-PM ops and the `suspend_ops` table is the load-bearing defense; CAP_SYS_ADMIN strictness shuts the userns-confined trigger; PAX_MEMORY_SANITIZE on the hibernation key prevents the most direct memory-disclosure attack against a swapped snapshot.
+
 ## Open Questions
 
 (none at this Tier-3 level)

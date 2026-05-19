@@ -523,6 +523,28 @@ Tracepoint reinforcement:
 - **Per-syscall_regfunc tasklist_lock read-side** — defense against per-task-list-mutation during work-flag set/clear.
 - **Per-EXPORT_SYMBOL_GPL discipline** — defense against per-non-GPL-module abusing tracepoint infrastructure.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — tracepoint probes that copy from user (rare; e.g. `trace_syscall_enter`) traverse the `copy_from_user` slab-whitelist path.
+- **PAX_KERNEXEC** — `__DO_TRACE` static-call destinations live in `.text`; static-call patching transitions RW only under `text_mutex` then restores RX.
+- **PAX_RANDKSTACK** — per-syscall stack base rerandomized; tracepoints executed in syscall context inherit the fresh base.
+- **PAX_REFCOUNT** — `tracepoint_func.refcount` and `tp_module` refcount lanes saturate; never wrap.
+- **PAX_MEMORY_SANITIZE** — freed probe arrays (`tracepoint_funcs`) zeroed under call-RCU before release.
+- **PAX_UDEREF** — probes accessing user memory must use `copy_from_user`; no `__get_user` shortcuts.
+- **PAX_RAP / kCFI** — `tracepoint_func.func` indirect callsites type-tagged with the tracepoint's generated prototype; mismatched probe types refused at register time.
+- **GRKERNSEC_HIDESYM** — `__tracepoint_*` and `__SCT__tp_func_*` symbols hidden from non-CAP_SYSLOG `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — tracepoint `WARN_ON_ONCE` outputs gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **TRACE_EVENT static_call + PAX_RAP** — generated `__SCT__tp_func_<name>` static-call key carries the tracepoint's `TP_PROTO(...)` signature as its CFI tag; an attacker who overwrites the static-call destination to a function of mismatched prototype triggers a CFI fault on next invocation rather than corrupting probe state.
+- **SRCU / RCU-tasks-trace synchronize** — `tracepoint_synchronize_unregister` waits on `rcu_tasks_trace` (and SRCU for sleepable tracepoints) before releasing the old probe array; closes the UAF window where a CPU is mid-`__DO_TRACE` while another removes the probe.
+- **EXPORT_SYMBOL_GPL** — `tracepoint_probe_register`, `tracepoint_probe_unregister` and helpers are GPL-only, denying probe registration from binary-only modules.
+- **Per-module disable** — modules carrying tracepoints set `mod->num_tracepoints`; PaX additionally requires `mod->state == MODULE_STATE_LIVE` before any `for_each_tracepoint_in_mod` walk.
+- **Rationale** — tracepoints are the registration substrate for eBPF, perf, and ftrace probes; type-tagged static-call dispatch + RCU-tasks-trace sync are the two narrow paths through which an attacker could (a) confuse probe prototypes or (b) race a probe unregister. Closing both eliminates the class.
+
 ## Open Questions
 
 (none at this Tier-3 level)

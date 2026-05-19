@@ -426,6 +426,29 @@ PID-namespace reinforcement:
 - **Per-`reboot_pid_ns` rejects unsupported cmds** — defense against per-arbitrary signal injection via sys_reboot.
 - **Per-`checkpoint_restore_ns_capable` for ns_last_pid write** — defense against per-pid-prediction attack.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy.
+- **PAX_KERNEXEC** — W^X for any executable mapping.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization.
+- **PAX_REFCOUNT** — saturating refcount on subsystem structs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for sensitive allocations.
+- **PAX_UDEREF** — SMAP/SMEP strict user-pointer access.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vtables.
+- **GRKERNSEC_HIDESYM** — kernel pointer hiding.
+- **GRKERNSEC_DMESG** — syslog restriction.
+- **Nesting depth strictly bounded at MAX_PID_NS_LEVEL** — `copy_pid_ns` refuses creation past the compile-time cap so an attacker cannot build a deep stack to exhaust struct-pid arrays.
+- **CAP_SYS_ADMIN strict against the parent namespace** — `ns_capable(parent->user_ns, CAP_SYS_ADMIN)` enforced; capability granted only in the parent ns, never via the new ns being created.
+- **init-task immortal in its pidns** — pid 1 of a namespace cannot be reaped from outside; `kill(1, ...)` in a child ns is silently dropped per signal policy so a container's init cannot be murdered from another ns.
+- **pid_namespace->ns.count under PAX_REFCOUNT** — saturating refcount; `get_pid_ns` cannot revive a zero-count ns scheduled for destroy_pid_namespace_work.
+- **destroy_pid_namespace_work under PAX_RAP** — workqueue indirect dispatch carries kCFI signature.
+- **PAX_MEMORY_SANITIZE on pid_namespace free** — struct zeroed before slab return so a brief UAF reads zeros, not stale `child_reaper` / `parent` pointers.
+- **GRKERNSEC_HIDESYM on /proc/*/ns/pid** — readlink targets sanitized for unprivileged callers so namespace inode numbers are not exposed for fingerprinting.
+
+Per-doc rationale: pid namespaces are the foundation of container isolation; a UAF on `struct pid_namespace`, a wraparound on its refcount, or a way to deliver SIGKILL across the ns boundary into pid 1 collapses the container model. Strict nesting bound, PAX_REFCOUNT saturation, PAX_MEMORY_SANITIZE on free, and PAX_RAP on the destroy workqueue close the lifecycle holes; parent-ns CAP_SYS_ADMIN strictness and signal policy on pid 1 close the privilege-escalation and host-from-container kill paths.
+
 ## Open Questions
 
 (none at this Tier-3 level)

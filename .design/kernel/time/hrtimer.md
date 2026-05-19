@@ -283,6 +283,22 @@ hrtimer-specific reinforcement:
 - **hrtimer_run_queues bounded by lock-contention** — defense against single-base hogging IRQ time.
 - **Suspend/resume per-base.expires_next saved/restored** — defense against post-resume infinite-now-next causing miss-fire.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `itimerspec`/`timespec` copies for `timer_settime`/`nanosleep` bounds-checked; no `hrtimer` slab leakage to userspace.
+- **PAX_KERNEXEC** — `hrtimer_interrupt`, `__hrtimer_run_queues`, and `hrtimer_setup` reside in W^X kernel text; expiry dispatch cannot be live-patched.
+- **PAX_RANDKSTACK** — per-syscall kstack offset so `nanosleep`/`clock_nanosleep` waiters cannot be groomed via predictable kstack layout.
+- **PAX_REFCOUNT** — `hrtimer_cpu_base->active` count, per-clock-base `nr_active`, and `hrtimer.state` transitions saturating-refcounted.
+- **PAX_MEMORY_SANITIZE** — freed `hrtimer` slabs scrubbed so a reused timer slot cannot inherit stale `function`/`expires`.
+- **PAX_UDEREF** — hrtimer callbacks dereference `hrtimer` and `hrtimer_cpu_base` via per-CPU kernel mappings only; no implicit user-page reach.
+- **PAX_RAP / kCFI** — `hrtimer.function` (enum `hrtimer_restart (*)(struct hrtimer *)`) type-signatured; attacker-rewritten function pointer is a hard CFI fault before dispatch.
+- **GRKERNSEC_HIDESYM** — `hrtimer_bases`, per-CPU `hrtimer_cpu_base`, and tick-device addresses hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — hrtimer WARN splats (negative delta, callback ran past deadline) gated to CAP_SYSLOG.
+- **hrtimer_setup PAX_RAP** — `hrtimer_setup` records `function` only via the type-checked initializer; later mutation of `timer->function` outside the initializer trips CFI on dispatch.
+- **hrtimer_callback signature** — every callback returns `enum hrtimer_restart` and takes `struct hrtimer *`; the CFI hash bound at compile time is what `__hrtimer_run_queues` checks before calling.
+- **Expiry-handler discipline** — callbacks must not sleep, must complete bounded work, and must re-arm or return `HRTIMER_NORESTART` cleanly; `WARN_ON(in_atomic())` (and lockdep) catches callbacks that violate the contract, denying "expiry-as-soft-IRQ-pivot" tricks.
+- **Rationale** — hrtimer drives nanosleep, posix-timers, sched_clock-tick, RCU expedited paths, and netdev watchdogs; corrupted `timer->function` is direct kernel-mode code-execution in soft-IRQ context. Grsec/PaX hardening keeps every expiry through an RX-only, CFI-checked, refcounted dispatch.
+
 ## Open Questions
 
 (none at this Tier-3 level)

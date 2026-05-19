@@ -548,6 +548,31 @@ mremap reinforcement:
 - **Per-ksm_madvise(MADV_UNMERGEABLE) before move** — defense against per-KSM-page address-confusion on the new location.
 - **Per-untagged_addr(addr) but not new_addr** — defense against per-ARM64-MTE aliasing of the destination range (per ABI docs).
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to `mremap(2)`:
+
+- **PAX_USERCOPY** — `mremap` itself carries no payload; only `old_addr`/`old_len`/`new_len`/`flags`/`new_addr` flow through the syscall ABI.
+- **PAX_KERNEXEC** — `move_vma`, `move_page_tables`, `move_ptes` reside in `.rodata`.
+- **PAX_RANDKSTACK** — `sys_mremap` entered with randomized kernel stack offset.
+- **PAX_REFCOUNT** — folio / VMA refcounts manipulated during move use saturating refcount_t; an unbalanced move cannot overflow into a free folio.
+- **PAX_MEMORY_SANITIZE** — the unmapped source range is wiped before its pages re-enter the allocator if MREMAP_DONTUNMAP is not in effect.
+- **PAX_UDEREF** — `old_addr`/`new_addr` validated via `find_vma`; page-table move dereferences kernel PTE pointers exclusively.
+- **PAX_RAP / kCFI** — `vm_ops->mremap` dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — VMA / folio addresses in mremap WARNs redacted for non-root.
+- **GRKERNSEC_DMESG** — accounting-drift warnings restricted from unprivileged dmesg.
+
+mremap-specific reinforcement:
+
+- **MREMAP_DONTUNMAP CAP_SYS_RESOURCE** — leaving a "shadow" mapping of the moved region after the move is restricted; without the capability, the source range is unmapped on success so an attacker cannot mass-pin memory through repeated DONTUNMAP cycles.
+- **MREMAP_FIXED bounded** — `new_addr` must satisfy mmap_min_addr, address-space-randomization placement constraints, and PAX_MPROTECT W^X carryover from the source VMA; cross-class moves are refused.
+- **`move_page_tables` error revert** — on partial failure the source/destination are unwound (`pmc_revert`, unmap of `new_vma`) so a failed move cannot leave entries installed in both ranges.
+- **`vma_multi_allowed` gate** — batched multi-VMA moves refused for hugetlb / special VMAs that cannot tolerate the semantics.
+- **`ksm_madvise(MADV_UNMERGEABLE)` before move** — KSM-merged pages are split before move so the new address cannot inherit a stale KSM identity.
+- **`untagged_addr` enforced on source, not destination** — prevents ARM64 MTE tag-aliasing of the destination range.
+
+Rationale: mremap is the only syscall that moves live page-table state across virtual addresses; the above ensure the move is atomic-with-revert, refcount-safe, and not a DONTUNMAP-based memory-pinning primitive for unprivileged callers.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -606,6 +606,30 @@ mprotect reinforcement:
 - **Per-`can_change_pte_writable` (dirty + anon-exclusive only)** — defense
   against per-COW bypass / writenotify bypass on write-upgrade.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to `mprotect(2)` / `pkey_mprotect(2)`:
+
+- **PAX_USERCOPY** — `mprotect` carries no payload; only `addr`/`len`/`prot` flow through the syscall ABI.
+- **PAX_KERNEXEC** — `change_protection_range`, `change_pte_range`, `change_huge_pmd` reside in `.rodata`; the protection-change vector cannot be patched at runtime.
+- **PAX_RANDKSTACK** — `do_mprotect_pkey` entered with randomized kernel stack offset.
+- **PAX_REFCOUNT** — folio refcounts adjusted across `wrprotect`/`mkwrite` use saturating refcount_t.
+- **PAX_MEMORY_SANITIZE** — downgrade `RW→R`-then-unmap path sanitizes the folio before reuse so stale writable contents do not leak.
+- **PAX_UDEREF** — page-table walker dereferences kernel PTE pointers only; `addr`/`len` user range bounded by `find_vma`.
+- **PAX_RAP / kCFI** — `pgprot_modify`, `vm_ops->mprotect` dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — VMA / folio addresses in mprotect-induced WARNs redacted for non-root.
+- **GRKERNSEC_DMESG** — W^X-violation messages restricted from unprivileged dmesg.
+
+mprotect-specific reinforcement:
+
+- **PAX_MPROTECT W^X enforcement** — a VMA that was ever `PROT_WRITE` cannot transition to `PROT_EXEC`, and a VMA that was ever `PROT_EXEC` cannot transition to `PROT_WRITE`; the page-protection lattice is one-way except for explicit `mmap` of a fresh region. This eliminates the JIT-spray / data→code pivot.
+- **MAP_FIXED rejection** — mprotect cannot create a new VMA; `MAP_FIXED`-style overlay of executable VMAs through an mprotect side-effect is refused.
+- **`can_change_pte_writable` strict** — write-upgrade requires the PTE to already be dirty and the folio anon-exclusive; this prevents a COW-bypass write-upgrade race.
+- **`modify_prot_start_ptes` captures dirty/young** — protection change does not lose accumulated dirty state, so the FS writeback path still sees the data that must hit disk.
+- **`mmu_notifier_invalidate_range_{start,end}` paired** — secondary MMUs (IOMMU, KVM EPT) see the protection change atomically; a guest cannot race the host into observing a stale writable mapping.
+
+Rationale: mprotect is the kernel's single chokepoint for changing the W/X lattice of a live process; PAX_MPROTECT plus the strict write-upgrade gate makes that lattice non-bypassable from userspace.
+
 ## Open Questions
 
 (none at this Tier-3 level)

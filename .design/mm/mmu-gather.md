@@ -577,6 +577,30 @@ mmu_gather reinforcement:
 - **Per-fully_unshared_tables WARN_ON in finish** — defense against per-pmd-unshare-miss accounting bug.
 - **Per-inc/dec_tlb_flush_pending pairing** — defense against per-pending-count leak that breaks mm_tlb_flush_nested.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to `mmu_gather` TLB-flush batching and RCU table free:
+
+- **PAX_USERCOPY** — mmu_gather carries no user payload; it batches kernel page-table pages and folios only.
+- **PAX_KERNEXEC** — `tlb_flush`, `tlb_remove_table`, arch tlb_op vectors reside in `.rodata`.
+- **PAX_RANDKSTACK** — `tlb_gather_mmu` initializes the on-stack `struct mmu_gather` at a randomized kernel-stack offset.
+- **PAX_REFCOUNT** — `mm->tlb_flush_pending` uses saturating semantics so a stale paired inc/dec cannot drive nested-flush detection to underflow.
+- **PAX_MEMORY_SANITIZE** — freed page-table pages and freed user folios are wiped before re-entering the buddy/slab allocators via the gather batch.
+- **PAX_UDEREF** — page-table page pointers in the gather batch are kernel pointers exclusively; never indexed by user-supplied values.
+- **PAX_RAP / kCFI** — `mmu_gather_ops` / arch-callbacks (`tlb_flush`, `__tlb_remove_page`) dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — gather-batch addresses in WARN dumps redacted from non-root.
+- **GRKERNSEC_DMESG** — soft-lockup / unbalanced-pending WARNs restricted from unprivileged dmesg.
+
+mmu-gather-specific reinforcement:
+
+- **TLB-flush batching strict** — `tlb_flush_pending` increments *before* the PTE clear and decrements *after* the matching `tlb_flush`; any caller that sees `tlb_flush_pending > 0` waits on the barrier, so a stale TLB entry never escapes into the next memory operation.
+- **RCU-table-free integrity** — page-table pages are freed via `tlb_remove_table` → `synchronize_rcu` (or `call_rcu`); concurrent pagewalkers under RCU read-side cannot deref a just-freed pmd/pud, eliminating the classic pagewalker UAF.
+- **`mm_tlb_flush_nested` fullmm promotion** — concurrent flushers fall through to a full-mm flush rather than relying on per-range deltas, removing a class of stale-TLB races under nested unmap.
+- **`tlb_flush_rmaps` only after TLB flush** — rmap removal is sequenced *after* the TLB invalidation so a CPU that has the entry cached cannot follow rmap into a freed slot.
+- **`cond_resched` per MAX_NR_FOLIOS_PER_FREE chunk** — large munmaps cannot drive a soft-lockup that an attacker uses to mask other activity.
+
+Rationale: mmu-gather is the canonical sink for "memory I unmapped from a process" — if the flush is skipped or the RCU grace period is shortened, the freed page is still mapped on another CPU's TLB and the kernel hands it to a new owner. The above keep the TLB and the freed-page-table free strictly serialized.
+
 ## Open Questions
 
 (none at this Tier-3 level)

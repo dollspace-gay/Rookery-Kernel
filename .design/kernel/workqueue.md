@@ -291,6 +291,28 @@ workqueue-specific reinforcement:
 - **Per-work data encoding validates aligned pwq pointer** — defense against torn data field reading half-pointer.
 - **Per-pool busy_workers_hashtable** — defense against per-work double-execution across pools (ABA via re-queue).
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline (apply to every Tier-3 surface):
+
+- **PAX_USERCOPY** — workqueue core does no user copies; embedded `work_struct` payloads must traverse owner's usercopy whitelist.
+- **PAX_KERNEXEC** — `work_func_t` destinations live in `.text`; W^X enforced.
+- **PAX_RANDKSTACK** — worker threads run `process_one_work` from a kthread context with per-task randomized stack base; rescuer threads inherit a fresh base on each schedule-in.
+- **PAX_REFCOUNT** — `workqueue_struct.refcnt` and `worker_pool.refcnt` saturate; never wrap.
+- **PAX_MEMORY_SANITIZE** — `pool_workqueue` and `worker` slabs zeroed on free.
+- **PAX_UDEREF** — `/sys/devices/virtual/workqueue/*` writes use `kstrtoul`-style parsers, no direct user-pointer deref.
+- **PAX_RAP / kCFI** — `work_func_t` (`void (*)(struct work_struct *)`) callsite (`worker->current_func`) tagged.
+- **GRKERNSEC_HIDESYM** — `process_one_work`, `worker_thread`, `create_worker` hidden from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — `WARN_ON_ONCE(in_atomic)` and stall messages gated behind CAP_SYSLOG.
+
+Subsystem-specific reinforcement:
+
+- **`workqueue_struct` PAX_REFCOUNT** — `wq->refcnt` saturating prevents the destroy-race where an attacker contrives `queue_work` to underflow refcount and trigger `destroy_workqueue`-in-flight; result is `-EBUSY` rather than UAF.
+- **`work_func_t` PAX_RAP type tag** — every `INIT_WORK(&w, fn)` captures `fn`'s prototype tag into the work struct (via the macro); `process_one_work`'s indirect call verifies the tag, defeating function-pointer overwrites in embedded `work_struct`s (a frequent gadget primitive).
+- **`WQ_FREEZABLE` discipline** — freezable workqueues participate in PM freezer; non-freezable workers handling user-controlled inputs must be marked `WQ_MEM_RECLAIM` only when they genuinely service reclaim, otherwise PaX rejects via lockdep-style assertion (prevents accidental WQ_MEM_RECLAIM abuse pinning a worker against freezing).
+- **Per-work `data` encoding** — `work->data` low bits hold `pwq` pointer + flags; alignment check on dispatch ensures torn writes (e.g. 32-bit split on a 64-bit field) refuse the work item.
+- **Rationale** — workqueues are pervasive, embedded in thousands of objects across the kernel; RAP-typed `work_func_t` dispatch is the single highest-value mitigation, denying gadget control even when an attacker has an OOB write into an arbitrary subsystem's `work_struct`.
+
 ## Open Questions
 
 (none at this Tier-3 level)

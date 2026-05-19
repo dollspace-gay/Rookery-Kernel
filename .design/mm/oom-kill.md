@@ -355,6 +355,31 @@ OOM-kill reinforcement:
 - **Per-OOM-victim coredump/core-pattern bounded** — defense against per-coredump-flood.
 - **Per-oom_score_adj_min CAP_SYS_RESOURCE for-decrease** — defense against unprivileged immortal-task.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening that applies to the out-of-memory killer:
+
+- **PAX_USERCOPY** — OOM dumps are emitted via `printk` and reaped by dmesg policy; no `copy_to_user` from oom_kill.
+- **PAX_KERNEXEC** — `oom_evaluate_task`, `oom_kill_process`, `__oom_reap_task_mm` reside in `.rodata`.
+- **PAX_RANDKSTACK** — `out_of_memory` entered with randomized kernel stack offset.
+- **PAX_REFCOUNT** — `task_struct->usage` and `mm_struct->mm_users` use saturating refcount_t across `get_task_struct`/`mmget_not_zero` in the OOM reaper.
+- **PAX_MEMORY_SANITIZE** — reaped MM's user pages enter the allocator via `unmap_page_range` + sanitize before reuse.
+- **PAX_UDEREF** — OOM never dereferences victim userspace; it tears down the MM via kernel PTE walkers only.
+- **PAX_RAP / kCFI** — OOM notifier list (`oom_notify_list`) callbacks dispatched through type-checked vtables.
+- **GRKERNSEC_HIDESYM** — victim address-space layout (VMA addresses, RSS breakdown) redacted from non-root dmesg output.
+- **GRKERNSEC_DMESG** — `dump_header` rate-limited and gated behind `dmesg_restrict` so OOM events do not become a side-channel.
+
+OOM-killer-specific reinforcement:
+
+- **OOM_SCORE_ADJ_MIN never-kill** — a task with `oom_score_adj == OOM_SCORE_ADJ_MIN` (-1000) is excluded from victim selection unconditionally; the OOM killer cannot promote it back into the candidate set.
+- **CAP_SYS_RESOURCE strict for adj decrease** — decreasing `oom_score_adj` (making a task more immortal) requires `CAP_SYS_RESOURCE`; an unprivileged caller cannot create an unkillable task.
+- **`panic_on_oom` honored** — when sysctl `vm.panic_on_oom=1` (or `=2` for constrained OOM) the kernel panics rather than silently killing; a configured fail-stop policy is not bypassable from the OOM path.
+- **Cgroup-OOM scoped to memcg** — a cgroup-internal OOM cannot escape to kill processes outside the offending memcg; cross-cgroup spillover is refused.
+- **Constraint determination strict** — `oom_constraint` distinguishes `MEMCG`, `CPUSET`, `MEMORY_POLICY`, `NONE`; victim selection happens within the constraining domain, not the global task list.
+- **`oom_killer_disable` for kexec / hibernate** — OOM is disabled across the critical kexec/hibernate window so a mid-handover OOM cannot corrupt the in-flight image.
+
+Rationale: the OOM killer is the highest-privilege "kill arbitrary process" primitive in the kernel; the above ensure it kills only victims selected within the configured constraint domain, honors administrator fail-stop policy, and cannot be steered by an unprivileged caller into killing a privileged peer.
+
 ## Open Questions
 
 (none at this Tier-3 level)
