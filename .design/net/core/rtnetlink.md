@@ -260,6 +260,29 @@ Rtnetlink-specific reinforcement:
 - **Per-RTM_GETSTATS NLA_NESTED depth-bounded** — defense against deep-nested stats parsing DoS.
 - **Per-mcast notify scoped to per-net** — defense against listener seeing other-ns events.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: rtnetlink is the privileged control-plane for every networking object (links, addrs, routes, neighbours, qdiscs, FDB, MDB) — a single missing CAP gate or a TLV parse mistake lets an unprivileged process modify the routing/firewall posture of any netns it can reach, so this surface is grsec's strict-CAP-policy crown jewel.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: every `nlmsg_data`/`nla_data` extraction is bounded by `nla_len` and the slab cache backing the recvfrom skb is USERCOPY-whitelisted only for the netlink-message region.
+- **PAX_KERNEXEC**: the rtnetlink `rtnl_msg_handlers[]` dispatch table is `__ro_after_init`; per-family `rtnl_register_module` entries are write-once-and-locked (no re-registration after module-init).
+- **PAX_RANDKSTACK**: every entry into `rtnetlink_rcv_msg` re-randomises kernel-stack offset before the deeply-recursive TLV walk and per-family doit/dumpit handler.
+- **PAX_REFCOUNT**: per-`rtnl_link_ops` refcount and per-`net_device` `pcpu_refcnt` saturate; defense against repeated link-add overflow attack.
+- **PAX_MEMORY_SANITIZE**: response-skb allocated for `RTM_GET*` is zero-filled, no stale slab disclosure across answers; freed `struct nlmsghdr` page-frags zero-on-free.
+- **PAX_UDEREF**: netlink `iov_iter` traversal goes through `copy_from_iter`-class accessors only; no raw user pointer deref inside the rtnetlink hot path.
+- **PAX_RAP / kCFI**: indirect calls through `rtnl_link_ops->newlink/changelink/dellink`, `rtnl_msg_handler.doit/dumpit/get_link_af_size`, and per-`af_ops->fill_link_af` are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-link kernel pointers (`&dev`, `&netdev_priv(dev)`) never echoed into RTM_NEWLINK responses; only ifindex + ifname + opaque `IFLA_*` payloads.
+- **GRKERNSEC_DMESG**: rtnetlink parse-error warnings (`netlink: %d bytes leftover...`) ratelimited; require CAP_SYSLOG.
+
+rtnetlink-specific reinforcement:
+- **RTM_NEW*/RTM_DEL*/RTM_SET* CAP_NET_ADMIN strict** — every mutating message asserts `ns_capable(net->user_ns, CAP_NET_ADMIN)`; grsec policy additionally requires `init_user_ns` for routing-table and MDB mutations (refuse from non-init userns even with capability).
+- **netlink-attribute PAX_USERCOPY** — `nla_get_string`, `nla_strscpy`, and IFLA_IFNAME copy uses bounded `nla_strscpy` with USERCOPY-whitelist slab; no `strncpy` into fixed buffers.
+- **NLA_POLICY strict-mode** — every rtnetlink-family policy uses `NLA_POLICY_STRICT`, rejecting unknown attribute types (defends against TLV-fuzzing → uninitialized-field disclosure).
+- **Per-RTM_NEWLINK ifname validation** — `dev_valid_name` refuses non-ASCII / control / `/` / `..`; grsec audit-log on attempted creation of `eth0/../foo`-style names.
+- **Per-dump cursor refcount under RTNL** — `netlink_dump_control.module` refcnt under RTNL lock prevents module-unload race during long `RTM_GETLINK` dump.
+- **Per-mcast group CAP gating** — `NETLINK_LISTEN_ALL_NSID` requires CAP_NET_ADMIN in `init_user_ns` (grsec policy).
+
 ## Open Questions
 
 (none at this Tier-3 level)

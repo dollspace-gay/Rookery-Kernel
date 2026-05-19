@@ -233,6 +233,31 @@ Addr-list-specific reinforcement:
 - **Per-MC group bound to per-netdev** — defense against cross-netdev MC leakage.
 - **Per-set_rx_mode invoked under tx-queue-lock** — defense against concurrent xmit + filter-update.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on every `SIOCADDMULTI` / `SIOCDELMULTI` / `SIOCSIFHWADDR` ioctl and the netlink `IFLA_ADDRESS` / `IFLA_BROADCAST` attribute copies.
+- **PAX_KERNEXEC** — `.rodata` `dev_addr_*` static-call targets; W^X across the per-list manipulation API.
+- **PAX_RANDKSTACK** — per-syscall randomisation on rtnetlink/ioctl entries into the HW-addr list path.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct netdev_hw_addr` (`refcount`, `synced` counter).
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `netdev_hw_addr` slabs so dropped HW addrs do not linger.
+- **PAX_UDEREF** — enforced isolation between user `ifreq` HW-addr buffers and the in-kernel uc/mc list.
+- **PAX_RAP / kCFI** — forward-edge CFI on `ndo_set_rx_mode`, `ndo_set_mac_address`, and `dev_addr_*` indirect dispatch.
+- **GRKERNSEC_HIDESYM** — dev-addr internal symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — addr-list WARN gated behind CAP_SYSLOG.
+
+dev_addr_lists-specific reinforcement:
+
+- **HW-addr mutation gated by CAP_NET_ADMIN** — defense against unprivileged userspace altering `dev->dev_addr`, unicast filter, or multicast list.
+- **PAX_REFCOUNT saturation on `netdev_hw_addr->refcount`** — defense against synced-counter wrap via repeated `dev_uc_sync` / `dev_mc_sync` from a hostile upper device (bond/team/macvlan).
+- **`MAX_ADDR_LEN` strictly bounded** — defense against per-driver claiming larger-than-MAX HW addr triggering OOB write.
+- **Flush-on-unregister enforced** — defense against UAF post-netdev-unregister.
+- **RCU-free for entries** — defense against concurrent reader seeing freed entry during `ndo_set_rx_mode`.
+- **MC group bound to its owning netdev** — defense against cross-netdev MC leakage via syncdev abuse.
+
+Rationale: dev_addr_lists is the lookup-and-sync engine that feeds NIC HW filters. Without privilege gating, refcount saturation, and RCU-free, a hostile upper device or unprivileged ioctl can desync HW/SW filters, smuggle promisc semantics, or trigger UAF during teardown. The grsec stack closes each of those primitives.
+
 ## Open Questions
 
 (none at this Tier-3 level)

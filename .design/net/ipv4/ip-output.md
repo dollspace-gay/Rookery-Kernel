@@ -552,6 +552,30 @@ IPv4 output reinforcement:
 - **Per-skb->ignore_df honored** — defense against per-conntrack-fragment reassembly mismatch.
 - **Per-BPF_CGROUP_EGRESS drop path zeroes skb** — defense against per-egress-bypass.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `ip_finish_output` / `ip_output` / `ip_do_fragment` is the IPv4 transmit final-furlong — it owns header construction, fragmentation, neighbour resolution, and the dev_queue_xmit handoff. A header-building OOB, fragmentation-loop, or IPID predictability bug pivots into kernel-buffer OOB write, fragmentation-amplification DoS, or off-path TCP injection.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: `ip_finish_output` operates on kernel-owned skb only; user data was copied in earlier via `ip_append_data`/`sendmsg`.
+- **PAX_KERNEXEC**: per-`dst_ops`, per-`neighbour.ops`, and `inet_protos[]` registrations live in `__ro_after_init`.
+- **PAX_RANDKSTACK**: every `ip_output` syscall context re-randomises kernel-stack offset before the deep `dst->output` / `neigh->output` chain.
+- **PAX_REFCOUNT**: `dst_entry.__refcnt`, `neighbour.refcnt`, per-`net_protocol` refcounts saturate.
+- **PAX_MEMORY_SANITIZE**: dropped skb (e.g., `IPSTATS_MIB_OUTDISCARDS`) freed via `kfree_skb` → page-pool sanitize hook zero-fills linear buffer.
+- **PAX_UDEREF**: kernel-context throughout transmit; no `__user` deref past `sendmsg` entry.
+- **PAX_RAP / kCFI**: indirect calls through `dst_entry.output`, `neighbour.ops->output`, `net_protocol`-side TX callbacks, and `bpf_cgroup_egress` programs are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-skb, per-dst, per-neigh kernel pointers never rendered into ftrace/perf events visible to non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG**: "ip_finish_output: too long frag" / "ip_fragment: BUG" warnings ratelimited; CAP_SYSLOG.
+
+ip-output-specific reinforcement:
+- **ip_finish_output PAX_USERCOPY** — although no user copy occurs here, header construction (`ip_build_and_send_pkt`, `__ip_make_skb`) uses bounded `skb_push`/`skb_reserve` with `hh_len` reservation; any over/underflow → `BUG()` not silent OOB.
+- **Fragment-DOS gate** — `ip_do_fragment` aborts when `mtu < IPV4_MIN_MTU` (68) or fragment-count exceeds compile-time cap; defends against minuscule-MTU-driven amplification.
+- **DF + !ignore_df → ICMP FRAG_NEEDED + drop** — strict; refuse silent IPv4 fragmentation across DF (defends MTU-blackhole abuse).
+- **IPID anti-prediction (SipHash)** — `ip_select_ident_segs` uses `siphash` over (saddr, daddr, protocol, ip_idents-secret); per-boot secret rerolled from `get_random_bytes` (grsec policy extends to per-namespace tagging) — defends off-path TCP-injection via predictable IPID.
+- **IPSKB_REROUTED skips POST_ROUTING** — netfilter POST_ROUTING re-entry refused on already-rerouted skb (defends NF-loop infinite-recursion + stack overflow).
+- **IPSKB_FRAG_COMPLETE re-entry guard** — `ip_do_fragment` refuses a second fragmentation pass on an already-fragmented skb (defends per-double-frag corruption).
+- **BPF_CGROUP_EGRESS drop path memsanitize** — when cgroup eBPF returns `BPF_DROP`, the skb's linear buffer is zero-filled before `kfree_skb` (defends per-egress-bypass via dropped-skb introspection).
+
 ## Open Questions
 
 (none at this Tier-3 level)

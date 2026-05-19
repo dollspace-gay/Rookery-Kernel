@@ -654,6 +654,30 @@ mac80211-core reinforcement:
 - **Per-rate-control init under RTNL** — defense against per-concurrent-iface-mode-change race.
 - **Per-default-STA iface gated on NO_AUTO_VIF** — defense against per-test-driver unwanted netdev.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `ieee80211_local` is the per-hw root structure that owns all sub-interface (`sdata`), key, sta, channel-context, and rate-control state; it's the canonical mac80211 "device" object referenced from every RX, TX, scan, and management path. A refcount imbalance or vtable corruption here pivots to UAF across every Wi-Fi interface on the box, and the key-cache (group + pairwise GTK/PTK material) is high-value disclosure target.
+
+Baseline (cross-ref `net/mac80211/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: nl80211 / cfg80211 ↔ mac80211 control-path copies via `nla_*` validators; per-key material slab-USERCOPY-whitelisted.
+- **PAX_KERNEXEC**: `ieee80211_ops`, `ieee80211_rate_control_ops`, `ieee80211_sta_rates` placed `__ro_after_init`; driver-registered cb-table validated at `ieee80211_alloc_hw` time.
+- **PAX_RANDKSTACK**: re-randomise on every `ieee80211_register_hw` / `ieee80211_iface_work` / scan-cb entry.
+- **PAX_REFCOUNT**: `ieee80211_local.rx_handlers_drop_*` counters and `sdata` per-iface refs saturating.
+- **PAX_MEMORY_SANITIZE**: freed `ieee80211_local`, `ieee80211_sub_if_data`, `ieee80211_key` zero-filled (memzero_explicit on key material).
+- **PAX_UDEREF**: nl80211 attribute parse via NLA_POLICY only.
+- **PAX_RAP / kCFI**: `ieee80211_ops->tx`, `->start`, `->stop`, `->config`, `->set_key` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `ieee80211_local`, `sdata`, `sta_info`, `ieee80211_key` pointers never in `/sys/kernel/debug/ieee80211/*` (only %pK).
+- **GRKERNSEC_DMESG**: driver-registration + sub-iface-add warns ratelimited.
+
+mac80211-main-specific reinforcement:
+- **ieee80211_local PAX_REFCOUNT** — `local->open_count`, `local->monitors`, `local->rx_chains_static/dynamic` use saturating Refcount.
+- **Key MEMORY_SANITIZE strict** — `memzero_explicit(key->conf.key, key->conf.keylen)` on `ieee80211_key_free`, applied to GTK / PTK / IGTK / BIGTK.
+- **sta_info refcount** saturating; defends mass-STA-add storm.
+- **CAP_NET_ADMIN strict** for `ieee80211_register_hw` (driver insmod path); refuse from non-init userns.
+- **FIPS-mode strips RC4 / WEP / TKIP at hw register** (already row-2) — extended with GR audit-log on attempt.
+- **SW_CRYPTO_CONTROL+FIPS refused** matching upstream; GR audit-log on driver attempt.
+- **Per-hw `iface_limits` strict** — refuse > `ieee80211_iface_combination.max_interfaces` create with audit-log (defends test-driver unbounded VIF DoS).
+
 ## Open Questions
 
 (none at this Tier-3 level)

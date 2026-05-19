@@ -450,6 +450,25 @@ vmpressure reinforcement:
 - **Per-mem_cgroup_disabled fast-path** — defense against per-CONFIG_MEMCG=n hot-path overhead.
 - **Per-mem_cgroup_set_socket_pressure hysteresis (1 s)** — defense against per-socket-buffer thrash.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — vmpressure eventfd notify path copies only fixed-size u64 counters out; the args buffer copied in from userspace is bounded by MAX_VMPRESSURE_ARGS_LEN and validated before any per-CPU access.
+- **PAX_KERNEXEC** — vmpressure work_struct handlers and eventfd notify callbacks execute from RX text; no JIT or writable text is registered into the event list.
+- **PAX_RANDKSTACK** — cgroup write handler for vmpressure entry honors randomized kernel-stack offset; the args parse uses a heap copy rather than a VLA on stack.
+- **PAX_REFCOUNT** — vmpressure_event and memcg references use hardened refcounts; eventfd_ctx_fileget/put pairing is enforced by saturating counters.
+- **PAX_MEMORY_SANITIZE** — freed vmpressure_event structs are sanitized before kfree so leftover eventfd_ctx pointers cannot be re-observed via slab recycling.
+- **PAX_UDEREF** — args copy uses copy_from_user with explicit length cap; no user pointer is dereferenced from softirq or workqueue context.
+- **PAX_RAP / kCFI** — vmpressure_work_fn and eventfd_signal callbacks are CFI-typed; the event list cannot be hijacked into pivoting through an attacker-controlled function pointer.
+- **GRKERNSEC_HIDESYM** — cgroup vmpressure interface files do not leak kernel pointers; per-memcg state is shown only to writers in the owning cgroup namespace.
+- **GRKERNSEC_DMESG** — vmpressure-related WARN_ONs and event-register failures gate behind dmesg_restrict.
+- **Per-cgroup CAP_SYS_ADMIN gate for legacy non-tree mode** — defense against per-v1-legacy-mode unprivileged event-source manipulation.
+- **Per-eventfd notify PAX_USERCOPY whitelist** — defense against per-arbitrary-kernel-state being copied to the eventfd reader.
+- **Per-events_lock mutex held during register/unregister** — defense against per-iterator-vs-deliver UAF.
+- **Per-MAX_VMPRESSURE_ARGS_LEN strict cap on args** — defense against per-unbounded kmalloc from a userspace write.
+- **Per-mem_cgroup_disabled fast-exit** — defense against per-CONFIG_MEMCG=n hot-path cost and grsec-audit noise.
+
+Rationale: vmpressure is an unprivileged notification surface that a userspace daemon subscribes to; under grsec discipline the per-cgroup args path needs USERCOPY/UDEREF safety, the event list needs RAP-typed dispatch, the eventfd notify lifetime is governed by hardened refcounts, and HIDESYM/DMESG ensure that pressure-event timing cannot be amplified into a layout-disclosure side-channel.
+
 ## Open Questions
 
 (none at this Tier-3 level)

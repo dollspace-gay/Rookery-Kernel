@@ -494,6 +494,25 @@ Workingset-detection reinforcement:
 - **Per-shrinker seeks=0 + SHRINKER_NUMA_AWARE | SHRINKER_MEMCG_AWARE** — defense against per-cross-memcg reclaim and per-priority skew.
 - **Per-CONFIG_LRU_GEN BUILD_BUG_ON token-width** — defense against per-MGLRU shadow overflow at compile time.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — shadow xa_value entries pack memcgid + nid + eviction counter + workingset bit into an integer; the encoded value is never directly copied to userspace, only refault/activation stats derived from it surface via memcg.stat (and even there, no pointer leaks).
+- **PAX_KERNEXEC** — workingset detection runs entirely from RX text; shrinker registration goes through CFI-typed shrinker ops.
+- **PAX_RANDKSTACK** — refault path invoked from page-cache miss honors randomized kernel-stack offset; refault_distance math uses sized integer arithmetic with no VLAs.
+- **PAX_REFCOUNT** — mem_cgroup_tryget on refault and per-shadow-node count fields use hardened refcount types; bucket_order saturating_sub prevents underflow.
+- **PAX_MEMORY_SANITIZE** — shadow nodes freed via shadow_lru_isolate are sanitized before slab return so a recycled node cannot return stale refault distances.
+- **PAX_UDEREF** — workingset path is pure kernel; no user pointer ever reaches xa_load or the shadow encode path.
+- **PAX_RAP / kCFI** — shrinker scan/count callbacks for workingset and list_lru iterators are CFI-typed; the LRU walk cannot be hijacked into pivoting through a forged shadow entry.
+- **GRKERNSEC_HIDESYM** — refault stats surface via memcg.stat without exposing per-shadow-node addresses; debugfs interfaces hide xa_node pointers.
+- **GRKERNSEC_DMESG** — VM_BUG_ON_FOLIO and WARN_ON_ONCE on corrupt shadow nodes gate behind dmesg_restrict.
+- **Per-shadow PAX_USERCOPY rejection** — defense against per-mistaken-copy of shadow xa_value (which is not a kernel pointer but must not be confused for one downstream).
+- **Per-refault accounting bounded by EVICTION_MASK** — defense against per-wrapping-distance false-recent attack against eviction policy.
+- **Per-shadow-node cap via shrinker** — defense against per-streamer-DoS inflating xa_node memory.
+- **Per-shadow_lru_isolate xa_trylock + LRU_RETRY** — defense against per-lock-inversion deadlock under reclaim pressure.
+- **Per-pack_shadow mask-before-shift** — defense against per-timestamp overflow corrupting memcgid/nid bits within the packed value.
+
+Rationale: Workingset detection lives entirely in kernel memory and influences reclaim decisions, so its threat model is corruption rather than disclosure; grsec compounding ensures the packed shadow encoding cannot be confused for a pointer (USERCOPY discipline), that the shrinker callbacks cannot be hijacked (RAP/kCFI), that the per-node refault counters cannot overflow (REFCOUNT + EVICTION_MASK), and that node lifecycle is safe under reclaim races (MEMORY_SANITIZE on free, xa_trylock pairing).
+
 ## Open Questions
 
 (none at this Tier-3 level)

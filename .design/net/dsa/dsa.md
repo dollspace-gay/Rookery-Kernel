@@ -266,6 +266,28 @@ DSA-specific reinforcement:
 - **Per-namespace DSA scoped** — defense against cross-ns leak.
 - **Per-skb_pull respects tag size** — defense against per-malformed-tag OOB.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: DSA (Distributed Switch Architecture) layers per-port virtual netdevs over a single CPU-facing master device, inserting/removing a vendor-specific tag (`tag_ksz`, `tag_mtk`, `tag_brcm`, etc.) on every RX/TX — a tag-parser bug, vtable swap, or per-port refcount imbalance pivots into arbitrary skb-redirect across switch ports, defeating the L2 isolation customers expect.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: DSA per-port `ethtool` op (`get_strings`, `get_ethtool_stats`) copies through bounded `copy_to_user` with per-string-length validation; per-port stat slabs USERCOPY-whitelist limited.
+- **PAX_KERNEXEC**: `dsa_switch_ops`, `dsa_device_ops` (per-tag-protocol parser table), and `dsa_netdev_ops` placed in `__ro_after_init`; refuse mutation after `dsa_register_switch`.
+- **PAX_RANDKSTACK**: every entry into `dsa_master_find_slave`, `dsa_switch_setup`, `dsa_port_setup` re-randomises kernel-stack offset before the deeply-recursive port/lag/bridge enumeration.
+- **PAX_REFCOUNT**: `dsa_switch_tree.refcount`, `dsa_port.fid`, and per-LAG `dsa_lag.refcount` use saturating `Refcount`.
+- **PAX_MEMORY_SANITIZE**: `dsa_switch_destroy` and `dsa_port_destroy` zero-fill the switch/port slab blocks before slab-return.
+- **PAX_UDEREF**: rtnetlink-driven DSA config (CHANGEUPPER for bridge-join, LAG, etc.) uses netlink-attribute accessors only; no raw `__user` deref.
+- **PAX_RAP / kCFI**: indirect calls through every `dsa_switch_ops->*` method (port_enable, port_disable, port_bridge_join, port_fdb_add, port_vlan_add, etc.) and `dsa_device_ops->{xmit,rcv}` (tag parser) are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-`dsa_switch*`, `dsa_port*` kernel pointers never echoed into sysfs / ethtool / rtnetlink responses; only ifindex + port-name + opaque attributes.
+- **GRKERNSEC_DMESG**: DSA tag-parse-error and port-state-transition warnings ratelimited; CAP_SYSLOG to read.
+
+DSA-specific reinforcement:
+- **DSA tag PAX_USERCOPY** — `dsa_device_ops->rcv` parser validates incoming tag length against `skb_headlen(skb)` before `skb_pull`; mismatch → drop + grsec audit (defends against tag-truncation OOB read).
+- **CAP_NET_ADMIN for /sys/class/net/\<dsa\>/** — bridge-join, VLAN-add, FDB-write all require CAP_NET_ADMIN in `init_user_ns` (grsec policy beyond upstream's CAP_NET_ADMIN-in-any-userns default).
+- **Per-DSA tree refcount under switch-tree-mutex** — `dsa_switch_tree.refcount` cannot drop to zero while a slave-netdev still references it (BUG-on-violation, defends against module-unload race with active slave).
+- **Inter-switch tag-routing source validation** — when a DSA tree spans multiple chip cascades, the per-tag source-port field is validated against `dsa_tree->user_ports` membership; mismatch → drop (defends against neighbouring-switch spoofing).
+- **Per-namespace DSA scoping** — slave netdevs and the conduit netdev share the netns of `dsa_register_switch` caller; cross-netns move refused unless CAP_SYS_ADMIN + init_user_ns.
+
 ## Open Questions
 
 (none at this Tier-3 level)

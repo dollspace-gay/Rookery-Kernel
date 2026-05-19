@@ -560,6 +560,29 @@ IUCV-base reinforcement:
 - **Per-FUTEX-style `iucv_path_table[pathid] = NULL` after sever** — defense against per-pathid-reuse UAF.
 - **Per-non-SMP handler single-cpu mask (`iucv_setmask_up`)** — defense against per-out-of-order delivery to handlers that can't tolerate it.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: IUCV is z/VM CP-hypervisor-mediated inter-guest IPC; the kernel side translates `b2f0`-instruction CP calls into kernel-visible paths, handlers, and message buffers. A compromised peer guest can submit arbitrary path/message metadata, and the path-id table is a finite indexed resource shared across all listeners — refcount and bounds discipline matter as much here as on any classic socket family. Note that IUCV is s390-only (no x86 build target); the matrix below assumes the s390 grsec port.
+
+Baseline (cross-ref `arch/s390/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: per-message `iucv_message` rx buffer slab-allocated with USERCOPY whitelist when surfaced via AF_IUCV `recvmsg`.
+- **PAX_KERNEXEC**: `iucv_handler` ops vtables + `iucv_irq_data` dispatch table placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: every external-interrupt entry (`do_ext_irq` → IUCV ipm 0x4000) re-randomises kstack offset.
+- **PAX_REFCOUNT**: `iucv_path` + per-handler `affinity_mask` use saturating `Refcount`; defends path-register storm wrap.
+- **PAX_MEMORY_SANITIZE**: freed `iucv_path` slot zeroed; defends path-id-replay disclosure.
+- **PAX_UDEREF**: IUCV is kernel-internal — no direct user-deref surface, but AF_IUCV layer above uses sockptr-class copies only.
+- **PAX_RAP / kCFI**: `iucv_handler->path_pending`, `->path_complete`, `->path_severed`, `->message_pending`, `->message_complete` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-path / per-handler kernel addresses never rendered to `/proc/iucv*` debugfs (only %pK).
+- **GRKERNSEC_DMESG**: per-CP-error and per-path-sever logs ratelimited; CAP_SYSLOG gates dmesg read.
+
+iucv-core-specific reinforcement:
+- **CAP_SYS_ADMIN in init_user_ns** for `iucv_register()` from kernel module load; defends rogue-module bypass of CP-userid gate.
+- **EBCDIC userid bounds + uppercase enforcement** — `iucv_path_connect` userid must be 8-byte EBCDIC, uppercase, non-NUL-padded; refuse on validation fail.
+- **iucv_path_table[pathid] = NULL after sever** (already row-2) — extended with audit-log on pathid reuse attempts within GRSEC_IUCV_REUSE_WINDOW.
+- **per-handler `iucv_pathid` upper-bound** — refuse path-register beyond GRSEC_IUCV_PATHID_MAX (default 4096).
+- **CP-side response timeout** — `iucv_path_pending` answered within GRSEC_IUCV_PEND_MS (default 5000 ms) else auto-sever.
+- **GR-RBAC `iucv_peer_users` role** — only marked subjects may open AF_IUCV sockets backed by IUCV-core.
+
 ## Open Questions
 
 (none at this Tier-3 level)

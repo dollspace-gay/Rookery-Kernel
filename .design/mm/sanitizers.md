@@ -264,6 +264,25 @@ Sanitizer-specific reinforcement:
 - **Per-KFENCE_SAMPLE_INTERVAL bounded** — defense against per-sample storm.
 - **Per-bug-report rate-limited** — defense against per-bug log-flood.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — sanitizer shadow regions and quarantine slabs are excluded from copy_from_user/copy_to_user whitelists; KASAN/KMSAN metadata must never traverse the usercopy boundary.
+- **PAX_KERNEXEC** — sanitizer runtime text (kasan, kmsan, kcsan, ubsan) is mapped RX-only; shadow-write paths execute under data-only mappings.
+- **PAX_RANDKSTACK** — KASAN stack-instrumentation cooperates with randomized kernel-stack offset; redzone math accounts for per-syscall entropy without leaking the per-task slot.
+- **PAX_REFCOUNT** — stackdepot refcounts, kfence object pinning, and KASAN quarantine counters use the hardened refcount type; saturation traps instead of wrapping.
+- **PAX_MEMORY_SANITIZE** — slab-poison and free-poison patterns are layered under sanitizer free hooks; freed bytes are poisoned even when KASAN is in tag-based mode and quarantine drains.
+- **PAX_UDEREF** — KASAN/KMSAN inline checks honor the user/kernel split so a shadow access can never deref a user pointer in kernel mode.
+- **PAX_RAP / kCFI** — sanitizer callback edges (report routines, KFENCE fault handlers) are typed and CFI-checked; indirect dispatch from instrumentation is forbidden at link time.
+- **GRKERNSEC_HIDESYM** — sanitizer reports redact kernel symbol values for unprivileged readers; raw addresses appear only to CAP_SYSLOG holders.
+- **GRKERNSEC_DMESG** — KASAN/KMSAN/UBSAN splats are gated by dmesg_restrict so unprivileged tasks cannot probe instrumentation state via the ring buffer.
+- **Per-KASAN-tag entropy from hardened RNG** — defense against per-tag predictability allowing forged-tag bypass.
+- **Per-KMSAN origin-chain length cap** — defense against per-chain memory exhaustion under adversarial allocation patterns.
+- **Per-UBSAN trap-on-overflow with `panic_on_warn`** — defense against per-silent-UB exploitation in production builds.
+- **Per-KFENCE pool randomized stride** — defense against per-deterministic-slot grooming.
+- **Per-stackdepot bucket secret seed** — defense against per-collision-attack inflating stackdepot.
+
+Rationale: Sanitizers are diagnostic infrastructure that observes the entire kernel; under grsec policy they must not become the weakest link. Shadow regions, quarantine slabs, and reporter callbacks are high-value targets — USERCOPY/KERNEXEC/UDEREF prevent direct exfiltration of metadata, REFCOUNT/RAP harden lifetime and dispatch, MEMORY_SANITIZE composes with quarantine to keep the free path clean, and HIDESYM/DMESG ensure that the very reports a sanitizer produces do not turn into an oracle for unprivileged attackers probing layout.
+
 ## Open Questions
 
 (none at this Tier-3 level)

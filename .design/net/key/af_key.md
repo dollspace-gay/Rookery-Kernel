@@ -420,6 +420,30 @@ PF_KEY reinforcement:
 - **Per-`pfkey_is_alive` suppression of unbounded ACQUIRE retries** — defense against per-no-daemon retry storm.
 - **Per-deprecation pr_warn_once + 2027 removal schedule** — defense against per-legacy lock-in (forces migration to AF_NETLINK XFRM).
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: PF_KEY (RFC 2367) is a long-deprecated IPsec key-management ABI that nonetheless remains a privileged surface: SADB_* messages carry SA/SP material directly from userspace, broadcast to all PF_KEY listeners, and a malformed extension can pivot to UAF on the global xfrm state database. CAP_NET_ADMIN is the single gate, so message-validation, refcount discipline, and key-material sanitization all carry the full security weight.
+
+Baseline (cross-ref `net/xfrm/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: SADB_* payload copy_from_user via `pfkey_sendmsg` slab-whitelisted; per-ext walk bounded by `sadb_ext_len * 8`.
+- **PAX_KERNEXEC**: `pfkey_funcs[]` dispatch + `dump_sa/dump_sp` cb tables `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every `pfkey_sendmsg` / dump-resume entry.
+- **PAX_REFCOUNT**: `pfkey_sock` + per-`xfrm_state` / `xfrm_policy` back-refs saturating; defends SA-add-del storm wrap.
+- **PAX_MEMORY_SANITIZE**: freed `xfrm_state.key_auth`, `key_enc`, `id.daddr`, `replay`, `replay_esn` zero-filled (memzero_explicit on key material) before slab reuse.
+- **PAX_UDEREF**: all SADB_EXT_* extension parsing through bounded `pfkey_get_base_msg`/`verify_sec_ctx_len`; no raw __user deref.
+- **PAX_RAP / kCFI**: `pfkey_funcs[]` indirect dispatch kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: xfrm_state + xfrm_policy pointers never in `/proc/net/pfkey` (only %pK).
+- **GRKERNSEC_DMESG**: PF_KEY parse failures + ACQUIRE storms ratelimited.
+
+af_key-specific reinforcement:
+- **CAP_NET_ADMIN strict-in-userns** — refuse PF_KEY socket from non-init userns (default deny; matches XFRM netlink policy).
+- **SADB_X_PROMISC ungated only for CAP_NET_ADMIN** (already row-2) — extended with audit-log on enable.
+- **Key material memzero_explicit on detach** — `key_auth`, `key_enc`, ESN replay window, and `sadb_x_ipsecrequest` payloads explicitly zeroed (not just slab-sanitize).
+- **SADB ext-length bound** — refuse extensions exceeding `sadb_msg_len*8` total or with overlapping offsets.
+- **GR-RBAC `pfkey_users` role** — only marked subjects may open PF_KEY; CAP_NET_ADMIN alone insufficient under default policy.
+- **Per-net broadcast filter** — `pfkey_broadcast` honours `BROADCAST_REGISTERED | BROADCAST_PROMISC_ONLY` strictly; no cross-net leak.
+- **ACQUIRE retry storm gate** — `pfkey_is_alive` + per-socket backoff hard-capped at GRSEC_PFKEY_ACQUIRE_RPS.
+
 ## Open Questions
 
 (none at this Tier-3 level)

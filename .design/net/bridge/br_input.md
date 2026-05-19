@@ -237,6 +237,31 @@ Bridge-input-specific reinforcement:
 - **Per-skb-cb size bound** — defense against per-skb metadata overflow.
 - **Per-handler RCU-protected port lookup** — defense against per-port-add/remove race.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on AF_PACKET tap-readers observing bridge-ingress frames; skb head linear region length-checked before any user copy.
+- **PAX_KERNEXEC** — `.rodata` for `br_handle_frame_hook`, the `NF_BR_PRE_ROUTING` `nf_hook_ops` table, and the STP/LLDP demux table.
+- **PAX_RANDKSTACK** — per-softirq stack randomisation across `br_handle_frame` entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct net_bridge_port` to prevent ingress-path UAF during port unbind.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for skbs dropped before forward decision.
+- **PAX_UDEREF** — enforced separation between in-kernel skb and any AF_PACKET userspace buffer.
+- **PAX_RAP / kCFI** — forward-edge CFI on `br_handle_frame_hook`, `br_should_route_hook`, and the per-protocol STP/LLDP/PVST demux callbacks.
+- **GRKERNSEC_HIDESYM** — bridge ingress symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — bridge ingress WARN/INFO ("received own address ...") gated behind CAP_SYSLOG.
+
+br_input-specific reinforcement:
+
+- **STP/LLDP frame integrity strict-parse** — every BPDU length / protocol-ID / TLV-walk bounded; defense against malformed BPDU triggering OOB read in the STP demux.
+- **IGMP-snoop walk bounded by MDB subscriber count** — defense against multicast-snoop runaway on crafted IGMP-membership frames.
+- **Per-source-MAC learning rate-limited** — defense against MAC-flood DoS (CAM/FDB-flood class).
+- **Promisc up-pass strictly gated by port flags** — defense against unintended local-stack delivery from an untrusted port.
+- **`skb->cb` size assertion (`sizeof(struct br_input_skb_cb) <= sizeof(skb->cb)`)** — defense against per-skb metadata overflow corrupting upper-layer cb users.
+- **RCU-protected port lookup with `rcu_dereference_bh`** — defense against per-port-add/remove ingress-walk UAF.
+
+Rationale: br_input is the only entrypoint where untrusted L2 frames first touch the kernel. The grsec hardening ensures malformed STP/LLDP/IGMP cannot corrupt the demux, MAC-flood cannot DoS learning, and port-removal races cannot leave dangling reads against freed `net_bridge_port`.
+
 ## Open Questions
 
 (none at this Tier-3 level)

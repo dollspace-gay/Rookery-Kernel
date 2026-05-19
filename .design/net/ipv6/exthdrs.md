@@ -221,6 +221,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across IPv6 extension header processing:
+
+- **PAX_USERCOPY** — extension-header parse writes to `cb`/scratch buffers bound-checked; no `copy_*` straddling slab boundaries.
+- **PAX_KERNEXEC** — `ipv6_destopt_ops`, `ipv6_rthdr_ops`, `ipv6_frag_ops`, `ipv6_nodata_ops`, and per-TLV dispatch arrays in `__ro_after_init`.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `ipv6_parse_hopopts` / `ipv6_destopt_rcv` / `ipv6_rthdr_rcv` entry.
+- **PAX_REFCOUNT** — per-DOI, per-SRv6-HMAC-key, per-iptunnel refcounts saturating.
+- **PAX_MEMORY_SANITIZE** — freed seg6 HMAC key and Calipso DOI security-label state zeroed; defense against label/key leak via slab reuse.
+- **PAX_UDEREF** — `seg6` / `calipso` netlink config reads via `nla_*` only.
+- **PAX_RAP / kCFI** — TLV-option handler dispatch (`ipv6_destopt_ops->{rcv}`, per-TLV `tlv_handler`) type-signature-checked.
+- **GRKERNSEC_HIDESYM** — `ip6_input_finish`, `ipv6_parse_hopopts`, `seg6_hmac_info`, `calipso_doi_list` hidden from non-root.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on bad-TLV, segments_left underflow, and frag-DOS drops gated.
+
+Exthdrs-specific reinforcement:
+
+- **Extension-header copies covered by PAX_USERCOPY** and TLV-length arithmetic by SIZE_OVERFLOW — defense against CVE-2017-7542-class TLV-length overflow and CVE-2024-class SRv6 `segments_left` underflow.
+- **Fragment-DOS gate**: per-`nf_ct_frag6` / `inet_frag_queue` per-namespace memory cap (`net.ipv6.ip6frag_high_thresh`), per-queue `max_dist`, per-source rate-limit; PAX_REFCOUNT on `inet_frag_queue->refcnt`.
+- **Routing Header Type-0 (RH0) dropped at parse** (RFC 5095); only RH4 (SRv6) accepted, gated by `seg6_enabled` per-dev sysctl with CAP_NET_ADMIN.
+- **`segments_left` decrement only after RH HMAC verify** (SRv6); HMAC key in MEMORY_SANITIZE-marked slab.
+- **Hop-by-hop options strict-parse mode**: unknown-bit `1xxx` options (Discard + ICMP) honored; option-length overflow rejected with `XFRM_OUTPUT_BLACKHOLE`-style drop.
+
+Rationale: IPv6 extension headers are attacker-supplied parser input from any adjacent host and historically yield linear-overflow and pointer-confusion bugs (CVE-2017-7542, CVE-2018-14633-class). USERCOPY+SIZE_OVERFLOW on TLV walk plus RAP on TLV dispatch plus fragment-memory cap collapse the standard ext-hdr exploit primitives.
+
 ## Open Questions
 
 (none — IPv6 EH semantics are exhaustively specified by RFCs 8200, 5095, 6275, 8754, 8986 + upstream)

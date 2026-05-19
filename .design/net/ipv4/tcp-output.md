@@ -223,6 +223,30 @@ tcp_output-specific reinforcement:
 - **Per-segment TCP-AO HMAC** — defense against unauthenticated segment.
 - **Per-sock backlog len bounded** — defense against per-sock backlog OOM.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across the TCP TX path:
+
+- **PAX_USERCOPY** — `tcp_sendmsg` `iov_iter` copies bounded; copies into `skb->data`/page-frags refuse slab-boundary straddle.
+- **PAX_KERNEXEC** — `tcp_prot->{sendmsg, sendpage}`, `sk->sk_write_xmit`, and `tcp_xmit_skb` indirection live in `__ro_after_init`.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on every `tcp_sendmsg` entry; defeats sendmsg-spray-then-trigger primitives.
+- **PAX_REFCOUNT** — `skb->users`, `sock->sk_wmem_alloc`, and retx-queue `tcp_skb` refs saturate; retx-queue double-release UAF becomes controlled leak.
+- **PAX_MEMORY_SANITIZE** — freed `tcp_skb_cb`, `sk_buff`, and page-frag slabs zeroed; prevents leak of prior payload bytes via slab reuse.
+- **PAX_UDEREF** — `copy_from_iter`/`skb_do_copy_data_nocache` only follows user pointers via bound-checked accessors.
+- **PAX_RAP / kCFI** — indirect calls through `sk->sk_write_xmit`, `icsk->icsk_af_ops->queue_xmit`, and `tcp_ca_ops->cong_control` type-signature-checked.
+- **GRKERNSEC_HIDESYM** — `tcp_transmit_skb`, `tcp_write_xmit`, `tcp_retransmit_skb` symbols hidden from non-root.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on TSO/GSO clamp and PMTU-lock events gated.
+
+tcp-output-specific reinforcement:
+
+- **`tcp_xmit_skb` user payload covered by PAX_USERCOPY** — defense against linear-vs-frag boundary-straddling copy on the send path.
+- **TCP segmentation bounded** by `tp->mss_cache`, `tcp_skb_pcount(skb) * mss_now`, `gso_size`, and `dev->gso_max_size`; clamp under SIZE_OVERFLOW so 64KiB segment-count math cannot wrap.
+- **`sk_pacing_rate` clamped** to `[1, sk->sk_max_pacing_rate]`; pacing timer arming under PAX_REFCOUNT on `hrtimer`.
+- **Retransmit count capped** at `sysctl_tcp_retries2` with `tcp_retransmit_skb` returning `-EHOSTUNREACH` past cap; defense against unbounded retx burst causing peer DoS.
+- **`tcp_v4_send_reset` / `tcp_v4_send_ack` MD5/AO key lookup under RCU + REFCOUNT** with MEMORY_SANITIZE on key drop; defense against reset-path key UAF.
+
+Rationale: `tcp_sendmsg` is the most-called write entry-point in the kernel; a copy-bound miscomputation or a stale `tcp_skb_cb` slab is a high-frequency information-disclosure or heap-corruption primitive. USERCOPY on the iov path plus MEMORY_SANITIZE on skb slabs plus RAP on `sk_write_xmit` makes the TX hot path a closed surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

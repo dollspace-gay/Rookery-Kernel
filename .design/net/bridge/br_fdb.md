@@ -268,6 +268,31 @@ FDB-specific reinforcement:
 - **Per-VLAN-aware bridge: vid in lookup-key** — defense against per-VID confusion.
 - **Per-update WRITE_ONCE on shared fields** — defense against per-RCU torn-read.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on RTM_NEWNEIGH/RTM_GETNEIGH netlink attribute copies into `struct net_bridge_fdb_entry` shadow.
+- **PAX_KERNEXEC** — `.rodata` `br_fdb_*` static-call targets and the rhashtable `params.obj_hashfn` / `params.obj_cmpfn`.
+- **PAX_RANDKSTACK** — per-syscall randomisation on rtnetlink `NEIGHTBL` handler entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct net_bridge_fdb_entry`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `net_bridge_fdb_entry` slab so dropped MACs don't linger.
+- **PAX_UDEREF** — enforced isolation between netlink user-attr buffers and the in-kernel rhashtable insert path.
+- **PAX_RAP / kCFI** — forward-edge CFI on rhashtable callbacks and the switchdev `br_switchdev_fdb_notify` indirect dispatch.
+- **GRKERNSEC_HIDESYM** — FDB internal symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — FDB warnings ("received packet on ... with own address ...") gated behind CAP_SYSLOG.
+
+br_fdb-specific reinforcement:
+
+- **`struct net_bridge_fdb_entry` PAX_REFCOUNT** — saturating against per-entry pin abuse across rcu-grace windows.
+- **`/sys/class/net/<br>/brif/<port>` CAP_NET_ADMIN write-gate** — defense against unprivileged static-FDB injection.
+- **RTM_NEWNEIGH from netlink restricted to CAP_NET_ADMIN** — defense against userspace MAC-table spoofing.
+- **rhashtable insert capped per-port** — defense against per-port FDB-flood DoS (MAC-bomb).
+- **VLAN-aware: `(addr, vid)` composite key strictly enforced** — defense against cross-VID FDB confusion + double-tag spoof.
+- **Switchdev offload synced under rtnl + rcu** — defense against HW/SW table divergence racing concurrent unbridge.
+
+Rationale: the bridge FDB is the address-of-record for L2 forwarding; an unprivileged or misbehaving fdb-injection vector can redirect traffic, exhaust hash buckets, or leave a dangling entry across rcu-grace. The grsec stack ensures privilege-gated mutation, slab-zeroing on free, and PAX_REFCOUNT-bounded per-entry holders.
+
 ## Open Questions
 
 (none at this Tier-3 level)

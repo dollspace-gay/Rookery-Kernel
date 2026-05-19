@@ -212,6 +212,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: UDPv6 must defend against amplification (spoofed-src reply), zero-checksum acceptance (RFC 6935/6936 tunnel exception), UDP-Lite partial-checksum offsets (attacker-controlled cov), and fragment-reassembly attacks (atomic-fragment, overlapping-fragment, frag-id collision). Plus the v6-specific scoped-address binding gates.
+
+Baseline (cross-ref `net/ipv6/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: udpv6_sendmsg/udpv6_recvmsg iters; cmsg ancillary bounded by msg_controllen.
+- **PAX_KERNEXEC**: `udpv6_prot`, `udplitev6_prot`, `inet6_dgram_ops` `__ro_after_init`; encap_rcv fnptrs frozen post-tunnel-register.
+- **PAX_RANDKSTACK**: re-randomise on every udpv6_rcv / sendmsg; defends mass-mc-receive stack-spray.
+- **PAX_REFCOUNT**: `udp6_sock`, encap-tunnel back-ref saturating; defends multicast-join refcount wrap.
+- **PAX_MEMORY_SANITIZE**: freed `udp6_sock` + per-recvq skb zero-filled; defends across-socket payload disclosure.
+- **PAX_UDEREF**: setsockopt cov / pcrlen / encap_type from `copy_from_sockptr` only.
+- **PAX_RAP / kCFI**: `udp_tunnel_sock_cfg.encap_rcv` and `encap_destroy` kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: sock + skb addresses suppressed in `/proc/net/udp6` + `udp6lite`; `%pK`-only.
+- **GRKERNSEC_DMESG**: bad-checksum + frag-overlap warns ratelimited.
+
+udp-v6-specific reinforcement:
+- **UDP-Lite cov strict** — refuse cov < 8 (header-only floor) and cov > UDP-length (overflow); cov==0 means "full" only on send, never accepted on rcv.
+- **Zero-checksum gate** — drop UDPv6 with `check==0` unless socket has UDP_NO_CHECK6_RX set AND IPV6_UDP_TUNNEL_ZEROCSUMRX-marked tunnel registered.
+- **Atomic-fragment refused** (RFC 6946) — single-frag with offset==0 && M==0 dropped; defends frag-id leak.
+- **Frag-reassembly per-bucket cap** — refuse > GRSEC_NF_FRAG_BUCKET_MAX (default 64) pending IDs per /64 source.
+- **Frag total memory bound** — `net.ipv6.ip6frag_high_thresh` enforced + audit-log on hit.
+- **sin6_scope_id strict on bind/sendmsg** — link-local target must carry scope_id (matches tcp-v6 policy).
+- **Multicast-join CAP_NET_ADMIN-bound count** — refuse > GRSEC_MC6_GROUPS_MAX per socket from non-admin.
+
 ## Open Questions
 
 (none — UDP-over-IPv6 ABI is exhaustively specified by RFC 8200 + 6935/6936 + 3828 + upstream)

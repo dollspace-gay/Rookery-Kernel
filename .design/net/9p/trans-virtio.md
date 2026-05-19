@@ -493,6 +493,25 @@ virtio-9p reinforcement:
 - **Per-p9_virtio_cancel returns "not cancellable"** — defense against per-spurious-free of in-flight descriptor.
 - **Per-kicked flag for zc_request err_out** — defense against per-double-completion or per-leak on early failure.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — virtio-9p zero-copy path uses iov_iter_get_pages with bounded msize; user pages are pinned into sg, never directly copied via a usercopy whitelist outside the standard VFS path.
+- **PAX_KERNEXEC** — virtio_9p driver entry (p9_virtio_probe/remove, req_done, p9_virtio_request) executes from RX text; virtqueue callbacks point at typed static functions.
+- **PAX_RANDKSTACK** — mount-time and remove-time entries honor randomized stack offset; the in-kernel mount-tag scan uses heap buffers.
+- **PAX_REFCOUNT** — chan->inuse, vp_pinned (global page count), and req refcounts use hardened refcount types; pin/unpin saturate before turning a leak into a wraparound DoS.
+- **PAX_MEMORY_SANITIZE** — freed virtio_chan, freed sg buffers, and freed p9_req payloads are sanitized so host-supplied bytes cannot leak across requests.
+- **PAX_UDEREF** — user pages are reached only via iov_iter / pin_user_pages helpers with strict user/kernel split; no raw user pointer reaches the virtqueue layer.
+- **PAX_RAP / kCFI** — p9_trans_module ops for virtio (.create, .close, .request, .zc_request, .cancel, .cancelled, .pooled_rbuffers) and virtio_driver ops are CFI-typed; vq->callback dispatch is non-pivotable.
+- **GRKERNSEC_HIDESYM** — debugfs / sysfs surfaces for virtio_9p hide chan and vq addresses from non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — inuse-drain timeout warnings, supports_vmalloc=false rejections, and handle_rerror truncation logs gate behind dmesg_restrict.
+- **Per-VIRTIO_9P_MOUNT_TAG mandatory** — defense against per-untagged-device confusion.
+- **Per-vp_pinned global ceiling (nr_free_buffer_pages/4)** — defense against per-DoS via unbounded user-page pinning.
+- **Per-VIRTQUEUE_NUM-3 maxsize budget** — defense against per-sg overflow.
+- **Per-supports_vmalloc = false enforced** — defense against per-non-contiguous T-buffer corrupting DMA.
+- **Per-virtio_reset_device + del_vqs strict pairing on remove** — defense against per-late-IRQ on torn-down device.
+
+Rationale: virtio-9p binds untrusted host bytes to a pinned-user-page DMA path, so its grsec posture must protect both the user-page pin lifetime (REFCOUNT + global vp_pinned ceiling), the virtqueue dispatch (RAP/kCFI on trans_module + virtio_driver ops), and the freed-request slab path (MEMORY_SANITIZE). HIDESYM/DMESG ensure that probe/remove diagnostics do not turn into a host-visible kernel-address oracle, and the supports_vmalloc=false invariant keeps DMA descriptors physically contiguous as the design requires.
+
 ## Open Questions
 
 (none at this Tier-3 level)

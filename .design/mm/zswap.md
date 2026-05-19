@@ -551,6 +551,25 @@ zswap reinforcement:
 - **Per-mem_cgroup_zswap_writeback_enabled gating** — defense against per-cgroup-policy-violation forced writeback.
 - **Per-objcg charge_zswap paired with uncharge** — defense against per-memcg accounting leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — zswap-stored compressed plaintext never crosses to userspace directly; decompressed data is restored to a folio that re-enters the swap-cache and goes through the standard usercopy whitelist.
+- **PAX_KERNEXEC** — zswap store/load/writeback callbacks, shrinker scan/count, and acomp completion fn all execute from RX text; the per-CPU acomp_ctx points to RW state but never to RX bytes.
+- **PAX_RANDKSTACK** — store and load are reached from softirq/workqueue contexts; their stack frames honor randomized offset and the acomp_req lives in heap.
+- **PAX_REFCOUNT** — zswap_pool percpu_ref, zswap_entry refcounts, and acomp_ctx mutex pairing all use hardened types; pool swap requires a full RCU grace period before destroy.
+- **PAX_MEMORY_SANITIZE** — freed zswap entries and freed zsmalloc handles are sanitized so a recycled compressed slot cannot return another tenant's plaintext.
+- **PAX_UDEREF** — zswap interacts with folios only; no user pointer reaches the compression path.
+- **PAX_RAP / kCFI** — acomp callback (zswap_decompress_callback) and crypto_acomp_ops dispatch are CFI-typed; the per-CPU acomp_req->base.complete callback cannot be redirected via heap corruption.
+- **GRKERNSEC_HIDESYM** — /sys/kernel/debug/zswap/* surfaces stats only; pool, entry, and zpool addresses are not exposed to unprivileged readers.
+- **GRKERNSEC_DMESG** — zswap_pool_create failures, compress reject reasons, and shrinker WARNs gate behind dmesg_restrict.
+- **Per-cgroup acomp_ctx isolation** — defense against per-cross-cgroup compression-state leak via shared per-CPU req.
+- **Per-zpool backend name strict signature** — defense against per-typo backend silently degrading to a non-sanitizing allocator.
+- **Per-folio-locked + swapcache-asserted at store/load** — defense against per-race installing zswap entry against an uncached folio.
+- **Per-incompressible writeback-disabled rejection** — defense against per-pool-fill-with-zero-savings DoS.
+- **Per-shrinker MAX_RECLAIM_RETRIES bound** — defense against per-shrinker livelock.
+
+Rationale: zswap holds compressed copies of user anonymous memory and routes them through a pluggable crypto + allocator backend, which is exactly the kind of indirect-call-heavy, lifetime-tangled subsystem grsec exists to harden — RAP/kCFI types the acomp dispatch, REFCOUNT + RCU governs hot pool swap, MEMORY_SANITIZE composes with zsmalloc free to keep plaintext from re-emerging, and per-cgroup acomp_ctx isolation closes the cross-tenant compression-state side channel.
+
 ## Open Questions
 
 (none at this Tier-3 level)

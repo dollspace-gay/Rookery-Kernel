@@ -262,6 +262,28 @@ page_pool-specific reinforcement:
 - **PP_FLAG_PAGE_FRAG bounded** — defense against unbounded page-fragmentation.
 - **alloc_cache size capped** — defense against unbounded cache growth.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `page_pool` is the per-NAPI page-recycling allocator behind XDP / AF_XDP / standard skb-rx for every modern NIC driver — corrupting the pool's `alloc.cache` LIFO or `ptr_ring` MPMC ring yields arbitrary DMA-mapped page reuse across drivers, which is a direct path to DMA-mapped UAF and cross-driver buffer disclosure.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: page-pool pages are not directly user-copy targets (skb data copy goes via `skb_copy_datagram_iter`); page-pool stats exposed via ethtool `-S` / `/proc/net/page_pool` (when enabled) use bounded `seq_printf` only.
+- **PAX_KERNEXEC**: per-pool `struct page_pool.params.dev_node` and `struct page_pool_ops` (if extension lands) placed in `__ro_after_init`; no patchable fnptrs after `page_pool_create`.
+- **PAX_RANDKSTACK**: every entry into `page_pool_alloc_pages` / `page_pool_recycle_direct` / `page_pool_release_page` re-randomises stack offset before the LIFO/ring fast-path.
+- **PAX_REFCOUNT**: `page_pool.user_cnt` and per-page `pp_magic`/`pp_ref_count` use saturating `Refcount`; an attacker forcing N drivers to share a pool cannot wrap the user count.
+- **PAX_MEMORY_SANITIZE**: when a page leaves the pool via `page_pool_release_page` (dma-unmap path), the kernel-linear-map mapping is zero-filled before `__free_pages`; this defends against stale-DMA-data disclosure to next allocation.
+- **PAX_UDEREF**: page-pool stats sysfs / ethtool plumbing reads kernel memory only — no user pointer deref.
+- **PAX_RAP / kCFI**: indirect calls through driver-registered `napi_struct.poll` and the page-pool `xdp_mem_info` lookup callbacks are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-pool `struct page_pool*`, `ptr_ring.queue` backing array address, and per-page `pp_magic` cookie never rendered to userspace; ethtool stats show counts only.
+- **GRKERNSEC_DMESG**: pool-exhaustion / DMA-mapping-failure warnings ratelimited; require CAP_SYSLOG to read.
+
+Page-pool-specific reinforcement:
+- **Per-NUMA pool PAX_REFCOUNT** — `pool->pages_state_hold_cnt` and `pool->pages_state_release_cnt` saturate; mismatch detection on `page_pool_destroy` waits with bounded GC timeout, then `BUG()` (grsec audit) rather than leaking.
+- **DMA-mapped page sanitize on free** — pages returned to the page-allocator via `page_pool_release_page` get `memzero_explicit` on the dma-coherent region before `dma_unmap_page_attrs`, defending against DMA-residue disclosure to the next driver that reuses the page.
+- **pp_magic cookie validation** — every recycle path validates `page->pp_magic == PP_SIGNATURE | (uintptr_t)pool` before LIFO push; mismatch → `BUG()` (defends against driver-bug recycling a non-page-pool page into the pool).
+- **CAP_NET_ADMIN for /proc/net/page_pool/** — stat enumeration gated; refuse `EPERM` to non-CAP_NET_ADMIN readers (grsec policy beyond upstream's CAP_NET_ADMIN-or-world default).
+- **Per-pool `max_link` cap** — refuse to attach a pool to more than N (compile-time) NAPI contexts, defending against pool-aliasing attack from a malicious driver.
+
 ## Open Questions
 
 (none at this Tier-3 level)

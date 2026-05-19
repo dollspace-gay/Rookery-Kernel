@@ -233,6 +233,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: The conntrack BPF kfunc surface (`bpf_xdp_ct_lookup`, `bpf_skb_ct_lookup`, `bpf_ct_insert_entry`, `bpf_ct_set_*`, `bpf_ct_release`) hands a verified BPF program direct access to the conntrack lookup + allocate + release primitives. A bug in the kfunc signature, refcount discipline, or tuple-from-userspace bounds check pivots to UAF of `nf_conn` globally. CAP_BPF + CAP_NET_ADMIN are the gates, but kfunc validity is enforced statically by the verifier — so the kernel-side kfunc bodies must themselves be defensive.
+
+Baseline (cross-ref `net/netfilter/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: BPF-side `bpf_ct_opts` and `bpf_sock_tuple` structs verifier-validated; kfunc body copies via `bpf_dynptr_*` accessors only.
+- **PAX_KERNEXEC**: kfunc dispatch table (`btf_kfunc_id_set_contains`) registered + frozen at module init; placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every XDP/TC BPF prog entry that invokes a CT kfunc.
+- **PAX_REFCOUNT**: `nf_conn` ref returned by `bpf_*_ct_lookup` is a `KF_ACQUIRE`-typed refcount; verifier enforces matching `bpf_ct_release` (saturating Refcount).
+- **PAX_MEMORY_SANITIZE**: `nf_conn` slab zero-filled on `nf_ct_destroy` (covered in conntrack-core).
+- **PAX_UDEREF**: no userspace path in fast plane; setsockopt/ctnetlink covered separately.
+- **PAX_RAP / kCFI**: kfunc indirect calls kCFI-tagged; verifier-emitted call instruction targets validated.
+- **GRKERNSEC_HIDESYM**: `nf_conn` pointer returned to BPF program is verifier-typed PTR_TO_BTF_ID, never observable as raw kernel address; bpf-printf-leak protected by `bpf_printk` allowlist.
+- **GRKERNSEC_DMESG**: kfunc-misuse warns ratelimited.
+
+conntrack-bpf-specific reinforcement:
+- **BPF kfunc CAP_BPF + CAP_NET_ADMIN strict-in-userns** — refuse BPF prog load that references CT kfuncs from non-init userns.
+- **conntrack-tuple PAX_USERCOPY** — `bpf_sock_tuple` validated as exactly `sizeof(struct bpf_sock_tuple)` (16 or 36 bytes per family); refuse on size-mismatch.
+- **KF_ACQUIRE refcount discipline** — every `_lookup` kfunc returns `KF_ACQUIRE | KF_RET_NULL`; verifier rejects programs that fail to release.
+- **Per-zone scoping** — `bpf_ct_opts.netns_id` validated against caller's netns; refuse cross-net lookup from non-init.
+- **Tuple-source-port-range bound** — refuse user-supplied port-range > GRSEC_BPF_CT_SPORT_RANGE_MAX (defends source-port-spray DoS).
+- **GR-RBAC `bpf_ct_users` role** — kfunc availability further gated by GR-RBAC subject mark, on top of CAP_BPF/CAP_NET_ADMIN.
+- **kfunc audit-log on first use** per prog — defends silent-deployment of conntrack-mutating BPF.
+
 ## Open Questions
 
 (none — conntrack BPF kfunc set exhaustively specified by upstream + Cilium dataplane test corpus)

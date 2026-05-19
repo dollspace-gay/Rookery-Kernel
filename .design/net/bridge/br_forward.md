@@ -196,6 +196,31 @@ Bridge-forward-specific reinforcement:
 - **Per-port-add/remove RCU-safe** — defense against per-flood walking deleted port.
 - **Per-skb_push(ETH_HLEN) bounds-checked** — defense against per-skb headroom OOB.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on any skb head/frag region copied to/from user via AF_PACKET observers tapping the bridge forwarding path.
+- **PAX_KERNEXEC** — `.rodata` `nf_hook_ops` table for `NF_BR_FORWARD` and the `br_dev_xmit` static-call targets.
+- **PAX_RANDKSTACK** — per-softirq randomisation across `br_forward` / `br_flood` invocations.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct net_bridge_port` and the `sk_buff` `users` counter on every `skb_clone`/`skb_copy`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for cloned skb shells dropped on a forwarding gate.
+- **PAX_UDEREF** — enforced isolation between any user-tap (AF_PACKET) buffer and the in-kernel forward skb.
+- **PAX_RAP / kCFI** — forward-edge CFI on `br_dev->netdev_ops->ndo_start_xmit`, `nf_hook_state.okfn`, and the switchdev forward-mark callback.
+- **GRKERNSEC_HIDESYM** — bridge forward-path symbols withheld from non-CAP_SYSLOG kallsyms.
+- **GRKERNSEC_DMESG** — forward-path BUG/WARN gated behind CAP_SYSLOG.
+
+br_forward-specific reinforcement:
+
+- **PAX_USERCOPY hardening for skb head linear-region** — defense against AF_PACKET/tcpdump-style tap reading uninitialised slab between `eth_hdr` and `skb->data` boundaries.
+- **Ingress / egress nf_bridge filter applied symmetrically** — defense against a single-direction policy bypass that allows reply traffic to skip the gate.
+- **`skb_clone` OOM handled with drop, not BUG** — defense against per-flood OOM partial-delivery panic.
+- **Switchdev `BR_FWD_OFFLOAD` mark blocks duplicate SW delivery** — defense against HW + SW double-forward.
+- **Multicast snoop scoped strictly to MDB subscribers** — defense against MC-flood DoS.
+- **Per-port BR_FLOOD/BR_MCAST_FLOOD bits enforced** — defense against unintended unknown-unicast leak.
+
+Rationale: br_forward is the per-frame fast path; an adversary controlling a single bridge port should not be able to coerce double-delivery, bypass nf_bridge filters, panic on OOM, or read uninitialised slab via a packet-tap. The grsec stack closes each of those primitives.
+
 ## Open Questions
 
 (none at this Tier-3 level)

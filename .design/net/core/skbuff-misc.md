@@ -250,6 +250,28 @@ Skb-helpers-specific reinforcement:
 - **Per-segment per-skb uses gso_size only from origin** — defense against per-feature-derived MSS divergence.
 - **Per-skb_share_check allocates only when needed** — defense against unnecessary alloc DoS.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: skbuff-misc covers the mutating skb operations (`skb_copy_bits`, `skb_split`, `skb_segment`, `skb_share_check`, `skb_unshare`, `skb_pull`/`push`/`reserve`) — these are where pointer math against `head`/`data`/`tail`/`end` is performed; any off-by-one yields linear-buffer OOB read/write that an attacker can amplify through TCP/UDP injection.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: `skb_copy_bits` callers (`copy_to_iter` from `skb_copy_datagram_iter`) cap by `skb->len`; the head slab cache USERCOPY-whitelist already established in `skbuff-alloc.md`.
+- **PAX_KERNEXEC**: GSO segmentation callbacks (`tcp_gso_segment`, `udp4_ufo_fragment`, etc.) live in `__ro_after_init`; the per-`net_offload` table is write-once-after-init.
+- **PAX_RANDKSTACK**: each `skb_segment` / `skb_split` / `skb_copy` call from syscall context re-randomises kernel-stack offset before the recursive frag-list traversal.
+- **PAX_REFCOUNT**: per-fragment page refcount (`get_page`/`__skb_frag_ref`) uses saturating `Refcount`; `skb_shinfo->dataref` ditto — defends against `skb_split` loop forcing refcount wrap.
+- **PAX_MEMORY_SANITIZE**: when `skb_unshare`/`pskb_expand_head` reallocates the linear region, the old buffer is zero-filled before slab-return (defends against TCP-payload-residue disclosure across reuse).
+- **PAX_UDEREF**: `skb_copy_datagram_iter` uses `_copy_to_iter` accessors; no raw `__user` deref in the mutating path.
+- **PAX_RAP / kCFI**: indirect calls through `net_offload->callbacks.gso_segment`, `->gso_check`, `->gro_receive`, and per-skb `skb->destructor` are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `&skb->head`, `&skb->data`, and shinfo page-fragment addresses never rendered into ftrace/perf events visible to non-CAP_SYSLOG processes.
+- **GRKERNSEC_DMESG**: `skb_warn_bad_offload` and `BUG_ON` backtraces ratelimited; CAP_SYSLOG required to read.
+
+skbuff-misc-specific reinforcement:
+- **skb_pull/push/reserve PAX_USERCOPY** — every `skb_pull(skb, n)` validates `n <= skb_headlen(skb)` and `skb->data + n <= skb->end`; mismatch → `BUG()` not silent OOB.
+- **skb_copy_bits bounds saturation** — `offset+len` overflow detected via `check_add_overflow`; saturates to `-EFAULT` rather than wrapping through the page-frag chain.
+- **skb_segment frag-list cap** — refuses `skb_shinfo->nr_frags > MAX_SKB_FRAGS` (compile-time `MAX_SKB_FRAGS = 17` typical); attacker cannot force a 1000-frag segmentation cascade.
+- **skb_unshare refcount invariant** — `skb_unshare` validates `skb->users == 1` after clone; mismatch → BUG-with-grsec-audit (defends against TOCTOU clone-then-mutate race).
+- **MEMORY_SANITIZE on pskb_expand_head** — old `head` zero-filled before `kfree`; defends against linear-buffer-residue exposure to the next allocation.
+
 ## Open Questions
 
 (none at this Tier-3 level)

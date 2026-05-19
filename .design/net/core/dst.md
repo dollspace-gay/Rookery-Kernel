@@ -273,6 +273,31 @@ dst-specific reinforcement:
 - **Per-dst metric COW** — defense against shared-state corruption.
 - **Per-dst lastuse update on hot-path** — defense against stale-LRU eviction.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on dst-metric copies surfaced via `RTM_GETROUTE` netlink replies.
+- **PAX_KERNEXEC** — `.rodata` `dst_ops` per-AF tables (`ipv4_dst_ops`, `ip6_dst_ops`, `xfrm_dst_ops`, ...); W^X for the dst-output/input dispatch.
+- **PAX_RANDKSTACK** — per-softirq randomisation across `dst_output` / `dst_input` invocations.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct dst_entry` (`__refcnt`).
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `dst_entry` slabs and per-AF derived buffers (`rtable`, `rt6_info`).
+- **PAX_UDEREF** — enforced separation between any user-surfaced dst-metric attribute and the in-kernel `dst_entry`.
+- **PAX_RAP / kCFI** — forward-edge CFI on `dst->input`, `dst->output`, `dst_ops->check`, `dst_ops->gc`, `dst_ops->update_pmtu`, `dst_ops->cow_metrics`, and `dst_ops->ifdown`.
+- **GRKERNSEC_HIDESYM** — dst-internal symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — dst WARN ("dst cache overflow") gated behind CAP_SYSLOG.
+
+dst-specific reinforcement:
+
+- **`struct dst_entry` PAX_REFCOUNT** — saturating against per-dst pin abuse from a hostile per-AF route holder.
+- **`dst_ops` PAX_RAP / kCFI** — defense against indirect-call hijack on `dst->input`/`dst->output` (universal hot-path TX/RX primitive).
+- **Per-AF GC threshold** — defense against unbounded dst-cache growth (memory-exhaustion DoS).
+- **`dst_link_failure` dispatched on NIC-down** — defense against silent-drop / stale-route reuse.
+- **Per-namespace per-AF `kmem_cache`** — defense against cross-netns dst leak.
+- **Dst-metric COW** — defense against shared-state corruption when one socket clones a route and mutates per-route metrics.
+
+Rationale: `dst_entry` is the per-route hot-path object on every TX/RX path in the network stack; its indirect calls (`->input`/`->output`) are the single most attractive call-target hijack surface. The grsec stack enforces RAP/kCFI on those indirect calls, saturating refcount on the dst itself, and bounded GC so the cache cannot be exhausted.
+
 ## Open Questions
 
 (none at this Tier-3 level)

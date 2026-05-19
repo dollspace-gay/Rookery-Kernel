@@ -233,6 +233,29 @@ inet_hashtables-specific reinforcement:
 - **Per-port collision detection** — defense against TIME_WAIT-vs-NEW_SOCK collision.
 - **Per-AF distinct lhash2 / bhash** — defense against AF_INET vs AF_INET6 cross-pollination.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `inet_hashtables` houses `ehash` (established-connections, 4-tuple keyed), `lhash2` (LISTEN-state sockets), and `bhash`/`bhash2` (bind-buckets) — every incoming SYN/ACK/data segment is delivered via these tables, and every `connect(2)` / `bind(2)` mutates them. A hash-collision DoS, secret-leak (predictable ISN), or per-bucket refcount imbalance pivots into connection-hijacking or table-walk UAF.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: `/proc/net/tcp` enumeration emits opaque ifindex + state via `seq_printf` only; no slab-block dump.
+- **PAX_KERNEXEC**: `inet_hashinfo` per-protocol structures (tcp_hashinfo, dccp_hashinfo) live in `__ro_after_init`; per-bucket spinlock array allocated at `inet_hashtables_init` and never resized post-boot.
+- **PAX_RANDKSTACK**: every entry into `__inet_lookup_established`, `__inet_lookup_listener`, `inet_bind_bucket_create`, `__inet_hash` re-randomises kernel-stack offset.
+- **PAX_REFCOUNT**: `inet_bind_bucket.refcnt`, `inet_listen_hashbucket.count`, `sk_refcnt` saturate.
+- **PAX_MEMORY_SANITIZE**: freed `inet_bind_bucket` and `inet_timewait_sock` slab blocks zero-filled before slab-return.
+- **PAX_UDEREF**: hashtable lookup paths are kernel-only; no `__user` deref.
+- **PAX_RAP / kCFI**: indirect calls through per-`struct proto` hash/unhash methods (tcp_v4_hash, inet_unhash, etc.) are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-bucket pointer, `inet_ehash_secret`, and per-socket `&sk` never rendered to `/proc/net/tcp`; only count + opaque hash fingerprint.
+- **GRKERNSEC_DMESG**: `port reuse failure` and `bind: cannot assign requested address` warnings ratelimited; CAP_SYSLOG.
+
+inet-hashtables-specific reinforcement:
+- **Hash-bucket PAX_REFCOUNT** — `inet_bind_bucket.refcnt` and `inet_bind2_bucket.refcnt` saturate at INT_MAX; defends bind-storm refcount-wrap attack.
+- **ISN/sequence-number GRKERNSEC_RANDNET** — `secure_tcp_seq` / `secure_tcp_ts_off` derive the initial sequence number via `siphash_3u32(sport,dport,daddr ^ ehash_secret)` rather than the legacy MD5; per-boot `inet_ehash_secret` rerolled with `get_random_bytes` (grsec policy extends to per-namespace secret tagging).
+- **inet_ehash_secret per-boot random** (already in row-2) — grsec audits any kernel-internal symbol read attempting to disclose it.
+- **Per-port collision detection** — `inet_csk_get_port` rejects bind to a port already in `bhash` with conflicting cred; defends `SO_REUSEADDR`/`SO_REUSEPORT` policy bypass across credentials.
+- **Per-AF distinct lhash2 / bhash isolation** — `AF_INET` and `AF_INET6` use distinct hashbuckets; cross-AF lookup → BUG (defends v4-mapped-v6 confusion).
+- **NULL-tail rcu_hlist invariant** — `__hlist_nulls_for_each_entry_rcu` walks under `rcu_read_lock`; mismatched tail-cookie → restart-or-BUG (no UAF window during resize).
+
 ## Open Questions
 
 (none at this Tier-3 level)

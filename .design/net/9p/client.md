@@ -502,6 +502,25 @@ struct P9TransModule {
 - **Per-FID `count` refcount + tracepoints** — defense against per-FID-leak (visible via `9p_fid_ref` ftrace).
 - **Per-`module_get`/`module_put` on `trans_mod`** — defense against per-module unload while mount active.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — p9_client fcall_cache defines a per-allocation usercopy region `[P9_HDRSZ+4 .. msize]`; only the payload window is whitelisted, and header / tag bytes are not copyable to userspace.
+- **PAX_KERNEXEC** — p9_client request encode/decode and tag-table maintenance run from RX text; the trans_mod ops table is statically initialized and RO-after-init within each transport module.
+- **PAX_RANDKSTACK** — p9_client_rpc syscall entry (mount, getattr, read, write) honors randomized kernel-stack offset; the request struct is heap-allocated via fcall_cache.
+- **PAX_REFCOUNT** — p9_client refcount, p9_fid count, p9_req_t refcount, and tag-slot generation counters use hardened refcount types; saturation traps before a recycled tag becomes a UAF primitive.
+- **PAX_MEMORY_SANITIZE** — freed p9_req_t and freed fcall payloads route through SLAB_TYPESAFE_BY_RCU with explicit zeroing of the payload window before re-issue so server-supplied bytes cannot leak across requests.
+- **PAX_UDEREF** — p9_client iovec walk uses iov_iter_get_pages_alloc with strict user/kernel separation; no raw user pointer reaches the transport ops.
+- **PAX_RAP / kCFI** — `trans_mod` ops (.create, .close, .request, .cancel, .cancelled, .zc_request, .pooled_rbuffers) are CFI-typed; transport dispatch from p9_client is non-pivotable.
+- **GRKERNSEC_HIDESYM** — debugfs/v9fs-client (if enabled) and 9p_fid_ref tracepoint output redact kernel pointers for non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — protocol-violation warnings (oversized reply, malicious errno clamp, tag-collision) gate behind dmesg_restrict.
+- **Per-p9_client PAX_REFCOUNT on session/fid/req** — defense against per-recycled-tag UAF on long-running mounts.
+- **Per-msize bounded by trans_mod.maxsize** — defense against per-transport overflow.
+- **Per-transport module kCFI on ops table** — defense against per-loadable-module ROP gadget swap.
+- **Per-`safe_errno` clamp on Rlerror** — defense against per-server-supplied negative-errno arithmetic exploit.
+- **Per-`Tflush` non-interruptible** — defense against per-signal-storm starving the disconnect path.
+
+Rationale: The 9P client sits between filesystem syscalls and a potentially-malicious server, multiplexing tagged RPCs over a pluggable transport — exactly the layer where USERCOPY (fcall_cache window), REFCOUNT (tags + fids), and RAP/kCFI (trans_mod ops) compound to keep server bytes inside the protocol layer and to prevent recycled-tag or stale-trans-mod UAFs from becoming primitives. HIDESYM/DMESG ensure that server-influenced log messages cannot turn into a kernel-pointer oracle.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -283,6 +283,31 @@ CAN_BCM-specific reinforcement:
 - **Per-can_rx_register/unregister paired** — defense against per-stale callback.
 - **Per-namespace per-net.can.bcm_proc scoped** — defense against cross-ns leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on `bcm_sendmsg` / `bcm_recvmsg` and the `bcm_msg_head` + `can_frame[]` user buffer.
+- **PAX_KERNEXEC** — `.rodata` `bcm_proto_ops` / `bcm_proto`; W^X for the BCM op-state-machine dispatch.
+- **PAX_RANDKSTACK** — per-syscall randomisation on `PF_CAN`/`SOCK_DGRAM`/`CAN_BCM` syscall entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct bcm_op` and per-socket `bcm_sock`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `bcm_op` slabs to prevent stale CAN payload leakage across BCM ops.
+- **PAX_UDEREF** — enforced separation between user `bcm_msg_head` buffers and the in-kernel hr-timer arming path.
+- **PAX_RAP / kCFI** — forward-edge CFI on BCM hr-timer callbacks (`bcm_tx_timeout_handler`, `bcm_rx_timeout_handler`, `bcm_rx_thr_handler`) and `bcm_rx_handler`.
+- **GRKERNSEC_HIDESYM** — BCM internal symbols hidden from non-CAP_SYSLOG `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — BCM warn/info gated behind CAP_SYSLOG.
+
+BCM-specific reinforcement:
+
+- **`PF_CAN/CAN_BCM` socket creation gated by CAP_NET_RAW** — defense against unprivileged broadcast-manager attachment.
+- **Cyclic transmit interval bounded `[CAN_BCM_MIN_INTERVAL, ULONG_MAX/2]`** — defense against per-cycle hr-timer flood DoS.
+- **`bcm_msg_head.nframes` capped at `MAX_NFRAMES`** — defense against crafted message-head triggering oversized `kmalloc` / OOB write.
+- **`RX_CHECK_DLC` strict** — defense against malformed CAN-frame DLC out-of-bounds read.
+- **`bcm_op` RCU-free** — defense against per-callback UAF post-`TX_DELETE`/`RX_DELETE`.
+- **Per-namespace `/proc/net/can/bcm_proc`** — defense against cross-netns BCM-op enumeration leak.
+
+Rationale: CAN-BCM gives userspace a kernel-side cyclic-transmit and timeout-detection engine; unbounded interval/nframes or stale-op callbacks become both DoS and UAF primitives. The grsec stack ensures CAP_NET_RAW gating, bounded timer arithmetic, slab-zeroing on free, and per-callback CFI.
+
 ## Open Questions
 
 (none at this Tier-3 level)

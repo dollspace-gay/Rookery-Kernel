@@ -493,6 +493,25 @@ vmstat reinforcement:
 - **Per-zone.lock around walk_zones_in_node print** — defense against per-pageset-mutation during /proc/zoneinfo emit.
 - **Per-pagetypeinfo freecount cap (100000)** — defense against per-long-spinlock-hold triggering hard-lockup-detector while iterating huge free_list.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — /proc/vmstat and /proc/zoneinfo use seq_file emit paths; no per-CPU diff struct or zone->vm_stat array is exposed verbatim to userspace.
+- **PAX_KERNEXEC** — vmstat fold workers, shepherd timer, and refresh sysctl handlers all execute from RX text; no writable code lives in the vmstat path.
+- **PAX_RANDKSTACK** — sysctl write to vm.stat_refresh honors randomized stack offset; no VLA buffers on stack accept user input.
+- **PAX_REFCOUNT** — vmstat work_struct, shepherd refcount, and per-cpu fold counters use hardened types; threshold-cap math saturates rather than wraps.
+- **PAX_MEMORY_SANITIZE** — freed per-cpu vmstat areas on CPU hotunplug are zeroed before re-use on subsequent hotplug; no stale counter survives a CPU cycle.
+- **PAX_UDEREF** — vmstat refresh and seq emit run entirely in kernel half; no user pointer reaches the per-CPU s8 diffs.
+- **PAX_RAP / kCFI** — fold callbacks, refresh callbacks, and shepherd timer entry are CFI-typed; indirect dispatch via vmstat_text/struct table is type-checked.
+- **GRKERNSEC_HIDESYM** — /proc/vmstat raw counter values are not symbol pointers, but /proc/zoneinfo and /proc/buddyinfo redact zone+pageset addresses; pagetypeinfo hides kernel addresses for unprivileged readers.
+- **GRKERNSEC_DMESG** — vm.stat_refresh pr_warn on negative counters gates behind dmesg_restrict so unprivileged tasks cannot probe accounting state via dmesg.
+- **Per-CAP_SYS_ADMIN gate on vm.stat_refresh sysctl** — defense against per-unprivileged forced fold storm.
+- **Per-/proc/vmstat HIDESYM on raw counters** — defense against per-counter-fingerprinting of memory layout (NUMA node sizing, slab churn).
+- **Per-stat_threshold strict clamp at 125** — defense against per-overflow of s8 diff during sustained traffic.
+- **Per-per-cpu fold under preempt_disable_nested** — defense against per-PREEMPT_RT counter corruption.
+- **Per-shepherd skip cpu_is_isolated** — defense against per-NOHZ-full disturbance becoming a covert-channel timing source.
+
+Rationale: vmstat is a high-bandwidth observability surface where small per-CPU integer state crosses to a userspace-readable seq_file; grsec hardening prevents (1) the cheap counter increments from being a side-channel-amplifying primitive (RANDKSTACK, isolated-CPU skip), (2) the refresh sysctl from being an unprivileged DoS vector (CAP_SYS_ADMIN), (3) raw layout/pointer leaks via HIDESYM, and (4) accounting corruption via REFCOUNT/MEMORY_SANITIZE on the per-CPU area lifecycle.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -226,6 +226,30 @@ tcp_input-specific reinforcement:
 - **Per-sock state-machine atomic transition** — defense against torn state during concurrent recv/send.
 - **TCP_DEFER_ACCEPT gating** — defense against pre-data-receive accept overhead.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across the TCP RX path:
+
+- **PAX_USERCOPY** — `tcp_recvmsg` / `tcp_read_sock` `iov_iter` copies bounded; refuse any copy that straddles a slab object boundary.
+- **PAX_KERNEXEC** — `tcp_prot`, `tcp_request_sock_ops`, and per-`tcp_state` dispatch tables live in `__ro_after_init`; W^X holds across the RX hot path.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on every entry through `tcp_v4_rcv` / `tcp_rcv_state_process`; defeats per-packet stack-spray primitives.
+- **PAX_REFCOUNT** — `sock->sk_refcnt`, `inet_csk(sk)->icsk_ca_ops->owner`, and `tcp_md5sig_pool` refs use saturating ops; concurrent close-vs-deliver UAF becomes a controlled `WARN+leak`.
+- **PAX_MEMORY_SANITIZE** — TCP MD5/AO key material in `tcp_md5sig_key` / `tcp_ao_key` zeroed on free; freed `request_sock`/`tcp_sock` slab objects zeroed so prior connection state cannot leak to the next allocator.
+- **PAX_UDEREF** — `setsockopt(TCP_MD5SIG, TCP_AO_*)` user buffers read via `copy_from_sockptr` with bound check only.
+- **PAX_RAP / kCFI** — indirect calls through `sk->sk_data_ready`, `icsk_ca_ops`, `sk->sk_state_change`, and `tcp_request_sock_ops->{send_synack, send_reset, route_req}` are type-signature-checked.
+- **GRKERNSEC_HIDESYM** — `tcp_hashinfo`, `tcp_prot`, `tcp_v4_rcv`, and `tcp_md5sig_pool` hidden from non-root `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on bad-checksum, bad-MD5, and bad-AO segments gated from unprivileged readers.
+
+tcp-input-specific reinforcement:
+
+- **`tcp_rcv_*` payload copies covered by PAX_USERCOPY** — defense against linear-vs-frag boundary-straddling copy in `skb_copy_datagram_iter`.
+- **TCP MD5 (`tcp_md5sig_key`) and TCP-AO (`tcp_ao_key`) key memory marked MEMORY_SANITIZE** — defense against key-material leak across slab reuse.
+- **GRKERNSEC_RANDNET** seeds `tcp_seq_offset()` ISN per-`(saddr,daddr,sport,dport)` with a SipHash-2-4 key re-keyed on `net.ipv4.tcp_rfc1948_rekey` interval; defense against off-path-ISN-prediction blind injection.
+- **Per-LISTEN `request_sock_queue` length capped** at `sysctl_max_syn_backlog` with SYN-cookie fallback under PAX_REFCOUNT; defense against `request_sock` slab exhaustion.
+- **OFO queue bounded** by `sysctl_tcp_ofo_drop_thresh` and `sk_rcvbuf`; PAWS-fail + bad-SACK segments dropped before allocation.
+
+Rationale: `tcp_v4_rcv` is reachable by any external host and runs in softirq; a single linear-vs-frag misadjudged copy historically yields KASLR or heap leaks (CVE-2019-11477-class, CVE-2023-2156-class). USERCOPY on the copy paths plus MEMORY_SANITIZE on MD5/AO keys plus RANDNET on the ISN make off-path injection and key-leak primitives non-viable.
+
 ## Open Questions
 
 (none at this Tier-3 level)

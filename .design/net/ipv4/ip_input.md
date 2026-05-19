@@ -208,6 +208,29 @@ ip_input-specific reinforcement:
 - **Source-route-record gated** by sysctl — defense against SRR-amplification attacks.
 - **Router-alert chain ref-counted** — defense against handler-unregister-during-walk.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `ip_rcv` / `ip_rcv_finish` / `ip_local_deliver` is the IPv4 receive entry point — every packet from every NIC on the box traverses it before netfilter, conntrack, or socket lookup. A `pskb_may_pull` shortfall, IPv4-options-parse OOB, or martian-source bypass yields kernel-buffer OOB read or unauthorised cross-netns delivery.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: `ip_rcv` operates on kernel-owned skb only; user copy happens later in the per-protocol `recvmsg`.
+- **PAX_KERNEXEC**: `inet_protos[]` (per-IPPROTO upper-protocol dispatch table, IPPROTO_TCP=tcp_protocol, etc.) and `ip_ra_chain` live in `__ro_after_init`.
+- **PAX_RANDKSTACK**: every `ip_rcv` softirq entry re-randomises kernel-stack offset before the NF_HOOK + per-protocol handler dispatch.
+- **PAX_REFCOUNT**: `ip_ra_chain.entries` per-`ip_ra_state` refcount and per-`net_protocol` registration refcount saturate.
+- **PAX_MEMORY_SANITIZE**: dropped skb's linear data zero-filled via `kfree_skb` → page-pool sanitize hook.
+- **PAX_UDEREF**: `ip_rcv` is kernel-context; no `__user` deref.
+- **PAX_RAP / kCFI**: indirect calls through `net_protocol->handler` (tcp_v4_rcv, udp_rcv, etc.) and `ip_ra_state->destructor` are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-skb kernel pointers and `net_protocol*` never rendered into ftrace events visible to non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG**: "martian source" / "source route option" warnings ratelimited; CAP_SYSLOG.
+
+ip_input-specific reinforcement:
+- **ip_rcv PAX_USERCOPY on skb** — `pskb_may_pull(skb, sizeof(struct iphdr))` then `iph = ip_hdr(skb)`, then `pskb_may_pull(skb, iph->ihl*4)` for options; any mismatch → drop + audit (defends against IHL-claims-larger-than-skb OOB).
+- **GRKERNSEC_BLACKHOLE** — when `ip_route_input_noref` returns `RTN_UNREACHABLE`/`RTN_BLACKHOLE`, grsec drops silently AND ratelimited-audit-logs the source; defeats network reconnaissance via ICMP echo from unreachable target.
+- **iph field validation** — `ip_rcv_core`: refuse `iph->version != 4`, `iph->ihl < 5`, `iph->tot_len < (iph->ihl*4)`, `iph->frag_off & htons(IP_MF | IP_OFFSET)` for protocols that disable fragmentation; defends header-mangling fuzz.
+- **Source-route-record sysctl-gated** — `accept_source_route=0` default (loose/strict source routing refused); grsec audit-logs any LSRR/SSRR option attempt regardless of sysctl.
+- **Per-namespace socket lookup** — `inet_lookup_listener` keyed by `net*` pointer; cross-netns BUG().
+- **Router-alert handler ref-counted under RCU** — `ip_ra_control` add/remove uses `rcu_assign_pointer`/`call_rcu`; walk under `rcu_read_lock`; no unregister-during-walk UAF.
+
 ## Open Questions
 
 (none at this Tier-3 level)

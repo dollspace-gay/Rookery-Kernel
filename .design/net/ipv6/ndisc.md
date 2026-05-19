@@ -204,6 +204,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across IPv6 Neighbor Discovery:
+
+- **PAX_USERCOPY** — `RTM_NEWNEIGH/DELNEIGH/GETNEIGH` payloads parsed via `nla_*` bound-checked accessors; no raw `copy_from_user` to a per-neighbour scratch buffer.
+- **PAX_KERNEXEC** — `nd_msg_ops`, `ndisc_allow_add` table, and `neigh_ops` vtables in `__ro_after_init`.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `ndisc_rcv` / `ndisc_recv_ns` / `ndisc_recv_na` entry.
+- **PAX_REFCOUNT** — `neighbour->refcnt`, `neigh_table->entries`, and `neigh_parms->refcnt` saturating; defense against rcv-vs-delete UAF.
+- **PAX_MEMORY_SANITIZE** — freed `neighbour` slab objects zeroed; `lladdr` material does not leak across slab reuse on private LANs.
+- **PAX_UDEREF** — netlink config reads via `nla_*` only.
+- **PAX_RAP / kCFI** — `nd_msg_ops->{rcv}`, `neigh_ops->{solicit, output, error_report, connected_output}`, and per-table `neigh_table->ops` indirect calls signature-checked.
+- **GRKERNSEC_HIDESYM** — `nd_tbl`, `ndisc_recv_*`, `neigh_table_lookup` hidden from non-root.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on bad-ND-option, DAD failure, and `gc_thresh3` cap gated.
+
+NDISC-specific reinforcement:
+
+- **ND TLV-option parsing covered by PAX_USERCOPY** and `nla_len`/`opt_len` checked under SIZE_OVERFLOW — defense against CVE-2018-class TLV-length overflow.
+- **RA spoofing prevention**: incoming RA require `hop_limit == 255`, source link-local (`fe80::/10`), checksum verified; non-conformant RAs counted via `ICMP6_MIB_INERRORS` and dropped; per-`inet6_dev` `accept_ra` sysctl per-policy gates whether RA is honored at all.
+- **SEND-protocol-anchored option support (RFC 3971)**: CGA-option and RSA-signature-option parsing wired in but disabled by default (`net.ipv6.conf.<dev>.accept_ra_send` opt-in); when enabled, signature verification under PAX_MEMORY_SANITIZE on key buffers, signature-fail counted and dropped.
+- **NS/NA validation**: NS source must be either unspecified (DAD) or a valid unicast on the receiving interface; target must not be multicast; NA solicited-flag consistency checked; mis-routed ND dropped.
+- **Neighbour-table exhaustion bounded** by `gc_thresh3` per-table cap with `neigh_forced_gc` on overrun; PAX_REFCOUNT prevents stuck-entry leak.
+
+Rationale: ND is reachable from any adjacent host and historically yields both spoofing primitives (rogue RA = MITM) and TLV-length parser bugs (CVE-2018-1000026-class, CVE-2020-class). RAP on `neigh_ops` plus USERCOPY+SIZE_OVERFLOW on TLV parse plus strict source/hop-limit validation plus SEND option support give a hardened ND surface anchored to RFC 3971 cryptographic verification when policy enables it.
+
 ## Open Questions
 
 (none — ND semantics are exhaustively specified by RFC 4861 + upstream)

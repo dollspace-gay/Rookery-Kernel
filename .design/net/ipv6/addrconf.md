@@ -203,6 +203,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across IPv6 address configuration:
+
+- **PAX_USERCOPY** — `RTM_NEWADDR/DELADDR/GETADDR` payloads parsed via `nla_*` bound-checked accessors; no raw `copy_from_user` into `struct ifaddrmsg`.
+- **PAX_KERNEXEC** — `inet6_rtnl_msg_handlers[]`, `addrconf_sysctl`, and `inet6_addr_lst` ops in `__ro_after_init`.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `addrconf_*` netlink entry and on each RA reception.
+- **PAX_REFCOUNT** — `inet6_ifaddr->refcnt`, `inet6_dev->refcnt`, and `fib6_info->fib6_ref` saturating.
+- **PAX_MEMORY_SANITIZE** — freed `inet6_ifaddr` zeroed; in6_addr / dad_nonce / RFC 7217 `stable_secret` material cleared on free.
+- **PAX_UDEREF** — sysctl writes to `/proc/sys/net/ipv6/conf/<dev>/*` go via `proc_handler` with bound check; no raw user pointer follow.
+- **PAX_RAP / kCFI** — indirect calls through `inet6_rtnl_msg_handlers[].doit/dumpit` and `addrconf_notifier_block.notifier_call` type-signature-checked.
+- **GRKERNSEC_HIDESYM** — `inet6_addr_lst`, `inet6_dev`, `addrconf_dad_*`, `ipv6_generate_stable_address` hidden from non-root.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on DAD failure and bad-RA gated from unprivileged readers.
+
+Addrconf-specific reinforcement:
+
+- **SLAAC autoconf gated by CAP_NET_ADMIN** on `RTM_NEWADDR` and on writes to `accept_ra`, `autoconf`, `temp_*` sysctls; GR-RBAC subject can deny outside `network_admin` role.
+- **RA-flood gate**: `accept_ra` writes that would generate addresses bounded by `max_addresses` (default 16) and `regen_min_advance`; per-`inet6_dev` token-bucket on RA acceptance rejects bursts that exceed `RA_RECV_BURST`.
+- **RFC 7217 `stable_secret` seeded from kernel CSPRNG** under LATENT_ENTROPY and stored opaque; never readable via netlink/sysctl.
+- **DAD `dad_nonce` (RFC 7527) random per-DAD probe** under LATENT_ENTROPY; defense against off-path DAD spoofing.
+- **`temp_valid_lft` / `temp_preferred_lft` arithmetic SIZE_OVERFLOW-checked** — defense against jiffies-overflow producing an effectively permanent temporary address.
+
+Rationale: addrconf decides which IPv6 addresses the host accepts and announces, so its inputs (RAs, netlink writes) are reachable by adjacent unprivileged hosts and unprivileged userspace respectively. CAP_NET_ADMIN gating plus RA-flood bound plus MEMORY_SANITIZE on `inet6_ifaddr` plus LATENT_ENTROPY on `stable_secret`/`dad_nonce` closes the standard SLAAC-poisoning and address-exhaustion primitives.
+
 ## Open Questions
 
 (none — addrconf semantics are exhaustively specified by RFCs 4862, 4429, 6724, 7217, 8981 + upstream)

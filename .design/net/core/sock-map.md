@@ -540,6 +540,29 @@ Sockmap/sockhash reinforcement:
 - **Per-WARN_ON_ONCE(!rcu_read_lock_held) in lookup_raw** — defense against per-non-RCU caller hitting freed elem.
 - **Per-bpf_prog_inc_not_zero before install** — defense against per-prog freed concurrently with attach.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `BPF_MAP_TYPE_SOCKMAP` / `SOCKHASH` insert eBPF programs (`stream_verdict`, `stream_parser`, `skb_verdict`) into the TCP/UDP receive path, redirecting packets across sockets — a malicious or buggy program lets the operator pivot a packet from socket A's owner to socket B's owner. Compromise here is privilege escalation across cgroup/netns boundaries.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: `bpf_attr` from `bpf(BPF_MAP_UPDATE_ELEM, ...)` copy via `bpf_check_uarg_tail_zero` + bounded `copy_from_user`; map-value buffers USERCOPY-whitelisted per-element-size.
+- **PAX_KERNEXEC**: `bpf_map_ops` (sock_map_ops, sock_hash_ops) live in `__ro_after_init`; `sk_psock_progs.stream_verdict`, `->stream_parser`, `->skb_verdict` are atomic-xchg-replaced under `sk_psock->ingress_lock`, never patched in-place.
+- **PAX_RANDKSTACK**: every entry into `sock_map_update_elem`, `sock_map_delete_elem`, `sk_psock_drop` re-randomises kernel-stack offset.
+- **PAX_REFCOUNT**: `sk_psock.refcnt`, `bpf_prog.aux->refcnt`, and per-map `usercnt` use saturating `Refcount`; defends sockmap-update storm.
+- **PAX_MEMORY_SANITIZE**: `sk_psock_destroy` zero-fills the `sk_psock` slab block including the `progs.stream_verdict` pointer slot before slab-return.
+- **PAX_UDEREF**: bpfsyscall uargs accessed only through `bpf_check_uarg_tail_zero`-validated copies; no raw `__user` deref.
+- **PAX_RAP / kCFI**: indirect calls through `sk_psock_progs.{stream_verdict,stream_parser,skb_verdict}` (BPF dispatch) are kCFI-tagged via the BPF dispatcher; per-`bpf_map_ops` methods (lookup_elem, update_elem, delete_elem, free) likewise.
+- **GRKERNSEC_HIDESYM**: `bpf_prog` JIT image address, `sk_psock*`, map fd-table pointer never rendered into `bpftool prog show` output for non-CAP_SYS_ADMIN.
+- **GRKERNSEC_DMESG**: BPF verifier rejection messages ratelimited; CAP_SYSLOG to read.
+
+sock-map-specific reinforcement:
+- **BPF sockmap CAP_BPF strict** — `bpf(BPF_MAP_CREATE, BPF_MAP_TYPE_SOCKMAP)` requires `CAP_BPF` AND `CAP_NET_ADMIN` in `init_user_ns` (grsec policy beyond upstream's CAP_BPF-only post-5.8 default); refuse from non-init userns.
+- **sk_psock_progs kCFI** — `stream_verdict` / `stream_parser` / `skb_verdict` indirect calls validated by BPF dispatcher kCFI tag; mismatch → `BUG()` not type-confused jump into wrong prog type.
+- **bpf_prog_inc_not_zero + atomic-xchg install** — defends against attach/free TOCTOU on prog refcount.
+- **stream_verdict / skb_verdict mutual exclusion** — refuse simultaneous attach (already in row-2); grsec audit-log on attempted bypass.
+- **Cross-family redirect refusal** — sockmap-redirect from TCP to vsock/AF_UNIX → `BPF_DROP` + grsec audit; defends against confused-deputy across protocol families.
+- **CLASS(fd) auto-close** — `sock_map_get_from_fd` uses `CLASS(fd)` RAII, defends fd-leak on partial-failure paths.
+
 ## Open Questions
 
 (none at this Tier-3 level)

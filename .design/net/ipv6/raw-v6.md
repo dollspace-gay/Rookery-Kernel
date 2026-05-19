@@ -201,6 +201,28 @@ None beyond upstream defaults. CAP_NET_RAW gate identical.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `SOCK_RAW` over IPv6 hands the caller a writable cursor over the v6 header chain (HBH, RH, DST, FRAG, AH, ESP) with CAP_NET_RAW being a long-standing capability-escape pivot; ICMPV6_FILTER + IPV6_CHECKSUM offset arithmetic both touch attacker-controlled offsets that must never reach raw kernel pointers.
+
+Baseline (cross-ref `net/ipv6/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: rawv6_sendmsg / rawv6_recvmsg payload copies via `copy_{from,to}_iter`; per-cmsg ancillary parse bounded against `msg_controllen`.
+- **PAX_KERNEXEC**: `rawv6_prot`, `inet6_dgram_ops`, `raw6_seq_ops` placed in `__ro_after_init`; ICMPv6 filter table dispatched through `static const` fnptrs.
+- **PAX_RANDKSTACK**: re-randomise on every `rawv6_sendmsg` / `rawv6_recvmsg` entry, defending against stack-spray from a fixed-CAP_NET_RAW attacker.
+- **PAX_REFCOUNT**: `raw6_sock` + per-skb-clone refs use saturating `Refcount`; no wrap-to-zero UAF on `ICMP6_FILTER` clone storms.
+- **PAX_MEMORY_SANITIZE**: freed `raw6_sock` and per-recv-queue skbs zero-filled before slab reuse; defends recvq-replay info-leak.
+- **PAX_UDEREF**: IPV6_CHECKSUM offset write into skb_network_header bounds-checked against `skb->len - 2`; refuse on overflow.
+- **PAX_RAP / kCFI**: `proto->sendmsg` / `proto->recvmsg` / `proto->setsockopt` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `raw6_sock` pointers + skb addresses never rendered in `/proc/net/raw6` (only `%pK`).
+- **GRKERNSEC_DMESG**: per-socket creation rate-limit; dmesg gated CAP_SYSLOG.
+
+raw-v6-specific reinforcement:
+- **CAP_NET_RAW strict-in-userns** — refuse SOCK_RAW IPv6 from non-init userns even when v6-namespace local; defeats user-namespace pivot.
+- **ICMPV6_FILTER size==32 strict** — refuse other lengths (legacy `sizeof(struct icmp6_filter)` is 32 bytes; truncated copy_from_user attacks rejected).
+- **IPV6_CHECKSUM offset alignment + bound** — must be ≥0, even-aligned, ≤ skb->len-2, and inside transport header window.
+- **Extension-header recursion depth bound** — refuse > MAX_HBH_OPTIONS / MAX_DSTOPTS chains on send path (DoS gate).
+- **GR-RBAC `raw_socket_users` role** — only marked subjects may open AF_INET6/SOCK_RAW; CAP_NET_RAW alone insufficient under default policy.
+
 ## Open Questions
 
 (none — RAW IPv6 socket ABI is exhaustively specified by RFC 3542 + upstream)

@@ -291,6 +291,25 @@ zsmalloc-specific reinforcement:
 - **Per-zsmalloc_map_window per-cpu** — defense against per-CPU concurrent map race.
 - **Per-pool destroy assert all freed** — defense against per-pool memory-leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — zsmalloc-mapped objects never directly cross to userspace; zswap decompress lands compressed bytes into a kernel page and only the decompressed folio reaches the user via the swap path under the standard usercopy whitelist.
+- **PAX_KERNEXEC** — zsmalloc compaction worker, class init, and migration callbacks execute from RX text; no JIT pages reside in compressed pools.
+- **PAX_RANDKSTACK** — zs_malloc/zs_free called from softirq/workqueue contexts honor randomized stack offset; the map_window per-CPU buffer is heap-backed.
+- **PAX_REFCOUNT** — zspage refcounts, handle table counters, and per-pool atomic stats use hardened refcount types; pool destroy assertion catches underflow before kfree.
+- **PAX_MEMORY_SANITIZE** — freed zspage pages are sanitized before they go back to the buddy allocator so leftover compressed plaintext cannot be observed by the next zspage tenant.
+- **PAX_UDEREF** — zsmalloc only handles kernel pages; no user pointer reaches obj_to_location or the handle table.
+- **PAX_RAP / kCFI** — migration ops (isolate, migrate_folio, putback) are CFI-typed; the page-isolation dispatch cannot be redirected via forged page->mapping->a_ops.
+- **GRKERNSEC_HIDESYM** — /sys/kernel/debug/zsmalloc/* (if enabled) hides handle, zspage, and per-class addresses from unprivileged readers.
+- **GRKERNSEC_DMESG** — zsmalloc compaction WARN/BUG paths gate behind dmesg_restrict.
+- **Per-compressed pool PAX_MEMORY_SANITIZE on free** — defense against per-stale-compressed plaintext leaking via re-allocation.
+- **Per-handle alloc/free strict pinning** — defense against per-handle stale-after-migrate dereference.
+- **Per-zspage magic validation** — defense against per-handle decode arriving at a non-zsmalloc page.
+- **Per-class spinlock IRQ-safe** — defense against per-softirq vs allocator race.
+- **Per-pages_per_zspage cap (CLASS_BITS + PAGE_SHIFT bounded)** — defense against per-class size-encoding overflow.
+
+Rationale: zsmalloc backs zswap and zram with compressed user plaintext, so freed-but-not-sanitized state is a direct exfiltration vector; grsec compounding ensures MEMORY_SANITIZE composes with the page-allocator free path, handle lifetime is governed by hardened refcounts, the migration ops cannot be hijacked (RAP/kCFI), and pool addresses are not leakable through debug surfaces (HIDESYM/DMESG).
+
 ## Open Questions
 
 (none at this Tier-3 level)

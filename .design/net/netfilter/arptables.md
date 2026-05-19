@@ -211,6 +211,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: arptables is the legacy ARP filtering ABI (ip_tables-style with `ARPT_*` setsockopt) — long deprecated in favour of nftables, but still shipped for back-compat. The setsockopt path takes a userspace-supplied `xt_table_info` blob with per-entry offsets and target verdicts that must be validated before any indirect call, and the `xt_table` global blob is the canonical "swap entire ruleset" surface — a malformed table can pivot to OOB target dispatch.
+
+Baseline (cross-ref `net/netfilter/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: `xt_table_info` blob copy_from_user via slab-USERCOPY-whitelisted; per-entry `arpt_entry` walk bounded.
+- **PAX_KERNEXEC**: `arpt_standard_target`, `arpt_error_target`, per-match/target `xt_match`/`xt_target` registrations placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every `arpt_do_table` invocation from the netfilter hook.
+- **PAX_REFCOUNT**: `xt_table` + per-cpu counter refs saturating.
+- **PAX_MEMORY_SANITIZE**: freed table info + per-cpu counters zero-filled before slab reuse.
+- **PAX_UDEREF**: setsockopt `ARPT_SO_SET_REPLACE` / `ARPT_SO_GET_INFO` via `copy_from_sockptr`.
+- **PAX_RAP / kCFI**: `xt_target->target` and `xt_match->match` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `xt_table` + per-cpu counter pointers never in `/proc/net/arp_tables_*` (only %pK).
+- **GRKERNSEC_DMESG**: setsockopt-parse-fail warns ratelimited.
+
+arptables-specific reinforcement:
+- **Legacy CAP_NET_ADMIN strict-in-userns** — refuse arptables setsockopt from non-init userns under default GR policy.
+- **x_table PAX_USERCOPY** — ruleset blob copy bounded by `xt_table_info.size`; refuse on length-mismatch + audit-log.
+- **Per-entry offset chain bound** — verify each `arpt_entry.next_offset` is monotonically increasing and ≤ blob size before any target dispatch.
+- **Target verdict bound** — `arpt_entry.target_offset + sizeof(struct arpt_entry_target)` ≤ next_offset; refuse otherwise.
+- **Deprecated `pr_warn_once` on first ruleset load** — encourages migration to nftables.
+- **GR-RBAC `legacy_iptables_users` role** — only marked subjects may use `ARPT_SO_*` setsockopt; CAP_NET_ADMIN alone insufficient under default policy.
+- **Ruleset swap atomicity** — old-table free uses `synchronize_rcu`-then-sanitize sequence (defends use-after-swap).
+
 ## Open Questions
 
 (none — arptables ABI exhaustively specified by upstream)

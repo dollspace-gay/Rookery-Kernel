@@ -200,6 +200,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across ICMPv6:
+
+- **PAX_USERCOPY** — `ping_v6_sendmsg`/`ping_recvmsg` `iov_iter` copies bounded; error-quote constructed via `skb_put` with bound check.
+- **PAX_KERNEXEC** — `icmpv6_protocol`, `icmpv6_msg_handler[]`, and per-type dispatch table in `__ro_after_init`.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `icmpv6_rcv` entry.
+- **PAX_REFCOUNT** — per-Echo-socket refs and `icmpv6_sk(net)` percpu sock refs saturating.
+- **PAX_MEMORY_SANITIZE** — error-quote skb freed-after-emit zeroed; freed Echo `sock` slab zeroed.
+- **PAX_UDEREF** — Echo socket payload reads via `copy_from_iter` only.
+- **PAX_RAP / kCFI** — per-type handler dispatch (`icmpv6_msg_handler[].handler`) and `icmpv6_protocol->handler` signature-checked.
+- **GRKERNSEC_HIDESYM** — `icmpv6_protocol`, `icmpv6_sk`, `icmpv6_msg_handler` hidden from non-root.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on bad-ICMPv6 and rate-limit drops gated.
+
+ICMPv6-specific reinforcement:
+
+- **ICMPv6 emit rate-limit**: per-destination token-bucket `icmpv6_global_allow` + per-route `dst->rate_tokens`; sysctls `net.ipv6.icmp.ratelimit`, `ratemask`, `echo_ignore_*` enforced under SIZE_OVERFLOW so jiffies/refill arithmetic cannot wrap.
+- **RS/RA validation**: ND code path (cross-ref `ndisc.md`) — hop-limit must equal 255, source must be link-local (or unspecified for some RS), checksum verified before option parse; bad messages drop counters via `icmp6_send_dropped`.
+- **Echo socket gated**: `ping_group_range` sysctl + GR-RBAC `ping_users` role; CAP_NET_RAW no longer required when in range, but range itself is policy-bounded.
+- **Error-quote length capped** at `IPV6_MIN_MTU - sizeof(struct ipv6hdr) - sizeof(struct icmp6hdr)`; SIZE_OVERFLOW on the quote-length arithmetic prevents underflow into a giant copy.
+- **`icmpv6_xmit_lock` per-CPU sock** with PAX_REFCOUNT; defense against reentrant emit on a borrowed `icmpv6_sk`.
+
+Rationale: ICMPv6 is reachable from any adjacent host and historically yields amplification (DAD-DOS, error-quote overflows) and parse bugs (CVE-2016-9555-class). RAP on per-type dispatch plus SIZE_OVERFLOW on quote length plus rate-limit token-bucket plus MEMORY_SANITIZE on the quote skb give a hardened diagnostics surface.
+
 ## Open Questions
 
 (none — ICMPv6 semantics are exhaustively specified by RFC 4443 + extensions + upstream)

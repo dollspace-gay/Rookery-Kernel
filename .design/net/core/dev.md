@@ -298,6 +298,31 @@ netdev-core-specific reinforcement:
 - **Per-driver ndo_start_xmit return validated** — defense against driver returning unsupported value.
 - **carrier_off drop subsequent xmit** — defense against transmit-while-down.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on every `SIOC*` netdev ioctl, `ETHTOOL_*` operations, and rtnetlink `IFLA_*` attribute copies into `struct net_device` shadow buffers.
+- **PAX_KERNEXEC** — `.rodata` `net_device_ops`, `ethtool_ops`, `header_ops`, and `Qdisc_ops` vtables; W^X across the entire ndo dispatch surface.
+- **PAX_RANDKSTACK** — per-syscall randomisation across `dev_ioctl`, rtnetlink, and `dev_queue_xmit` entry.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct net_device` (`pcpu_refcnt`/`dev_refcnt`) and per-device hold/put sites.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `net_device` slabs and private-data shells.
+- **PAX_UDEREF** — enforced separation between user ifreq/netlink buffers and the in-kernel ndo path.
+- **PAX_RAP / kCFI** — forward-edge CFI on every `ndo_*` indirect call (`ndo_start_xmit`, `ndo_open`, `ndo_set_rx_mode`, `ndo_change_mtu`, ...).
+- **GRKERNSEC_HIDESYM** — `net_device` private symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — netdev WARN/INFO ("device entered promiscuous mode", carrier flap) gated behind CAP_SYSLOG.
+
+dev.c-specific reinforcement:
+
+- **`struct net_device` PAX_REFCOUNT saturation** — defense against per-device pin-leak via `dev_hold`/`dev_put` abuse from any subsystem (bond, team, macvlan, AF_PACKET).
+- **`ndo_*` vtable PAX_RAP / kCFI** — defense against indirect-call hijack via a corrupted `net_device_ops` pointer (per-driver-load JOP attack surface).
+- **`dev_hold`/`dev_put` bounded under rcu** — defense against UAF when the device is being unregistered concurrently.
+- **`ndo_start_xmit` return value validated against `NETDEV_TX_*`** — defense against driver returning an unsupported value corrupting qdisc-state.
+- **`carrier_off` drops subsequent xmit** — defense against transmit-while-down racing.
+- **Per-namespace netdev list strict** — defense against cross-netns netdev leak via rtnetlink.
+
+Rationale: `net/core/dev.c` is the core registry for every netdev in the kernel; an indirect-call hijack on `ndo_start_xmit` is a universal RCE primitive, and an unbalanced `dev_hold`/`dev_put` produces UAF on unregister. The grsec stack enforces RAP/kCFI on every ndo, PAX_REFCOUNT saturation on the per-device counter, and bounded ndo return-value handling.
+
 ## Open Questions
 
 (none at this Tier-3 level)

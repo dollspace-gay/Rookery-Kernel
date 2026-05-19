@@ -595,6 +595,30 @@ HCI-specific reinforcement:
 - **Per-PM suspend notifier with `HCI_QUIRK_NO_SUSPEND_NOTIFIER` opt-out** — defense against suspend-vs-cmd races on misbehaving controllers.
 - **Per-`disable_work_sync` (not `cancel_work_sync`) at unregister** — defense against work re-arming during teardown.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on `hci_sock_recvmsg`/`hci_sock_sendmsg`, `HCIGETDEVINFO` / `HCIGETCONNLIST` ioctl copies, and mgmt-cmd payloads crossing into `hci_mgmt_*`.
+- **PAX_KERNEXEC** — `.rodata` `hci_dev_ops`, `hci_proto_ops`, and per-transport `hci_uart_proto` tables; W^X across the HCI request-machine.
+- **PAX_RANDKSTACK** — per-syscall randomisation on `hci_sock_*` entry points.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct hci_dev`, `hci_conn`, and `mgmt_pending_cmd`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for HCI cmd/event/ACL/SCO skb pools so link-keys and randomised RPAs are not recoverable from freed slabs.
+- **PAX_UDEREF** — enforced separation between mgmt-userspace and the in-kernel hci_dev request machine.
+- **PAX_RAP / kCFI** — forward-edge CFI on `hdev->open`, `hdev->close`, `hdev->send`, `hdev->setup`, and the per-event `hci_event.c` dispatch table.
+- **GRKERNSEC_HIDESYM** — `hci_dev` private symbols hidden from non-CAP_SYSLOG `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — controller-firmware/log lines ("Bluetooth: hci%u: ...") gated behind CAP_SYSLOG.
+
+HCI-core-specific reinforcement:
+
+- **PAX_REFCOUNT on `hci_dev->refcnt` and `hci_conn->refcnt`** — saturating against per-controller / per-connection pin-abuse from malicious userspace mgmt clients.
+- **BlueZ HCI-USB descriptor strict-parse** — every USB-class HCI descriptor length-checked against `MAX_HCI_PKT_SZ`; defense against BadBluetooth-class adversarial USB devices.
+- **`HCI_USER_CHANNEL` privilege CAP_NET_ADMIN** — defense against unprivileged hijack of the controller via raw user-channel ioctl path.
+- **Per-`mgmt_cp_*` length-table strict-match before dispatch** — defense against undersized/oversized mgmt cmd payload reaching handler `memcpy`.
+- **GRKERNSEC_PROC_USER on `/sys/class/bluetooth/hci*`** — controller enumeration restricted from unprivileged scans.
+
+Rationale: hci_core is the trust boundary between the kernel and the radio. An adversarial USB/UART controller (BadBluetooth) or a hostile mgmt-AF_BLUETOOTH client must not be able to corrupt the request-state machine, exfiltrate freed link-key material, or escalate via indirect-call hijack of the per-driver `hci_dev` vtable.
+
 ## Open Questions
 
 (none at this Tier-3 level)

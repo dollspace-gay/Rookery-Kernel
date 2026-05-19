@@ -315,6 +315,28 @@ neighbour-specific reinforcement:
 - **Per-netlink RTM_NEWNEIGH privileged** — defense against unauthorized neighbour-table modification.
 - **Per-namespace tables isolated** — defense against cross-netns leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: the neighbour table is the L2-to-L3 binding cache (ARP for IPv4, NDISC for IPv6) and is reachable from every receive path that resolves an outgoing nexthop — a refcount imbalance, hash-resize race, or `neigh_ops` vtable corruption pivots to arbitrary L2 redirection across every netdev in the netns.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: RTM_NEWNEIGH/RTM_GETNEIGH netlink attribute parsing copies `NDA_LLADDR`/`NDA_DST` through bounded `nla_memcpy`; `/proc/net/arp` and `/proc/net/ndisc_cache` reads emit fixed-width fields with no slab-block exposure.
+- **PAX_KERNEXEC**: per-family `neigh_ops` (arp_generic_ops, arp_hh_ops, ndisc_generic_ops, ndisc_hh_ops) live in `__ro_after_init`; `neigh_table.parms` template likewise.
+- **PAX_RANDKSTACK**: every neighbour-table mutation entry (`neigh_create`, `neigh_release`, `neigh_event_send`) re-randomises stack offset before the recursive lookup/insert path.
+- **PAX_REFCOUNT**: `struct neighbour.refcnt` and `struct neigh_parms.refcnt` use saturating `Refcount` — a "create+leak N times to wrap then UAF" attack saturates instead of wrapping.
+- **PAX_MEMORY_SANITIZE**: `neigh_destroy` (slab-free of `struct neighbour`) zero-fills the slab block, including `ha[MAX_ADDR_LEN]`, `primary_key[]`, and the embedded `arp_queue` skb-list head — defends against stale-MAC disclosure to next allocation.
+- **PAX_UDEREF**: netlink `nlmsghdr` and `nlattr` walks go through `nla_data`/`nla_get_*` accessors only; no raw user pointer deref.
+- **PAX_RAP / kCFI**: indirect calls through `neigh_ops->solicit`, `->error_report`, `->output`, `->connected_output`, and `neigh_table.constructor` / `->pconstructor` / `->pdestructor` are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-neighbour kernel pointer (`&n`), hash-bucket pointers, and `neigh_parms` addresses never rendered into `/proc/net/arp`, `dmesg`, or RTM_NEWNEIGH echo — only `%pK` hashes when CAP_SYSLOG asserted.
+- **GRKERNSEC_DMESG**: neighbour table overflow / GC-thrash warnings ratelimited; `dmesg` access requires CAP_SYSLOG.
+
+Neighbour-specific reinforcement:
+- **ARP/NDISC table PAX_REFCOUNT** — `tbl->entries` and per-bucket `pneigh_entry.refcnt` saturate; defends gratuitous-ARP flood attempting count overflow.
+- **GRKERNSEC_RANDNET on probe nonces** — ARP probe identifier and NDISC `nonce` option drawn from `prandom_u32_state` per-CPU stream re-seeded with kernel entropy (not predictable LCG), defending against off-path solicit spoofing.
+- **neigh_ops vtable kCFI** — `->output` (hh-cache fast path) and `->connected_output` mismatch → `BUG()` not type-confusion.
+- **RTM_NEWNEIGH strict CAP_NET_ADMIN in init_user_ns** — refuse from non-init userns even with CAP_NET_ADMIN (grsec policy beyond upstream's userns-CAP-permissive default).
+- **Per-netns table isolation audit** — `neigh_table_init` per-netns; cross-netns lookup → `BUG()` (grsec audit) defending against neighbour-leak via cloned-netns reuse-after-free.
+
 ## Open Questions
 
 (none at this Tier-3 level)

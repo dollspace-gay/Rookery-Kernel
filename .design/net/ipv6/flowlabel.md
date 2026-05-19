@@ -212,6 +212,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across IPv6 flow-label management:
+
+- **PAX_USERCOPY** — `setsockopt(IPV6_FLOWLABEL_MGR)` reads `struct in6_flowlabel_req` via bound-checked `copy_from_sockptr`; `getsockopt` writes bounded.
+- **PAX_KERNEXEC** — `ipv6_flowlabel_opt` dispatch and `ip6_flowlabel_proc_ops` in `__ro_after_init`.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `ipv6_flowlabel_opt` entry.
+- **PAX_REFCOUNT** — `ip6_flowlabel->users` and `ipv6_fl_socklist` refs saturating; defense against share-vs-release UAF.
+- **PAX_MEMORY_SANITIZE** — freed `ip6_flowlabel` entries zeroed; label/owner-uid material does not leak across slab reuse.
+- **PAX_UDEREF** — `struct in6_flowlabel_req` user pointer follows go through `sockptr` accessors.
+- **PAX_RAP / kCFI** — `seq_file` ops for `/proc/net/ip6_flowlabel` and any indirect callbacks signature-checked.
+- **GRKERNSEC_HIDESYM** — `fl_ht[]`, `ip6_fl_lock`, `fl_lookup` hidden from non-root `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on label exhaustion and bad-MGR-action gated.
+
+Flowlabel-specific reinforcement:
+
+- **`IPV6_FLOWLABEL_MGR` with sharing modes USER/ANY gated by CAP_NET_ADMIN** in default GR-RBAC policy — defense against stable cross-process flow ID as a tracking/correlation primitive.
+- **Exclusive (FL_SHARE_EXCLUSIVE) label allocation under PAX_REFCOUNT** and per-netns `np->ipv6_fl_list` lock; defense against double-allocation race.
+- **Label-leak hidden**: `/proc/net/ip6_flowlabel` rendered with PID-namespace filter + `kuid_t` translation; `GRKERNSEC_PROC_USERGROUP` restricts to label owner.
+- **`flowlabel_hashrnd` re-seeded from kernel CSPRNG per-netns** under LATENT_ENTROPY; defense against off-host flow-label prediction.
+- **Per-netns flow-label count capped** at `sysctl_flowlabel_state_ranges`/`flowlabel_consistency`; SIZE_OVERFLOW on the count arithmetic; defense against flow-label slab exhaustion.
+
+Rationale: flow labels are unprivileged-allocatable opaque per-socket integers that can become cross-process tracking primitives (RFC 6437 § 6.1 explicitly warns) and historically caused refcount-vs-share UAFs (CVE-2017-13715-class). LATENT_ENTROPY on `flowlabel_hashrnd` plus REFCOUNT on `ip6_flowlabel->users` plus HIDESYM on the proc render addresses both the privacy and the memory-safety surfaces.
+
 ## Open Questions
 
 (none — flow-label management semantics are exhaustively specified by RFC 6437 + RFC 7690 + upstream)

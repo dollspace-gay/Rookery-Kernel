@@ -244,6 +244,25 @@ VLAN-dev-specific reinforcement:
 - **Per-vlan_dev neigh_setup forwards** — defense against per-neighbor lookup miss.
 - **Per-vlan_dev unbind from real_dev on uninit** — defense against per-real-removed UAF.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — vlan_dev statistics and ethtool ops copy fixed-shape structs to userspace through whitelisted helpers; no per-CPU rx_packets/tx_packets array is exposed verbatim.
+- **PAX_KERNEXEC** — vlan_dev netdev_ops, ethtool_ops, and header_ops execute from RX text; no JIT trampolines live in the VLAN-dev path.
+- **PAX_RANDKSTACK** — vlan_dev_hard_start_xmit and vlan_dev_recv invoked from softirq honor randomized stack offset; the skb walk uses no VLAs.
+- **PAX_REFCOUNT** — vlan_dev refcount, real_dev hold count, and rx_handler_data lookup use hardened refcount types; netdev_hold/put pairing saturates.
+- **PAX_MEMORY_SANITIZE** — freed vlan_dev priv (vlan_dev_priv) is sanitized before kfree so the real_dev backpointer and pcpu stats pointer cannot be observed via slab recycle.
+- **PAX_UDEREF** — VLAN xmit/recv path is softirq-only; no user pointer is dereferenced from the data plane.
+- **PAX_RAP / kCFI** — vlan_dev netdev_ops (.ndo_start_xmit, .ndo_set_rx_mode, .ndo_change_mtu) are CFI-typed; the per-vlan-dev op vector cannot be hijacked via privileged ops table swap.
+- **GRKERNSEC_HIDESYM** — /proc/net/vlan/<dev> redacts real_dev kernel pointers and per-CPU pcpu_lstats addresses for unprivileged readers.
+- **GRKERNSEC_DMESG** — vlan_dev WARN_ONs (mtu overflow, mac conflict, neigh_setup miss) gate behind dmesg_restrict.
+- **Per-CAP_NET_ADMIN gate for vlan_dev create/destroy/configure** — defense against per-unprivileged tag-binding manipulation.
+- **Per-MTU bound to real_dev MTU - HLEN** — defense against per-VLAN-tag overflow MTU.
+- **Per-pcpu_lstats sanitize on netdev_free** — defense against per-stat-leak from previous vlan_dev incarnation.
+- **Per-rx_handler_data pointer RCU-protected** — defense against per-replace race UAF.
+- **Per-vlan_dev unbind on real_dev unregister via NETDEV_UNREGISTER notifier** — defense against per-real-removed UAF.
+
+Rationale: vlan_dev is a stacked netdev driven by softirq-time RX/TX; grsec compounding ensures the per-CPU stats and per-dev priv area cannot leak across re-creations (MEMORY_SANITIZE + HIDESYM), the netdev op vector cannot be pivoted (RAP/kCFI), the privilege boundary at create/configure is enforced (CAP_NET_ADMIN), and the real_dev lifetime is locked down by hardened refcount + RCU + notifier pairing.
+
 ## Open Questions
 
 (none at this Tier-3 level)

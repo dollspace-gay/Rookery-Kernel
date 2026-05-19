@@ -722,6 +722,31 @@ L2TP-core reinforcement:
 - **Per-control-frame pass-through (T=1)** — defense against per-kernel-side AVP parsing complexity (left to userspace, smaller attack surface).
 - **Per-`v3_ensure_opt_in_linear` before parse** — defense against per-non-linear-skb OOB read.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: L2TPv2/v3 tunnels (UDP-encap or IP-encap) carry PPP / Ethernet frames with attacker-influenced tunnel-id + session-id namespaces, sequence numbers, and optional offset fields; the kernel side parses tunnel headers from untrusted UDP datagrams and maintains a large per-net IDR map keyed on tunnel/session IDs. A malformed header at the encap_rcv boundary can pivot directly to session-IDR lookup OOB or refcount imbalance.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: per-session recvmsg payload through `copy_to_iter`; sendmsg via `ip_make_skb` + `udp_sendmsg` stack.
+- **PAX_KERNEXEC**: `l2tp_tunnel_ops`, `l2tp_session_ops`, `pppol2tp_proto`, `l2tp_eth_*` placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every `l2tp_udp_encap_recv` / `l2tp_xmit_skb` entry.
+- **PAX_REFCOUNT**: `l2tp_tunnel`, `l2tp_session` refs use saturating `Refcount`; defends session-add storm wrap.
+- **PAX_MEMORY_SANITIZE**: freed `l2tp_session` (incl. cookie + peer_cookie) and `l2tp_tunnel` zero-filled.
+- **PAX_UDEREF**: setsockopt PPPOL2TP_SO_* via sockptr; no raw __user deref in fast path.
+- **PAX_RAP / kCFI**: `l2tp_session.recv_skb`, `session_close`, `session_destruct` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: tunnel + session pointers never rendered to `/proc/net/l2tp/*` or `/sys/kernel/debug/l2tp` (only %pK).
+- **GRKERNSEC_DMESG**: malformed-header + cookie-mismatch warns ratelimited.
+
+l2tp-core-specific reinforcement:
+- **L2TP session PAX_REFCOUNT extended** to `pppol2tp_session.ref` and `l2tp_eth_dev` netdev refs (saturating; defends bind/unbind storms).
+- **UDP encap PAX_USERCOPY** — `l2tp_udp_encap_recv` enforces `pskb_may_pull(L2TP_HDR_MAX)` before any cookie/seq deref.
+- **Cookie length strict v3** — refuse v3 sessions with cookie_len ∉ {0, 4, 8}; refuse mismatch.
+- **CAP_NET_ADMIN for tunnel create** in init_user_ns only; refuse from non-init userns under default GR policy.
+- **Per-net session-IDR cap** — refuse > GRSEC_L2TP_SESSIONS_MAX (default 65536) per netns.
+- **T=1 control-frame strict drop in kernel** (already row-2) — extended with audit-log on attempted in-kernel parse.
+- **L2TPIP / L2TPv3-over-IP socket family CAP_NET_RAW gate** matching SOCK_RAW policy.
+- **Per-net `pre_exit` IDR-empty WARN** (already row-2) — extended with GR audit-log on leak detection.
+
 ## Open Questions
 
 (none at this Tier-3 level)

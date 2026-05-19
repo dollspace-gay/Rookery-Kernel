@@ -435,6 +435,31 @@ TX-path reinforcement:
 - **Per-purge_old_ps_buffers on TOTAL_MAX_TX_BUFFER** — defense against per-PS-buffer exhaustion DoS.
 - **Per-KEY_FLAG_UPLOADED_TO_HARDWARE consistency** — defense against per-double-encrypt when offloaded.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: The TX handler chain encrypts and queues every outbound frame — a vtable corruption or key-flag race here can leak plaintext for protected SSIDs (catastrophic) or replay stale CCMP/GCMP PNs (key recovery). TX also implements airtime fairness (AQL + DRR) which is a denial-of-service target: a greedy STA (or hostile driver) can starve other STAs unless the deficit accounting is integrity-protected.
+
+Baseline (cross-ref `net/mac80211/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: not in fast path (TX is kernel skb path); netlink-control via `nla_put` only.
+- **PAX_KERNEXEC**: `ieee80211_tx_handlers[]`, fq_codel ops, AQL ops placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every `ieee80211_xmit` and tx_dequeue softirq entry.
+- **PAX_REFCOUNT**: per-skb-clone + per-sta tx refs saturating.
+- **PAX_MEMORY_SANITIZE**: freed TX skbs + per-PS-buffer slots zero-filled (defends PS-buffer leak after STA disassoc).
+- **PAX_UDEREF**: no direct user-deref in TX path.
+- **PAX_RAP / kCFI**: `ieee80211_tx_handler` chain + driver `->tx` + `->wake_tx_queue` kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: skb + sta_info + key pointers never logged (only %pK).
+- **GRKERNSEC_DMESG**: queue-stop and PS-buffer-purge logs ratelimited.
+
+mac80211-tx-specific reinforcement:
+- **ieee80211_local PAX_REFCOUNT** — `local->q_stop_reasons[]` and per-sta `sta->tx_stats` use saturating Refcount.
+- **Key MEMORY_SANITIZE strict** — keys removed from TX path memzero_explicit's material before slab-free; PN counter zeroed.
+- **sta_info refcount** saturating across the TX chain; defends per-sta refcount imbalance during disconnect race.
+- **AQL bound strict** — refuse driver-reported airtime > GRSEC_AQL_PERFRAME_MAX_NS; defends driver-bug-induced unbounded airtime credit.
+- **DRR deficit integer overflow guard** — deficit accumulator capped at GRSEC_DRR_DEFICIT_MAX (saturating, not wrap).
+- **TX queue length cap per STA** — refuse > TOTAL_MAX_TX_BUFFER (already row-2) — extended with GR audit-log + per-STA penalty.
+- **Pre-PMF auth-port unauthorized drop strict** — already row-2; extended with audit-log on attempted pre-4WHS data frame.
+- **KEY_FLAG_UPLOADED_TO_HARDWARE consistency** (already row-2) — extended with GR audit-log on offload/sw mismatch.
+
 ## Open Questions
 
 (none at this Tier-3 level)

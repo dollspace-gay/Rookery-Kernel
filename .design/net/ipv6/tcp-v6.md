@@ -198,6 +198,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: TCPv6 inherits the full v4 TCP attack surface (SYN-flood, MD5/AO key handling, syncookie crypto, retransmit timer cancellation races) but additionally must defend against IPv6-specific issues — flow-label spoof, scoped-address confusion (link-local with sin6_scope_id), Hop-by-Hop / RH0 chain abuse, and dual-stack v4-mapped joins where attacker-controlled sin6_addr collides with an existing v4 socket in the bhash.
+
+Baseline (cross-ref `net/ipv6/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: sendmsg/recvmsg iter copies; TCP_MD5SIG/TCP_AO setsockopt structs through whitelisted slab.
+- **PAX_KERNEXEC**: `tcpv6_prot`, `inet6_stream_ops`, `tcp_request_sock_ipv6_ops` `__ro_after_init`; congestion-control + TLP timer fnptrs never patched post-init.
+- **PAX_RANDKSTACK**: re-randomise on every tcp_v6_rcv / sendmsg / accept entry; thwarts BPF-LSM-bypass stack-spray.
+- **PAX_REFCOUNT**: `tcp6_sock`, `request_sock`, `inet_timewait_sock` refs saturating; defeats accept-queue refcount-wrap UAF.
+- **PAX_MEMORY_SANITIZE**: freed `tcp6_sock` (incl. embedded `tcp_md5sig_info` + `tcp_ao_info`) zero-filled; defends MD5/AO key-disclosure across reuse.
+- **PAX_UDEREF**: setsockopt struct copies (TCP_MD5SIG_EXT, TCP_AO_ADD_KEY) via `copy_from_sockptr` only.
+- **PAX_RAP / kCFI**: `tcp_congestion_ops`, `inet_connection_sock_af_ops`, `tcp_ulp_ops` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: sock + tw + req pointers never rendered in `/proc/net/tcp6` (only `%pK`); `tcp_diag` paths use hashed pointers.
+- **GRKERNSEC_DMESG**: SYN-flood / cookie-warn messages ratelimited; CAP_SYSLOG-gated.
+
+tcp-v6-specific reinforcement:
+- **sin6_scope_id strict bind** — link-local (fe80::/10) bind MUST carry a valid scope_id; refuse zero-scope from non-init userns.
+- **v4-mapped join refused under GR-RBAC** — connect to ::ffff:0:0/96 from a v6-only-marked subject denied (defeats dual-stack policy bypass).
+- **TCP_MD5SIG/TCP_AO key MEMORY_SANITIZE** — explicit `memzero_explicit` of `tcp_md5sig.tcpm_key` and `tcp_ao_key.key` on detach + free.
+- **syncookie HMAC key rotation** — per-net random key reseeded; defends precomputed-cookie replay.
+- **RH0 / fragmented-SYN refused at SYN ingress** — bounds `__inet6_lookup_listener` before request_sock create.
+- **Per-bhash6 bucket length cap** — refuse > GRSEC_TCP6_BHASH_CHAIN_MAX (default 256) bind collisions per /64.
+- **CAP_NET_BIND_SERVICE in init_user_ns only** for ports <1024 over v6 (matches v4 grsec policy).
+
 ## Open Questions
 
 (none — TCP-over-IPv6 ABI is exhaustively specified by upstream + RFCs)

@@ -288,6 +288,28 @@ skbuff-alloc-specific reinforcement:
 - **Per-skb cloned flag honored** — defense against modifying shared head causing data corruption.
 - **fclone fast-clone slot** — defense against double-allocation.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `struct sk_buff` is the universal packet container — corrupting `head`/`data`/`tail`/`end` pointers or the refcount yields arbitrary kernel-memory read/write via copy-to-skb in any RX/TX path, while a `head_frag` confusion attack pivots into the page-pool / page-allocator. Every NIC driver, every protocol, every netfilter hook is downstream of these allocators.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: `skb_copy_datagram_iter` / `skb_copy_datagram_from_iter` use bounded `copy_to_iter` with the per-skb-fragment USERCOPY slab whitelist; the skb head slab cache (`skbuff_head_cache`, `skbuff_fclone_cache`) is registered USERCOPY-WHITELIST limited to the data region only.
+- **PAX_KERNEXEC**: `skb_shinfo->destructor` and `skb->destructor` fnptrs reside in `__ro_after_init` text only — refuse `skb->destructor = arbitrary_ptr` outside `__exit`/`__init` sections via kCFI.
+- **PAX_RANDKSTACK**: each `alloc_skb` / `__build_skb` / `kfree_skb` call from a syscall context re-randomises kernel stack offset; same for `napi_consume_skb` from softirq.
+- **PAX_REFCOUNT**: `skb->users` (head refcount) and `skb_shinfo->dataref` use saturating `Refcount` — a "clone N times to wrap then UAF" attack saturates instead of wrapping.
+- **PAX_MEMORY_SANITIZE**: `__kfree_skb` zero-fills the `struct sk_buff` slab block AND the linear data buffer before slab-return (PAX_MEMORY_SANITIZE-extended); also the `skb_shinfo->frags[]` page-fragments via `__skb_frag_unref` → page-pool sanitize hook.
+- **PAX_UDEREF**: skb-iov-iter walks go through `_copy_to_iter`/`_copy_from_iter` accessors; no raw user pointer deref from a kthread/softirq context.
+- **PAX_RAP / kCFI**: indirect calls through `skb->destructor` (sock_efree, sock_wfree, tun_sock_destruct, etc.) are kCFI-tagged; mismatch → `BUG()` not type-confusion.
+- **GRKERNSEC_HIDESYM**: `skb->head`, `skb->data`, `&skb` kernel pointers never rendered to userspace; `/proc/net/sockstat` and ethtool show counts only.
+- **GRKERNSEC_DMESG**: skb-alloc-failure / `skb_over_panic` / `skb_under_panic` warnings ratelimited; require CAP_SYSLOG to read backtrace.
+
+skbuff-alloc-specific reinforcement:
+- **sk_buff PAX_REFCOUNT saturation** — `users` saturates at `INT_MAX` and triggers `BUG()`-with-grsec-audit on overflow attempt; defends against pathological clone-loop in a packet-rewrite eBPF program.
+- **MEMORY_SANITIZE on free** — both head slab AND linear data buffer zero-filled in `__kfree_skb`; defends against TCP-segment-residue disclosure to the next allocator caller.
+- **head_frag validation** — when `skb->head_frag` is true, the head is a page-fragment; grsec validates the `pp_magic` cookie before recycling via page-pool LIFO (mismatch → `BUG()`, defending against driver-bug recycling a non-pp page).
+- **fclone refcount invariant** — `SKB_FCLONE_ORIG`/`SKB_FCLONE_CLONE` pairing enforced; mismatch on `kfree_skb` (one without the other) → `BUG()`.
+- **alloc_skb size cap per netns** — refuse `alloc_skb(size > SKB_MAX_ALLOC_PER_NETNS)` (compile-time tunable), defending against `recvfrom`-driven memory pressure from a hostile namespace.
+
 ## Open Questions
 
 (none at this Tier-3 level)

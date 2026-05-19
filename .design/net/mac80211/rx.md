@@ -523,6 +523,31 @@ RX-path reinforcement:
 - **Per-ieee80211_drop_unencrypted policy** — defense against per-clear-data leak through ESS.
 - **Per-Wi-Fi-Aware NAN-data unicast A2 check** — defense against per-NDP spoof.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: The RX handler chain is the attack-surface boundary against off-the-air frames — every byte in the 802.11 header, PLCP, MCS rate index, and encrypted payload is attacker-controlled. RX must defend against malformed PLCP indices (rate-table OOB), AMSDU/AMPDU desub-frame splay, beacon-spoof (RFC MFP), and replayed/forged management frames at the unprotected-pre-auth boundary.
+
+Baseline (cross-ref `net/mac80211/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: not in fast path (RX is kernel-internal skb path); cfg80211-event-to-userspace via `nla_put` only.
+- **PAX_KERNEXEC**: `ieee80211_rx_handlers[]`, AMSDU desub-handlers, AMPDU reorder cb placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every NAPI poll entry into `ieee80211_rx_napi`.
+- **PAX_REFCOUNT**: per-skb-clone refs through RX chain saturating.
+- **PAX_MEMORY_SANITIZE**: freed AMSDU subframes + reorder-buffer slots zero-filled; defends across-AMSDU disclosure.
+- **PAX_UDEREF**: no direct user-deref in RX fast path.
+- **PAX_RAP / kCFI**: `ieee80211_rx_handler` chain indirect dispatch + driver `->ampdu_action` kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: skb addresses + sta_info pointers never logged with `%p` (only %pK).
+- **GRKERNSEC_DMESG**: per-PLCP-fail and per-MFP-drop logs ratelimited.
+
+mac80211-rx-specific reinforcement:
+- **ieee80211_local PAX_REFCOUNT** — `local->rx_handlers_drop_*` and per-sta `sta->rx_stats` use saturating Refcount.
+- **Key MEMORY_SANITIZE on rotation** — `ieee80211_key_replace` memzero_explicit's old key material before slab-free (defends GTK-rekey disclosure).
+- **sta_info refcount** saturating across the RX chain; defends per-sta refcount imbalance during disassoc race.
+- **AMSDU subframe count cap** — refuse > GRSEC_AMSDU_MAX_SUBFRAMES (default 32) per frame.
+- **Reorder-buffer slot cap** — `tid_ampdu_rx->buf_size` bounded ≤ IEEE80211_MAX_AMPDU_BUF (64 / 256 for HE), audit-log on overflow.
+- **Pre-PMF mgmt drop** (already row-2) — extended with GR audit-log on first occurrence per BSSID.
+- **PLCP-fail strict** — RX_FLAG_FAILED_PLCP_CRC drops at `ieee80211_rx_h_check` before any rate-table deref.
+- **NAN unicast A2 check** (already row-2) — extended GR audit-log on mismatch.
+
 ## Open Questions
 
 (none at this Tier-3 level)

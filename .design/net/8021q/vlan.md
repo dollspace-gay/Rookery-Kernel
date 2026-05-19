@@ -240,6 +240,25 @@ VLAN-specific reinforcement:
 - **Per-skb_vlan_push checks headroom** — defense against per-tag push OOM.
 - **Per-VLAN-dev NETIF_F_HW_VLAN inheritance** — defense against per-feature mismatch.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — VLAN configuration via rtnetlink uses fixed-shape nlattr parsing; per-VID arrays in vlan_info are not exposed verbatim to userspace.
+- **PAX_KERNEXEC** — VLAN core (register_vlan_dev, unregister_vlan_dev, vlan_proc_*) executes from RX text; no JIT runs in the 8021q module.
+- **PAX_RANDKSTACK** — vlan_changelink/newlink/dellink (rtnetlink entry) honor randomized kernel-stack offset; nlattr parse uses sized helpers.
+- **PAX_REFCOUNT** — vlan_group refcount, vlan_info hold count, and per-real-dev vlan_count use hardened refcount types.
+- **PAX_MEMORY_SANITIZE** — freed vlan_info and vlan_group_array structures are sanitized before kfree so VID-to-vlan_dev tables cannot be recovered via slab recycle.
+- **PAX_UDEREF** — VLAN control path runs in process context with proper user/kernel split on nlattr copy_from; data plane is softirq-only with no user pointer.
+- **PAX_RAP / kCFI** — rtnl_link_ops for vlan (.newlink, .dellink, .changelink, .fill_info) are CFI-typed; the rtnetlink dispatch is non-pivotable.
+- **GRKERNSEC_HIDESYM** — /proc/net/vlan/config hides real_dev pointers and per-vlan_dev kernel addresses from non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — vlan_proto_check, vid-out-of-range, and uniqueness-violation warnings gate behind dmesg_restrict.
+- **Per-CAP_NET_ADMIN gate on VLAN add/delete/modify** — defense against per-unprivileged VLAN-tag binding.
+- **Per-vid range strict [0, 4094]** — defense against per-config invalid VID arrival.
+- **Per-(proto, vid) uniqueness via vlan_find_dev** — defense against per-collision register UAF.
+- **Per-HW filter add/remove paired with register/unregister** — defense against per-NIC stale filter persisting after dellink.
+- **Per-rtnl_lock held during reg/unreg** — defense against per-list mutation race across CPUs.
+
+Rationale: 802.1Q VLAN core is the configuration-plane half of stacked VLAN netdevs; under grsec, the rtnetlink entry needs USERCOPY/UDEREF discipline, the link_ops table needs RAP/kCFI typing, the per-real-dev VID tables need MEMORY_SANITIZE-on-free, and the privilege gate at create/destroy is enforced via CAP_NET_ADMIN, while HIDESYM/DMESG ensure that /proc/net/vlan/* and warning messages do not leak layout to unprivileged tasks.
+
 ## Open Questions
 
 (none at this Tier-3 level)

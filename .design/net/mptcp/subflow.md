@@ -694,6 +694,31 @@ Subflow-specific reinforcement:
 - **Per-security_mptcp_add_subflow LSM hook** — defense against per-LSM-bypass.
 - **Per-syncookie path rejects mp_capable ∧ mp_join** — defense against per-cookie-confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: The MPTCP subflow layer is the boundary between a wrapped TCP `sock` and the MPTCP connection-multiplex; ULP install/uninstall transitions, MP_JOIN HMAC validation, and atomic `sk_prot` swap-out are all UAF-pivot candidates if refcount or ordering discipline slips. Each new subflow brings its own attacker-supplied HMAC and address — and every MPTCP connection is exactly as secure as its weakest subflow.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: not in subflow fast path; setsockopt MPTCP_SUBFLOW_INFO via slab-USERCOPY-whitelisted struct.
+- **PAX_KERNEXEC**: `subflow_ops`, `subflow_request_sock_ops`, `mptcp_subflow_ulp_ops` placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every subflow accept / `subflow_data_ready` entry.
+- **PAX_REFCOUNT**: `mptcp_subflow_context` + per-subflow `sock` back-refs saturating.
+- **PAX_MEMORY_SANITIZE**: freed `mptcp_subflow_context` (incl. HMAC state, nonce, rand) zero-filled with memzero_explicit.
+- **PAX_UDEREF**: no direct user-deref in subflow path.
+- **PAX_RAP / kCFI**: subflow `->data_ready`, `->write_space`, ULP `->init`/`->release` kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: subflow + msk pointers never logged (only %pK).
+- **GRKERNSEC_DMESG**: MP_JOIN HMAC-fail + ULP-fallback warns ratelimited.
+
+subflow-specific reinforcement:
+- **MPTCP token CAP_NET_ADMIN** — token-driven MP_JOIN admin path requires CAP_NET_ADMIN under GR policy (matches mptcp.md baseline).
+- **HMAC-SHA256 nonce + rand MEMORY_SANITIZE** — `subflow->local_nonce` and `remote_nonce` memzero_explicit on `subflow_ulp_release`.
+- **`mptcp_can_accept_new_subflow` gate** (already row-2) — extended with GR-policy hard cap matching GRSEC_MPTCP_SUBFLOW_MAX.
+- **ULP fallback restores TCP ops atomically** (already row-2) — extended with kCFI re-verify of new vtable.
+- **Per-msk fail_out RTO_MAX bound** (already row-2) — extended with audit-log on per-msk MP_FAIL flood.
+- **security_mptcp_add_subflow LSM hook** (already row-2) — extended with GR-RBAC default-deny matrix.
+- **Syncookie path rejects mp_capable ∧ mp_join** (already row-2) — extended with GR audit-log on attempt.
+- **subflow `list_add` under msk lock** (already row-2) — lockdep + GR sanity assert.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -348,6 +348,25 @@ Secretmem reinforcement:
 - **Per-no `.read_iter`/`.write_iter`** — defense against per-fd-direct-read bypass of mmap-only access discipline.
 - **Per-`secretmem.enable` boot/module param ro_after_init** — defense against per-post-boot toggle attack surface change.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — secretmem folios are explicitly outside any usercopy whitelist; copy_from_user/copy_to_user against secretmem addresses must fault rather than silently succeed.
+- **PAX_KERNEXEC** — secretmem mappings are RW-only; the pseudo-FS forbids X bits via SB_I_NOEXEC so no JIT/shellcode can land in a secret region.
+- **PAX_RANDKSTACK** — memfd_secret syscall entry honors randomized kernel-stack offset; no on-stack scratch holding plaintext is reused across calls.
+- **PAX_REFCOUNT** — secretmem inode + file refcounts use hardened counters; the per-mount user is pinned via saturating reference math.
+- **PAX_MEMORY_SANITIZE** — folio_zero_segment on free composes with sanitize-on-free so freed secret pages are wiped before re-entering the buddy allocator, even when CONFIG_INIT_ON_FREE is off.
+- **PAX_UDEREF** — direct-map invalidation cooperates with UDEREF: a kernel speculative read of a secretmem PFN finds no mapping in either user or kernel half.
+- **PAX_RAP / kCFI** — `vm_ops` for secretmem are CFI-typed; the fault handler cannot be redirected via indirect-call pivot.
+- **GRKERNSEC_HIDESYM** — /proc/<pid>/maps lines covering secretmem regions hide the underlying inode/anon_vma pointers from non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — boot-time can_set_direct_map() probe failures log under dmesg_restrict; the binding decision is not an unprivileged oracle.
+- **Per-CAP_IPC_LOCK gate on memfd_secret** — defense against per-unprivileged direct-map perforation DoS.
+- **Per-RLIMIT_MEMLOCK accounting strict** — defense against per-user pinned-memory exhaustion exploding the direct map.
+- **Per-secretmem_active static_branch** — defense against per-cold-path branch cost when feature unused, and an audit-trail hook for grsec logging.
+- **Per-no-swap, no-coredump, no-migrate triad enforced at vm_flags** — defense against per-bypass via ptrace-coredump or memory-tier migration leaking plaintext.
+- **Per-fault path single-page allocation only** — defense against per-bulk-fault inflating direct-map holes beyond the touched range.
+
+Rationale: secretmem's threat model is leakage of user secrets to the kernel itself (kernel speculation, swap, coredump, migration); grsec compounding adds the missing privilege gate (CAP_IPC_LOCK + RLIMIT_MEMLOCK), the layout-hiding (HIDESYM), and the dispatch-typing (RAP) so that the direct-map exclusion cannot be turned into either a DoS amplifier or a layout oracle. MEMORY_SANITIZE + UDEREF together close the window where a freed secret page might be observed from a stale TLB or speculative read.
+
 ## Open Questions
 
 (none at this Tier-3 level)

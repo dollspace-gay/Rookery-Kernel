@@ -210,6 +210,31 @@ Estimator-specific reinforcement:
 - **Per-bucket bound iter to ≤ N est per tick** — defense against per-bucket DoS.
 - **Per-replace atomic swap** — defense against per-replace observed in inconsistent state.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on `TCA_RATE` netlink attribute copies (`gnet_estimator` interval/ewma config from userspace).
+- **PAX_KERNEXEC** — `.rodata` for the per-bucket timer / static-call targets of `est_timer`.
+- **PAX_RANDKSTACK** — per-softirq randomisation across `est_timer` invocations.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct net_rate_estimator`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the per-estimator slab so released estimators do not leak stale rate state into freshly-allocated successors.
+- **PAX_UDEREF** — enforced separation between user netlink `TCA_RATE`/`TCA_RATE64` buffers and the in-kernel bucket linkage.
+- **PAX_RAP / kCFI** — forward-edge CFI on the per-bucket timer callback and the `gen_estimator` indirect dispatch.
+- **GRKERNSEC_HIDESYM** — gen_estimator internal symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — gen_estimator WARN gated behind CAP_SYSLOG.
+
+gen_estimator-specific reinforcement:
+
+- **`struct net_rate_estimator` PAX_REFCOUNT** — saturating against per-estimator pin-leak via crafted `TCA_RATE` set/replace cycles.
+- **Per-tick sample bound `≤ N estimators / bucket`** — defense against per-bucket DoS (timer storm).
+- **`gen_new_estimator` caller `nl_capable(CAP_NET_ADMIN)` checked** — defense against unprivileged userspace adding rate estimators.
+- **EWMA u32 saturating** — defense against integer-overflow in computed rate.
+- **Tick interval read from bucket-config (not est)** — defense against per-estimator tampering of the timer cadence.
+- **Replace = atomic swap of pointer** — defense against per-replace observed in inconsistent state.
+
+Rationale: gen_estimator runs the per-tc-class rate-estimation hr-timer; an unprivileged or unbounded estimator-add becomes a per-tick CPU-burn DoS, and an unsaturated refcount becomes a slow-leak. The grsec stack enforces CAP_NET_ADMIN at the netlink boundary, per-bucket iteration cap, and PAX_REFCOUNT saturation.
+
 ## Open Questions
 
 (none at this Tier-3 level)

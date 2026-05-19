@@ -470,6 +470,30 @@ BBR reinforcement:
 - **Per-tcp_register_congestion_control failure path unwinds BTF kfunc registration** — defense against per-module-load partial-state.
 - **Per-MODULE_LICENSE Dual BSD/GPL preserved (Rookery clean-room rewrite uses same license)** — defense against per-license drift.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across BBR:
+
+- **PAX_USERCOPY** — `tcp_bbr_info` (INET_DIAG_BBRINFO) export uses `nla_put` with bound-checked length; no raw `copy_to_user` of `BbrState`.
+- **PAX_KERNEXEC** — `tcp_bbr_cong_ops` placed in `__ro_after_init`; W^X on the `struct tcp_congestion_ops` instance prevents post-init swap of pacing callbacks.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `tcp_ack` → `bbr_main` entry; defeats stack-spray-then-ACK primitives.
+- **PAX_REFCOUNT** — `tcp_congestion_ops->owner` module ref and `inet_csk(sk)->icsk_ca_ops` refcount saturating.
+- **PAX_MEMORY_SANITIZE** — `icsk_ca_priv[]` zeroed on `tcp_cleanup_congestion_control` so BBR's per-flow `BbrState` (incl. min_rtt/btl_bw) does not leak across socket-slab reuse.
+- **PAX_UDEREF** — `setsockopt(TCP_CONGESTION)` name-string copy via `strncpy_from_sockptr` (bound-checked, no raw user-pointer chase).
+- **PAX_RAP / kCFI** — indirect calls through `tcp_ca_ops->{cong_control, pkts_acked, ssthresh, undo_cwnd, set_state, in_ack_event, get_info}` are type-signature-checked; switching CC algorithms cannot reach an off-signature gadget.
+- **GRKERNSEC_HIDESYM** — `bbr_cong_ops`, `tcp_ca_list`, and `tcp_register_congestion_control` symbols hidden from non-root.
+- **GRKERNSEC_DMESG** — `pr_info` on BBR register/unregister and `pr_warn_ratelimited` on bad-rate clamps gated from unprivileged readers.
+
+BBR-specific reinforcement:
+
+- **`tcp_ca_ops` instance protected by PAX_RAP / kCFI** — defense against off-signature indirect-call exploit from CC swap.
+- **BBR pacing rate bounded** to `[1, sk->sk_max_pacing_rate]` with `clamp64`; `bbr_rate_bytes_per_sec` u64 path validated under SIZE_OVERFLOW so 100+ Gbps measurements cannot wrap into a 0-rate stall.
+- **`setsockopt(TCP_CONGESTION, "bbr")` gated** by `net.ipv4.tcp_allowed_congestion_control` allowlist; GR-RBAC subject can deny per-task CC choice.
+- **`pacing_gain[]` index masked with `CYCLE_LEN-1`** at build time (`BUILD_BUG_ON(!is_power_of_2(CYCLE_LEN))`); defense against attacker-influenced `cycle_idx` OOB read.
+- **`min_rtt_us` and `btl_bw` written under socket lock only**; no lockless racing update path that could feed adversarial RTT.
+
+Rationale: BBR is loaded via `setsockopt` by any unprivileged process and runs inside the ACK fast path on every flow; a corrupted `tcp_ca_ops` vtable is a JOP primitive against every TCP socket. RAP/kCFI on the vtable plus MEMORY_SANITIZE on `icsk_ca_priv` plus REFCOUNT on the module pin collapse that attack surface to non-exploitable WARNs.
+
 ## Open Questions
 
 - How to expose `tcp_bbr_info` (INET_DIAG_BBRINFO) attribute via netlink-diag in Rookery diag layer (parallel to inet_diag.c).

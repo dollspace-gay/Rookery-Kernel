@@ -297,6 +297,30 @@ route-specific reinforcement:
 - **Multipath hash domain validated** — defense against attacker biasing nexthop selection.
 - **Per-route gw addr validated** — defense against gw == self causing loop.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across the FIB / routing path:
+
+- **PAX_USERCOPY** — `rtnetlink` payload copies bounded; `RTA_*` attribute walks reject straddling slab boundaries.
+- **PAX_KERNEXEC** — `inet_rtm_*` netlink op-table, `fib_rules_ops`, and `dst_ops` vtables in `.rodata`/`__ro_after_init`; W^X holds on FIB dispatch.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `ip_route_input_slow`/`ip_route_output_key_hash` entry; defeats spray-then-lookup primitives.
+- **PAX_REFCOUNT** — `dst_entry->__refcnt`, `fib_info->fib_refcnt`, and `fib_nh->nh_dev` refcounts saturate; FIB-lookup vs. route-delete UAF degrades to controlled leak.
+- **PAX_MEMORY_SANITIZE** — freed `rtable`, `fib_info`, and `fib_nh` slab objects zeroed; prevents leak of gateway addresses or per-route metrics to a re-allocated reader.
+- **PAX_UDEREF** — `rtnetlink` user attribute parsing dereferences user pointers only via `nla_*` bound-checked accessors.
+- **PAX_RAP / kCFI** — `dst->ops->{input,output,update_pmtu,redirect}` and `fib_rules_ops->{action,match}` indirect calls type-signature-checked; gadgets in `dst_ops` neutered.
+- **GRKERNSEC_HIDESYM** — `ip_rt_get_source`, `fib_trie_table`, and `inet_rtm_*` symbols hidden from non-root; defeats KASLR leak via route-table introspection.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on bad `RTM_*` attributes and PMTU clamps gated from unprivileged readers.
+
+Route-specific reinforcement:
+
+- **FIB lookup uses PAX_REFCOUNT on `fib_info`/`fib_nh`** — defense against multipath lookup vs. nexthop-delete UAF.
+- **RTM_NEWROUTE/DELROUTE/GETROUTE require CAP_NET_ADMIN** with GR-RBAC subject scoping; per-namespace `RTNL_FAMILY_IPMR` writes denied by default outside `network_admin` role.
+- **IP_PMTUDISC values bounded** to `{DONT, WANT, DO, PROBE, INTERFACE, OMIT}`; user-supplied PMTU stored in `dst->metrics[RTAX_MTU]` clamped to `[min_mtu, dev->mtu]`.
+- **`fib_table_lookup` under RCU** with `synchronize_rcu` on table replace; defense against trie-walk vs. table-flush UAF.
+- **Per-route `RTAX_*` metric writes via `fib_metrics_match`** with `kmemdup` + REFCOUNT; defense against metric-vector-free during use.
+
+Rationale: the FIB and `dst` cache are written-by-root, read-by-everyone structures whose UAF/refcount bugs (CVE-2019-8980-class, CVE-2022-2588-class) yield reliable LPE primitives; saturating REFCOUNT on `fib_info`/`fib_nh`/`dst_entry` plus RAP on `dst_ops` plus HIDESYM on the lookup vtables defangs them.
+
 ## Open Questions
 
 (none at this Tier-3 level)

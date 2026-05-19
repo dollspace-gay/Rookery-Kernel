@@ -313,6 +313,28 @@ sock-core-specific reinforcement:
 - **Per-AF security_socket_* hooks** — defense against unauthorized AF use.
 - **Per-protocol hash table per-namespace** — defense against cross-netns leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `struct sock` is the universal protocol-control-block — every TCP/UDP/SCTP/RAW/PACKET/UNIX socket on the system is one of these, and the `sk_prot` vtable, `sk_data_ready`/`sk_write_space` callbacks, and `sk_filter` BPF program are the high-value pivot targets. Corrupting `sk->sk_socket->file` yields privilege escalation through `dup2`/`SCM_RIGHTS` plumbing.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: socket option get/set (`sock_getsockopt`, `sock_setsockopt`, `do_ip_getsockopt`) use bounded `copy_to_user`/`copy_from_user` with per-option size validation; per-family slab caches USERCOPY-whitelist limited to the public option region of `struct sock`.
+- **PAX_KERNEXEC**: per-family `struct proto` (tcp_prot, udp_prot, raw_prot, unix_proto) and `struct proto_ops` (inet_stream_ops, inet_dgram_ops, unix_stream_ops) reside in `__ro_after_init`; refuse `sk->sk_prot = arbitrary_ptr` post-`sock_init_data`.
+- **PAX_RANDKSTACK**: every entry into `sock_create`, `sock_release`, `sock_sendmsg`, `sock_recvmsg`, `__sys_accept4` re-randomises kernel-stack offset before the deep `sk_prot->*` dispatch.
+- **PAX_REFCOUNT**: `sk->sk_refcnt`, `sk->sk_wmem_alloc`, `sk->sk_rmem_alloc` use saturating `Refcount` — a `SO_REUSEPORT`/clone storm cannot wrap the count to UAF.
+- **PAX_MEMORY_SANITIZE**: `sk_destruct` zero-fills the `struct sock` slab block before slab-return, including `sk_peer_cred`, `sk_peer_pid`, `sk_user_data`, `sk_security`, and `sk_filter` pointer slot.
+- **PAX_UDEREF**: msghdr/iov_iter traversal uses `_copy_from_iter`/`_copy_to_iter`; no raw `__user` deref inside the `sk_prot->sendmsg`/`recvmsg` hot path.
+- **PAX_RAP / kCFI**: indirect calls through every `sk_prot->*` method (close, connect, sendmsg, recvmsg, hash, unhash, ioctl, get_port, etc.) and `sk_data_ready`/`sk_write_space`/`sk_state_change`/`sk_destruct` are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-sock `struct sock*`, `sk_filter*`, `sk_user_data*` never echoed into `/proc/net/{tcp,udp,unix}` or `ss -e` output; only `%pK` hashes when CAP_SYSLOG asserted.
+- **GRKERNSEC_DMESG**: `__sk_mem_raise_allocated` / `tcp_too_many_orphans` warnings ratelimited; CAP_SYSLOG to read.
+
+sock-core-specific reinforcement:
+- **struct sock PAX_REFCOUNT saturation** — `sk_refcnt` saturates at `INT_MAX` with BUG-and-grsec-audit; defends against clone storm via `accept`/`fork`/`SO_REUSEPORT`.
+- **sk_filter PAX_KERNEXEC** — the BPF prog backing `sk_filter` is loaded into a `__ro_after_init`-locked JIT page (`bpf_jit_binary_lock_ro`); refuse `sk->sk_filter = arbitrary_ptr` from anywhere except `sk_attach_filter`.
+- **sk_clone_lock cred-isolation** — `sk_clone_lock` (called from `tcp_create_openreq_child`) copies `sk_peer_cred` by reference + `get_cred`, never sharing the cred struct mutably; defends against TCP-listener-cred-leak to accepted child.
+- **CAP_NET_RAW gate on AF_PACKET sock_create** — strict in `init_user_ns`; refuse from non-init userns even with CAP_NET_RAW (grsec policy beyond upstream's userns-cap-permissive default).
+- **sk_destruct zero-on-free invariant** — `sk_user_data`, `sk_security`, `sk_peer_cred` all zeroed before slab return.
+
 ## Open Questions
 
 (none at this Tier-3 level)

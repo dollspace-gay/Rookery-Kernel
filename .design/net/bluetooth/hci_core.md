@@ -283,6 +283,30 @@ HCI-specific reinforcement:
 - **Per-cmd_work cancel_work_sync on unregister** — defense against in-flight cmd UAF.
 - **Per-bt_cb(skb) layout** — defense against per-skb-cb overflow.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on every `copy_from_sockptr`/`put_user` against the HCI control-channel and HCI raw-channel paths.
+- **PAX_KERNEXEC** — `.rodata` `hci_proto_ops` / `hci_dev_ops`; W^X for the HCI event/cmd dispatch tables.
+- **PAX_RANDKSTACK** — per-syscall stack randomisation across `hci_sock_*` syscall entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct hci_dev`, `hci_conn`, and `hci_cmd_sync` entries.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for HCI skb buffers carrying ACL/SCO payloads and link-key material.
+- **PAX_UDEREF** — enforced isolation between user mgmt-cmd buffers and the in-kernel `hci_request` queue.
+- **PAX_RAP / kCFI** — forward-edge CFI on `hdev->open/close/send/setup/shutdown` and per-event handler dispatch.
+- **GRKERNSEC_HIDESYM** — HCI symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — HCI controller log/warn messages gated by CAP_SYSLOG.
+
+HCI-core-specific reinforcement:
+
+- **`struct hci_dev` PAX_REFCOUNT saturation** — defense against per-controller pin-leak from misuse of `hci_dev_hold`/`hci_dev_put`.
+- **BlueZ HCI USB-descriptor strict validation** — defense against malicious USB-bluetooth controllers (BadBluetooth) presenting crafted endpoint descriptors.
+- **CAP_NET_ADMIN gate on raw HCI sockets and `HCI_USER_CHANNEL`** — defense against unprivileged direct-controller access.
+- **`supported_commands` bitmap enforced at opcode dispatch** — defense against forged HCI events triggering unimplemented handler paths.
+- **GRKERNSEC_PROC_USER on `/sys/kernel/debug/bluetooth/*`** — controller-internal state restricted from unprivileged enumeration.
+
+Rationale: hci_core sits between an untrusted radio transport and the BlueZ-stack subsystems above. The grsec layer ensures that neither a hostile controller nor an unprivileged AF_BLUETOOTH client can corrupt the request state-machine, exfiltrate link-key material via freed slabs, or hijack `hdev->send` indirect calls.
+
 ## Open Questions
 
 (none at this Tier-3 level)

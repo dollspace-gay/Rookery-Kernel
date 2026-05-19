@@ -325,6 +325,29 @@ INET-csk reinforcement:
 - **Per-ULP setsockopt validates name** — defense against per-typo-ULP-load.
 - **Per-bind2 same-port-IP separation** — defense against per-IP-cross-bind escape.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `inet_connection_sock` extends `struct sock` for connection-oriented IPv4 protocols (TCP, DCCP, SCTP variants) — it owns the accept-queue, the SYN-recv hashtable, the icsk-`ack` timer machinery, and per-connection congestion-control state. Compromising icsk_accept_queue lets an attacker steal accepted-but-not-`accept(2)`-yet connections; overflowing the SYN-recv table is the classic SYN-flood DoS.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: per-icsk `accept(2)` returns a child sock; no slab disclosure as no userland buffer is direct-mapped.
+- **PAX_KERNEXEC**: `inet_connection_sock_af_ops` (ipv4_specific, ipv6_specific) and `tcp_congestion_ops` registrations live in `__ro_after_init`; per-icsk `icsk_af_ops` written once at `tcp_v4_init_sock`.
+- **PAX_RANDKSTACK**: every entry into `inet_csk_accept`, `inet_csk_clone_lock`, `inet_csk_destroy_sock`, and the retransmit-timer expiry re-randomises kernel-stack offset.
+- **PAX_REFCOUNT**: `icsk_accept_queue.qlen`, `icsk->icsk_inet.sk.sk_refcnt`, and `request_sock.rsk_refcnt` use saturating `Refcount`.
+- **PAX_MEMORY_SANITIZE**: `inet_csk_destroy_sock` zero-fills the icsk slab block including `icsk_ca_priv[]` (per-congestion-control state) before slab-return.
+- **PAX_UDEREF**: setsockopt(TCP_CONGESTION, TCP_ULP) uses bounded `copy_from_sockptr` with `strlcpy` into fixed buffer.
+- **PAX_RAP / kCFI**: indirect calls through `icsk_af_ops->{queue_xmit,send_check,rebuild_header,sk_rx_dst_set,conn_request,syn_recv_sock,...}` and `tcp_congestion_ops->{init,release,cong_avoid,ssthresh,...}` are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-icsk kernel pointers and accept-queue request_sock pointers never echoed into `/proc/net/tcp` or `ss -i`; only opaque socket-state tokens.
+- **GRKERNSEC_DMESG**: TCP SYN-flood / "possible SYN flooding" warnings ratelimited; CAP_SYSLOG to read.
+
+icsk-specific reinforcement:
+- **icsk PAX_REFCOUNT saturation** — `sk_refcnt`/`rsk_refcnt` saturate at INT_MAX with BUG-and-grsec-audit; defends massive parallel-accept clone storm.
+- **Accept-q SOMAXCONN-bounded** — `inet_csk_reqsk_queue_added` refuses new entry once `icsk_accept_queue.qlen >= sk->sk_max_ack_backlog`; cap clamped to `SOMAXCONN` (sysctl-tunable, grsec-min-floor enforced).
+- **SYN-cookies anti-flood** — when `tcp_max_syn_backlog` is hit, `tcp_syn_flood_action` switches to SYN cookies (`secure_tcp_syn_cookie`) so no request_sock is allocated — defends SYN-flood without consuming kernel memory.
+- **request_sock isolation** — `inet_csk_clone_lock` performs full `sk_clone_lock` + `cred_isolated` copy; the cloned cred is `get_cred`-incremented, never shared mutably with listener.
+- **TCP_ULP setsockopt name validation** — `tcp_set_ulp` validates the ULP-name against the registered ULP list; refuse unknown names with `-ENOENT` (defends typo-load of arbitrary kernel symbol).
+- **icsk_ack timer DoS guard** — `icsk_ack.timeout` capped at `TCP_DELACK_MAX`; rogue cong-ctrl module can't park a timer for hours.
+
 ## Open Questions
 
 (none at this Tier-3 level)

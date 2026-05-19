@@ -204,6 +204,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across the IPv6 TX path:
+
+- **PAX_USERCOPY** — user payload copies on `ip6_append_data` / `ip6_finish_output` page-frag path bound-checked; refuse straddling slab boundary.
+- **PAX_KERNEXEC** — `ip6_output`, `ip6_xmit`, `dst->output`, `nf_hook_entry->hook` dispatch in `__ro_after_init`.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `ip6_xmit` entry.
+- **PAX_REFCOUNT** — `skb->users`, `dst->__refcnt`, `sock->sk_wmem_alloc` saturating; defense against TX-queue vs. socket-close UAF.
+- **PAX_MEMORY_SANITIZE** — freed `sk_buff` and page-frag slabs zeroed; prior payload bytes cannot leak via slab reuse.
+- **PAX_UDEREF** — `iov_iter` follow only through bound-checked accessors.
+- **PAX_RAP / kCFI** — `dst->output`, `sk->sk_data_ready`, `inet6_protocol->handler` signature-checked on the TX hot path.
+- **GRKERNSEC_HIDESYM** — `ip6_xmit`, `ip6_output`, `ip6_fragment`, `ip6_finish_output` hidden from non-root.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on PMTU clamp, fragment fail, and EH-build fail gated.
+
+ip6-output-specific reinforcement:
+
+- **`ip6_xmit` user payload covered by PAX_USERCOPY** — defense against linear-vs-frag boundary-straddling copy on the send path.
+- **Fragment bounded**: `ip6_fragment` enforces `min(mtu, IPV6_MAXPLEN)` with SIZE_OVERFLOW on `frag_off` and `mtu - hlen` arithmetic; per-skb fragment count capped to prevent kernel-side fragment bomb.
+- **Identification field LATENT_ENTROPY-seeded** per-flow via `ipv6_select_ident` SipHash-2-4; re-keyed on `net.ipv6.fragment_id_rekey` interval; defense against off-path fragment ID prediction.
+- **Extension header build (HBH, DST, RT) under SIZE_OVERFLOW**; option-vector length arithmetic checked; defense against build-side option-length overflow.
+- **`dst_link_failure` and `ip6_local_error` paths under PAX_REFCOUNT on `sk`**; defense against error-report-vs-close UAF.
+
+Rationale: `ip6_xmit` is the IPv6 send hot path and fragment offset/length arithmetic has historically yielded both information leaks (fragment ID prediction) and overflow primitives. USERCOPY on payload plus SIZE_OVERFLOW on frag math plus LATENT_ENTROPY on the Identification field close both classes.
+
 ## Open Questions
 
 (none — IPv6 TX path semantics are exhaustively specified by RFC 8200 + upstream)

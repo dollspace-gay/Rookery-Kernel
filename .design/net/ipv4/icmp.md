@@ -210,6 +210,29 @@ icmp-specific reinforcement:
 - **icmpv4_global_allow per-net** — defense against global ICMP-storm.
 - **Per-skb pull bounded before icmphdr access** — defense against truncated packet OOB.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: ICMP is the IPv4 in-band error / diagnostic channel — every TTL-expired, fragment-needed, unreachable, redirect, and echo-reply egresses through `icmp_send`/`icmp_reply`. A bad-error-handler vtable swap, rate-limit bypass, or per-skb-pull OOB pivots into traffic-direction (via spoofed Redirect) or amplification DoS.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: ICMP socket `recvmsg` (SOCK_DGRAM/IPPROTO_ICMP "ping socket") uses `skb_copy_datagram_iter` with bounded `copy_to_iter`; no slab disclosure.
+- **PAX_KERNEXEC**: `icmp_pointers[]` (per-ICMP-type handler table) and `inet_protos[IPPROTO_ICMP]` live in `__ro_after_init`; refuse re-registration.
+- **PAX_RANDKSTACK**: every entry into `icmp_send`, `icmp_rcv`, `icmp_reply` re-randomises kernel-stack offset.
+- **PAX_REFCOUNT**: per-`net.ipv4.icmp_sk[]` socket refcount saturates; per-`icmp_global` rate-limit bucket refcount likewise.
+- **PAX_MEMORY_SANITIZE**: reply skb's linear data zero-filled before re-use; freed per-net `icmp_sk` slab zero-on-free.
+- **PAX_UDEREF**: ICMP "ping socket" sendmsg uses `_copy_from_iter`; no raw `__user` deref.
+- **PAX_RAP / kCFI**: indirect calls through `icmp_pointers[].handler` (icmp_unreach, icmp_redirect, icmp_echo, icmp_timestamp, icmp_discard) are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: per-ICMP `struct sock*` kernel pointer never echoed into `/proc/net/icmp` or `ss` output; only counts.
+- **GRKERNSEC_DMESG**: ICMP rate-limit and martian-source warnings ratelimited; CAP_SYSLOG to read.
+
+ICMP-specific reinforcement:
+- **ICMP rate-limit per-dst + global** — `icmp_global_allow` (per-net leaky bucket) + `inet_peer.rate_tokens` (per-destination); combined cap defeats reflection-amplification across multiple destinations.
+- **GRKERNSEC_BLACKHOLE on unreachable** — when `sysctl_icmp_echo_ignore_broadcasts` / `sysctl_icmp_ignore_bogus_error_responses` would have sent a reply revealing host existence, grsec drops silently AND audit-logs the originator; defeats network reconnaissance via ICMP.
+- **ICMP-redirect refusal in routing tables** — `ip_forward` no longer accepts ICMP Redirects to modify the FIB (grsec policy, even if `accept_redirects=1` sysctl is set); defends against on-path attacker steering traffic via spoofed Redirect.
+- **icmpv4_global_allow per-net** — already in row-2; grsec extends with per-cgroup tagging so a containerised attacker cannot exhaust the host-wide bucket.
+- **icmp_socket per-CPU PAX_REFCOUNT** — `icmp_sk[smp_processor_id()]` refcount under `local_bh_disable`; lockless usage detection → BUG().
+- **Per-skb pull bound + icmphdr type validation** — `pskb_may_pull(skb, sizeof(struct icmphdr))` + type range check `[0..NR_ICMP_TYPES)` before dispatch; OOB → drop + audit.
+
 ## Open Questions
 
 (none at this Tier-3 level)

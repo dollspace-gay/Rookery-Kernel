@@ -296,6 +296,31 @@ None beyond upstream defaults. Note: upstream changed `nf_conntrack_helper` defa
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `nf_conn` is the central conntrack state object: per-flow, indexed by an RCU hashtable bucketed on tuple, referenced from skb (`skb->_nfct`), held by NAT, helpers, expectations, timeout-policies, labels, and ctnetlink dumps. A refcount-imbalance pivots to UAF on every packet for a given flow, and the hash-bucket walk is RCU-traversed under packet-rate pressure — bucket-length bounds matter for fairness as much as for OOB.
+
+Baseline (cross-ref `net/netfilter/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: ctnetlink + sysctl `nf_conntrack_*` setsockopt copies via slab-USERCOPY-whitelisted; no fast-path user-deref.
+- **PAX_KERNEXEC**: `nf_conntrack_l4proto` per-proto ops vtable, `nf_ct_event_notifier`, `nf_ct_ecache_ext_ops` placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every `nf_conntrack_in` / `__nf_ct_resolve_clash` entry.
+- **PAX_REFCOUNT**: `nf_conn.ct_general.use` use saturating `Refcount`; defends mass-flow-creation wrap.
+- **PAX_MEMORY_SANITIZE**: freed `nf_conn` (incl. extensions: helper, NAT, labels, timeout, mark, secmark) zero-filled (memzero_explicit on secmark + LSM-attached label material).
+- **PAX_UDEREF**: ctnetlink attribute parse via NLA_POLICY only.
+- **PAX_RAP / kCFI**: `nf_conntrack_l4proto->packet`, `->error`, `->print_tuple` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `nf_conn` + extension pointers never rendered to `/proc/net/nf_conntrack` (only %pK; tuple-hash for diag).
+- **GRKERNSEC_DMESG**: clash + table-full warns ratelimited.
+
+conntrack-core-specific reinforcement:
+- **nf_conn PAX_REFCOUNT** — `ct_general.use` + per-extension back-refs saturating; audit-log on saturation.
+- **Hash-bucket length bounded** — refuse insert beyond GRSEC_NF_CT_CHAIN_MAX (default 128) per bucket; defends quadratic-walk DoS under chosen-tuple flood.
+- **Expectation refcount** — `nf_conntrack_expect.use` saturating; defends helper-injected expectation flood.
+- **Per-net `nf_conntrack_max` enforced + audit-log on hit** — refuse insert at hard cap; existing soft early-drop preserved.
+- **Per-net `nf_conntrack_buckets` capped GRSEC_NF_CT_BUCKETS_MAX** — defends mem-exhaustion via sysctl write.
+- **CAP_NET_ADMIN strict-in-userns** for ctnetlink CT-mutate ops + sysctl writes.
+- **Tuple-zone scoping strict** — refuse cross-zone tuple-lookup from non-init userns under GR policy.
+- **Per-net cleanup synchronize_rcu-then-sanitize** on netns exit; defends use-after-net-exit.
+
 ## Open Questions
 
 (none — conntrack core semantics exhaustively specified by upstream + the conntrack-tools test suite)

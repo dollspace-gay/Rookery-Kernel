@@ -341,6 +341,29 @@ FIB-trie reinforcement:
 - **Per-flush iter snapshot RCU-safe** — defense against per-iter-during-update UAF.
 - **Per-nexthop_object lifecycle managed via netlink** — defense against per-stale-nexthop.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: the FIB-trie is the IPv4 routing-table lookup structure — every outgoing packet on the box transits its LC-trie lookup, and every RTM_NEWROUTE / RTM_DELROUTE mutates it. Corrupting trie internal nodes (`tnode`) or leaf-info (`fib_alias`) yields arbitrary route-redirect (traffic stealing) or RCU-walk UAF.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: netlink `RTA_*` attribute parsing for RTM_NEWROUTE uses bounded `nla_get_*`/`nla_memcpy`; `/proc/net/route` and `/proc/net/fib_trie` outputs use `seq_printf` with no slab-block dump.
+- **PAX_KERNEXEC**: `fib_rules_ops` per-family, `fib_table.tb_ops` (if used), and per-`nexthop` callbacks live in `__ro_after_init`; refuse re-registration post-init.
+- **PAX_RANDKSTACK**: every RTM_NEWROUTE / `fib_table_lookup` re-randomises kernel-stack offset before the deeply-recursive trie walk.
+- **PAX_REFCOUNT**: `fib_info.fib_refcnt`, `fib_nh.nh_refcnt`, `nexthop.refcnt`, `fib_table.tb_refcnt` use saturating `Refcount`; defends RTM_NEWROUTE storm.
+- **PAX_MEMORY_SANITIZE**: trie node free (`tnode_free`, `fib_alias_free`) zero-fills the slab block before slab-return, including the `fa_info` pointer slot.
+- **PAX_UDEREF**: netlink attribute walks use `nla_data`/`nla_get_*` accessors only.
+- **PAX_RAP / kCFI**: indirect calls through `fib_rules_ops->action`/`match`/`configure`/`compare`/`fill`, `nh_notifier_info` callback, and `fib_notifier_ops->fib_seq_read`/`->fib_dump` are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `fib_info*`, `fib_alias*`, `tnode*` kernel pointers never rendered to `/proc/net/route` or RTM_GETROUTE responses; only opaque ifindex + prefix + nexthop-IP.
+- **GRKERNSEC_DMESG**: FIB-table-full warnings ratelimited; CAP_SYSLOG to read.
+
+FIB-trie-specific reinforcement:
+- **FIB-trie PAX_REFCOUNT** — `fib_info.fib_refcnt` saturates at INT_MAX with BUG-and-grsec-audit; defends against multipath-route storm attempting refcount wrap.
+- **RCU-walk lookup safety** — `fib_table_lookup` runs entirely under `rcu_read_lock()`; mutators publish via `rcu_assign_pointer` + `synchronize_rcu` before slab-free; mismatch → BUG (no UAF window).
+- **RTM_NEWROUTE strict CAP_NET_ADMIN in init_user_ns** — refuse from non-init userns even with CAP_NET_ADMIN (grsec policy).
+- **NLA_POLICY_STRICT on RTM_NEWROUTE attribute table** — reject unknown attribute types (defends against TLV-fuzzing leaking uninitialised fields).
+- **Multipath weight-overflow guard** — `fib_nh_match` cumulative-weight overflow detected via `check_add_overflow`; saturates and refuses route (defends ECMP-DOS via 65535-nexthop route).
+- **Per-rtnl_lock invariant** — every mutator asserts `ASSERT_RTNL()`; lockless mutation → BUG().
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -214,6 +214,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across IPv6 multicast routing:
+
+- **PAX_USERCOPY** — `setsockopt(MRT6_*)` reads via `copy_from_sockptr` with `optlen` bound check; `getsockopt(MRT6_*)` writes via `copy_to_sockptr` with truncated `optlen`.
+- **PAX_KERNEXEC** — `mrt6_msg_handler[]`, `ip6_mr_init` dispatch, and `mroute_socket` ops in `__ro_after_init`.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `MRT6_*` setsockopt entry and on each multicast input fanout.
+- **PAX_REFCOUNT** — `mfc6_cache->mfc_un.res.refcnt`, `mif_device` per-MIF refs, and `mr_table->refcnt` saturating.
+- **PAX_MEMORY_SANITIZE** — freed `mfc6_cache` and drained unresolved-queue skbs zeroed; defense against multicast-payload leak across slab reuse.
+- **PAX_UDEREF** — `mf6cctl`/`mif6ctl` user structs read via bound-checked accessors.
+- **PAX_RAP / kCFI** — `mrt6_msg_handler[].handler` and `mr_table->ops` signature-checked.
+- **GRKERNSEC_HIDESYM** — `mrt6_msg_handler`, `mroute_socket`, `mfc6_cache_array` hidden from non-root.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on MFC miss flood and bad-MIF gated.
+
+ip6mr-specific reinforcement:
+
+- **Multicast routing gated by CAP_NET_ADMIN** on `MRT6_INIT/MRT6_DONE/MRT6_ADD_MIF/MRT6_ADD_MFC/MRT6_FLUSH`; GR-RBAC policy denies outside `mcast_router_admin` role by default.
+- **MFC (Multicast Forwarding Cache) entries refcounted under PAX_REFCOUNT** with RCU lookup; defense against forward-vs-delete UAF on the multicast fast path.
+- **`MFC_QUEUE_LEN_MAX = 3` per unresolved-MFC**; per-table unresolved-cache cap; defense against MFC-miss flood causing unbounded skb queue.
+- **MIF (Multicast Interface) bitmap (`if_set`) arithmetic SIZE_OVERFLOW-checked**; `MAXMIFS=32` enforced at compile time.
+- **PIMv2 register decapsulation gated** on `mroute_do_pim` per-table flag; CAP_NET_ADMIN required to enable; encapsulated payload validated before re-injection.
+
+Rationale: multicast routing has historically yielded forward-vs-delete UAFs (CVE-2018-class) and was a vector for MFC-flood resource exhaustion; ip6mr is even less-exercised than ip4mr. CAP_NET_ADMIN gating plus REFCOUNT on MFC plus per-table unresolved-queue cap plus GR-RBAC role isolation collapse this niche surface to a hardened router-only feature.
+
 ## Open Questions
 
 (none — IPv6 multicast routing semantics are exhaustively specified by RFC 7761 + upstream + pim6d/smcrouted/mrd6 test corpora)

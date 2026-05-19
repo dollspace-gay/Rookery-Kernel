@@ -851,6 +851,25 @@ Swap-subsystem reinforcement:
 - **Per-zswap_swapon/_swapoff paired** — defense against per-zswap-orphan after swapoff.
 - **Per-swap_cgroup_swapon/_swapoff paired** — defense against per-memcg-charge orphan.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — swap header and swap_map metadata are kernel-internal; no usercopy whitelist covers them. /proc/swaps emit is bounded and field-filtered.
+- **PAX_KERNEXEC** — swapon callbacks (read_swap_header, setup_swap_extents) execute from RX text; no JIT pages live in the swap subsystem.
+- **PAX_RANDKSTACK** — swapon/swapoff syscall entry honors randomized stack offset; large header parse uses heap buffers rather than VLAs.
+- **PAX_REFCOUNT** — swap_info percpu_ref, cluster_info refcounts, and swap_map readers use hardened counters; SWAP_USAGE_OFFLIST_BIT cmpxchg is single-bit saturating.
+- **PAX_MEMORY_SANITIZE** — freed swap slots are sanitized before re-issue; swap_map entries and zswap-backed slots clear their backing store so re-use cannot return stale plaintext.
+- **PAX_UDEREF** — swap I/O path uses bio/folio interfaces only; no raw user pointer ever reaches the swap allocator.
+- **PAX_RAP / kCFI** — swap_info_struct ops (swap_writepage, swap_readpage, swap_activate) are typed and CFI-checked; transport dispatch is non-pivotable.
+- **GRKERNSEC_HIDESYM** — /proc/swaps and /sys/kernel/mm/swap/* hide raw swap_info pointers and cluster addresses from non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — swapon/swapoff failure messages (bad magic, zoned reject, percpu_ref drain timeouts) gate behind dmesg_restrict so unprivileged probing learns nothing about layout.
+- **Per-CAP_SYS_ADMIN gate on swapon/swapoff in init_user_ns** — defense against per-unprivileged swap-area attachment.
+- **Per-SWAPSPACE2 signature strict check** — defense against per-arbitrary-file misregistration as swap.
+- **Per-MEMORY_SANITIZE on free-slot path** — defense against per-stale-page reuse leaking previous owner's plaintext.
+- **Per-swap header parse bounded by PAGE_SIZE** — defense against per-malformed-header OOB read.
+- **Per-bdev open EXCL** — defense against per-concurrent-writer to the swap device.
+
+Rationale: swap is a kernel-internal store of plaintext anonymous pages and as such is one of the highest-value leak surfaces; grsec compounding ensures (1) the on-disk format cannot be tricked into mis-typing arbitrary files via the magic check, (2) freed slots cannot leak across owners via MEMORY_SANITIZE, (3) the privilege boundary is enforced at the userspace API via CAP_SYS_ADMIN, and (4) the in-kernel pointer graph cannot be probed via HIDESYM/DMESG.
+
 ## Open Questions
 
 (none at this Tier-3 level)

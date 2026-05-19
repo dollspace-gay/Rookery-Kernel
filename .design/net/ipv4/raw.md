@@ -225,6 +225,30 @@ raw-specific reinforcement:
 - **Multiple-deliver via skb_clone** — defense against shared-skb modification.
 - **/proc/net/raw permission gated** — defense against ss-via-unprivileged sock list.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across the RAW socket path:
+
+- **PAX_USERCOPY** — `raw_sendmsg`/`raw_recvmsg` `iov_iter` copies bounded; rejects copies that straddle slab object boundaries.
+- **PAX_KERNEXEC** — `raw_prot` and `raw_ops` vtables placed in `__ro_after_init`/`.rodata`; W^X enforced on the dispatch path.
+- **PAX_RANDKSTACK** — kernel stack offset re-randomized on each entry into `raw_sendmsg` so header-include scratch frames are not predictable.
+- **PAX_REFCOUNT** — `struct sock` refcount and `raw_hashinfo` per-bucket counts use saturating ops; UAF on close-vs-deliver race becomes a controlled `WARN+leak` rather than free.
+- **PAX_MEMORY_SANITIZE** — freed `sock`/`sk_buff` (incl. control message payload) zeroed on slab return; prevents leak of prior packet contents to a re-allocated RAW reader.
+- **PAX_UDEREF** — `IP_HDRINCL` user-supplied IP header parsed under UDEREF; kernel cannot follow an unvalidated userspace pointer when copying the header.
+- **PAX_RAP / kCFI** — indirect calls through `prot->backlog_rcv`, `sk_data_ready`, and `raw_diag_ops` are type-signature-checked; ROP/JOP gadgets across the RAW dispatch table become unreachable.
+- **GRKERNSEC_HIDESYM** — `raw_hashinfo`, `inet_protos[]`, and `raw_prot` symbols hidden from `/proc/kallsyms` for non-root; defeats RAW-socket-targeted KASLR-leak exploit chains.
+- **GRKERNSEC_DMESG** — `printk_ratelimited` warnings on `IP_HDRINCL` parse failure and bad-protocol reject are gated from unprivileged readers.
+
+RAW-specific reinforcement:
+
+- **SOCK_RAW gated on CAP_NET_RAW** with strict scope (no `CAP_NET_RAW`-in-userns-only override) — defense against unprivileged crafted-packet emission.
+- **IP_HDRINCL header bounded** to `iph->ihl * 4 <= skb_headroom`, total length checked against `mtu` and `dev->hard_header_len`; defense against length-confusion smuggling.
+- **RAW socket filter set under `sock_lock`** with `bpf_prog` ref taken via `READ_ONCE`+REFCOUNT; defense against filter-swap-during-deliver TOCTOU.
+- **`raw_hash`/`raw_unhash` under RCU** with `synchronize_rcu_expedited` on close; defense against close-during-deliver use-after-free.
+- **/proc/net/raw rendered with `seq_file` PID-namespace filtering** and `kuid` translation; defense against unprivileged sock-enumeration via ss.
+
+Rationale: RAW sockets are a classic privileged-user kernel attack surface (CVE-2017-7184-class, CVE-2020-14386-class); RAP/kCFI on the dispatch vtables plus UDEREF on `IP_HDRINCL` parse plus REFCOUNT on the per-protocol hash collapse the exploit primitives a CAP_NET_RAW holder would otherwise have.
+
 ## Open Questions
 
 (none at this Tier-3 level)

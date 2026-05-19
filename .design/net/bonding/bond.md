@@ -296,6 +296,30 @@ Bonding-specific reinforcement:
 - **Per-broadcast-mode skb_clone bounded** — defense against per-bond unbounded clones.
 - **Per-roundrobin-counter atomic** — defense against per-counter race causing duplicate slave-pick.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on `SIOCBONDINFOQUERY` / `SIOCBONDSLAVEINFOQUERY` ioctl copies and per-slave sysfs-emit buffers.
+- **PAX_KERNEXEC** — `.rodata` `bonding_netdev_ops`, per-mode `bonding_mode_ops`, and `arp_monitor_ops`.
+- **PAX_RANDKSTACK** — per-syscall stack randomisation across enslave/release netlink and `SIOCBOND*` ioctl entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct bonding`, `slave`, and per-slave NDO holder records.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the per-slave struct (carrying MAC, ALB rewrite state) so released slaves don't leak addresses.
+- **PAX_UDEREF** — enforced separation between user `ifreq` / netlink `IFLA_BOND_*` and bond_options state.
+- **PAX_RAP / kCFI** — forward-edge CFI on `bond_dev->netdev_ops`, `bond_3ad`/`alb`/`tlb` mode-vtables, and the ARP/MII monitor work-handler.
+- **GRKERNSEC_HIDESYM** — bond-internal symbols hidden from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — slave attach/detach + MII/ARP monitor log lines gated by CAP_SYSLOG.
+
+Bonding-specific reinforcement:
+
+- **CAP_NET_ADMIN gate on every enslave/release/option-set path** — defense against unprivileged slave injection or master re-MAC.
+- **Slave-add validation: type/MTU/MAC compatibility checked before commit** — defense against heterogeneous slave forced into a bond and triggering ndo divergence.
+- **ARP-monitor & MII-monitor period bounded `[1, INT_MAX]` ms with `arp_ip_target` count ≤ `BOND_MAX_ARP_TARGETS`** — defense against monitor-flood DoS via netlink option spam.
+- **`fail_over_mac` policy configurable** — defense against MAC-spoof when active-backup fails over.
+- **GRKERNSEC_PROC_USER on `/proc/net/bonding/<bond>`** — bond runtime state restricted from unprivileged enumeration.
+
+Rationale: bonding is a privileged netdev composition layer; unprivileged users must never be able to enslave NICs, force MAC moves, or stall the monitor work-queue. The grsec stack ensures privilege-gating is total, ARP/MII probe rates are bounded, and freed slave state cannot leak addresses.
+
 ## Open Questions
 
 (none at this Tier-3 level)

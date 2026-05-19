@@ -252,6 +252,31 @@ Flow-dissector-specific reinforcement:
 - **Per-jhash seed per-boot random** — defense against hash-flood DoS.
 - **Per-skb_get_hash cached** — defense against repeat-dissect cost amplification.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on `BPF_PROG_TYPE_FLOW_DISSECTOR` user prog-load buffers and `bpf_flow_keys` introspection paths.
+- **PAX_KERNEXEC** — `.rodata` per-protocol dissect tables (`flow_dissector_funcs`) and the per-class hash dispatch.
+- **PAX_RANDKSTACK** — per-softirq randomisation on `__skb_flow_dissect` invocations.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct bpf_prog` attached as a per-netns flow dissector.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for per-skb `flow_keys` shadows allocated on overflow paths.
+- **PAX_UDEREF** — enforced isolation between BPF user-prog buffers and the in-kernel flow-dissector call chain.
+- **PAX_RAP / kCFI** — forward-edge CFI on the per-protocol dissect callbacks and the JIT-compiled BPF entry.
+- **GRKERNSEC_HIDESYM** — flow-dissector internal + BPF JIT symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — dissector WARN gated behind CAP_SYSLOG.
+
+flow_dissector-specific reinforcement:
+
+- **PAX_KERNEXEC W^X on the BPF flow-dissector JIT pages** — defense against W^X bypass that would turn an attached flow-dissector BPF prog into an arbitrary in-kernel exec primitive.
+- **Per-protocol parser strictly bounded** — each `IPPROTO_*`/`ETH_P_*` dissect path length-checked against remaining `skb->len`; defense against per-OOB-read via crafted header chain.
+- **IPSEC SPI extracted only on AH/ESP** — defense against type-confusion in the dissect-result.
+- **VLAN double-tag bounded** — defense against 802.1Q-stacking-bomb.
+- **MPLS label-stack walk bounded** — defense against MPLS-bomb.
+- **`jhash` seed per-boot randomised** — defense against hash-flood DoS via predictable bucket selection.
+
+Rationale: the flow dissector is invoked on the RX hot path for every skb, optionally through user-attached BPF. PAX_KERNEXEC W^X on the JIT page and forward-edge CFI on the per-protocol dissect callbacks ensure neither a hostile BPF prog nor a crafted packet chain can corrupt control flow or read past the linear region.
+
 ## Open Questions
 
 (none at this Tier-3 level)

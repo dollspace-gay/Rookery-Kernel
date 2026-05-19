@@ -297,6 +297,31 @@ STP-specific reinforcement:
 - **Per-port path_cost validated** — defense against per-config invalid u32.
 - **Per-root-port-flap rate-limit** — defense against per-spurious-flap recompute storm.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on `/sys/class/net/<br>/bridge/*` and `/sys/class/net/<br>/brif/<port>/*` sysfs read/write copies (priority, path_cost, hello-time, etc).
+- **PAX_KERNEXEC** — `.rodata` STP state-machine vtable (`br_stp_*` static-call targets), per-port `br_set_state` table.
+- **PAX_RANDKSTACK** — per-softirq randomisation across STP timer-tick / BPDU handler entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct net_bridge_port` referenced by hello / forward-delay / topology-change timers.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for BPDU skbs and per-port STP shadow state.
+- **PAX_UDEREF** — enforced separation between user sysfs/netlink option buffers and the STP state machine.
+- **PAX_RAP / kCFI** — forward-edge CFI on STP timer callbacks (`br_hello_timer_expired`, `br_message_age_timer_expired`, `br_forward_delay_timer_expired`).
+- **GRKERNSEC_HIDESYM** — STP internal symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — STP topology-change / root-bridge-change log lines gated behind CAP_SYSLOG.
+
+br_stp-specific reinforcement:
+
+- **STP BPDU TX gated by CAP_NET_ADMIN at sysfs/netlink** — defense against unprivileged userspace toggling STP state, priority, or forcing topology-change.
+- **Root-bridge election integrity** — bridge-ID parsing length-bounded, priority capped to u16, MAC field strictly 6 bytes; defense against crafted BPDU coercing root-bridge hijack.
+- **BPDU-flood threshold per port (BPDU-guard equivalent)** — defense against BPDU-flood DoS.
+- **Topology-change timer bounded by `max_age`** — defense against indefinite TC tracking via crafted TCN.
+- **`path_cost` validated as u32, hello/forward-delay/max-age bounded by IEEE 802.1D limits** — defense against config-injected invalid timer values.
+- **Root-port-flap rate-limited** — defense against per-spurious-flap recompute storm.
+
+Rationale: STP arbitrates the bridge spanning-tree; a malicious BPDU source or unprivileged sysfs writer must not be able to hijack the root bridge, stall topology convergence, or flood the per-port BPDU-handling work. The grsec stack enforces strict frame parsing, privilege-gated control, and bounded timer arithmetic.
+
 ## Open Questions
 
 (none at this Tier-3 level)

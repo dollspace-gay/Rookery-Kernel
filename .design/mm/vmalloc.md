@@ -158,6 +158,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — vmalloc regions are not part of any usercopy whitelist; copy_to_user/copy_from_user against vmalloc addresses must go through explicit `check_object_size()` validation per caller.
+- **PAX_KERNEXEC** — default vmalloc allocations are RW only; executable vmalloc (BPF JIT, modules) is routed through `vmalloc_exec` / `module_alloc` with separate W^X enforcement and per-region permission transitions.
+- **PAX_RANDKSTACK** — kernel stacks allocated via vmalloc (CONFIG_VMAP_STACK) cooperate with randomized kernel-stack offset; guard pages bracket every vmapped stack to trap overflow into adjacent vmalloc regions.
+- **PAX_REFCOUNT** — vm_struct and vmap_area refcounts use the hardened refcount type; vm_area refcount saturation traps instead of wrapping into a UAF.
+- **PAX_MEMORY_SANITIZE** — freed vmalloc pages route through the page-allocator free path and are zeroed when `vm.zero_on_free=1` so a subsequent vmalloc never returns stale kernel data.
+- **PAX_UDEREF** — vmalloc range is firmly in kernel half; UDEREF prevents a user pointer being mistakenly dereferenced through a vmalloc-style helper.
+- **PAX_RAP / kCFI** — vmalloc-allocated trampolines/BPF programs land in CFI-typed regions; indirect dispatch into vmalloc executable memory is type-checked.
+- **GRKERNSEC_HIDESYM** — /proc/vmallocinfo redacts kernel addresses and caller PCs for unprivileged readers, exposing only sizes and flag bits to non-CAP_SYSLOG holders.
+- **GRKERNSEC_DMESG** — vmalloc-failure warnings (allocation failed, kasan-tag exhausted) gate behind dmesg_restrict so unprivileged tasks cannot map the address-space layout via probing.
+- **Per-vmap_area RB-tree guarded by hardened spinlock** — defense against per-tree race producing overlapping mappings.
+- **Per-vmap kernel-stack guard page mandatory** — defense against per-stack-overflow corrupting neighboring vmalloc allocations.
+- **Per-vmalloc_huge path KERNEXEC-aware** — defense against per-PMD-execute granting accidental X over MB-sized regions.
+- **Per-purge_vmap_area_lazy bounded** — defense against per-tlb-flush amplification DoS.
+- **Per-VM_FLUSH_RESET_PERMS on free** — defense against per-stale-X permission persisting after vfree of executable vmalloc.
+
+Rationale: vmalloc is the kernel's primary non-contiguous virtual allocator and the home of every JIT, every vmap stack, and most module text — exactly the kind of region an attacker targets for code injection or layout discovery. Grsec compounding adds W^X discipline (KERNEXEC + RAP), stack-guard mandatoriness for VMAP_STACK, free-time sanitization (MEMORY_SANITIZE), refcount hardening on vm_struct/vmap_area, and layout secrecy via HIDESYM/DMESG.
+
 ## Open Questions
 
 (none — vmalloc semantics are exhaustively specified by Linux internal conventions)

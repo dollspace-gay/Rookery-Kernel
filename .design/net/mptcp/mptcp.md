@@ -286,6 +286,30 @@ MPTCP-specific reinforcement:
 - **Per-DSN window-tracking** — defense against per-DSN-wrap.
 - **Per-MIB counters track misuse** — defense against per-attack-pattern undetected.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: MPTCP layers a multi-subflow connection-management protocol on top of TCP, introducing connection-tokens (per-msk), HMAC-SHA256-keyed MP_JOIN authentication, ADD_ADDR address-advertisement (also HMAC-protected), and a 64-bit data-sequence-number space. Token-table integrity, HMAC-key sanitization, and DSN-window arithmetic all carry the security weight — a token-collision or HMAC-key disclosure pivots to subflow-hijack on any active MPTCP connection.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: `mptcp_sendmsg` / `mptcp_recvmsg` iter copies; setsockopt MPTCP_INFO / MPTCP_FULL_INFO structs slab-USERCOPY-whitelisted.
+- **PAX_KERNEXEC**: `mptcp_prot`, `mptcp_v6_prot`, `mptcp_stream_ops`, `mptcp_pm_ops` placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every `mptcp_recvmsg` / `__mptcp_push_pending` entry.
+- **PAX_REFCOUNT**: `mptcp_sock` + per-subflow back-refs saturating; defends mass-subflow-join wrap.
+- **PAX_MEMORY_SANITIZE**: freed `mptcp_sock` (incl. embedded `mptcp_pm_data` + `local_key`/`remote_key`) zero-filled with memzero_explicit on key material.
+- **PAX_UDEREF**: nl-PM netlink attribute parse via NLA_POLICY only.
+- **PAX_RAP / kCFI**: `mptcp_pm_ops`, `mptcp_sched_ops` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `mptcp_sock`, subflow `sock` pointers + token never rendered to `/proc/net/mptcp` (only %pK + token-hash).
+- **GRKERNSEC_DMESG**: token-collision and HMAC-fail warns ratelimited.
+
+mptcp-specific reinforcement:
+- **MPTCP token CAP_NET_ADMIN gate for userspace PM** — only CAP_NET_ADMIN-holders may inject MPTCP_PM_CMD_* netlink ops (already row-2) — extended with GR-RBAC role gate.
+- **HMAC-SHA256 key MEMORY_SANITIZE strict** — `local_key` + `remote_key` memzero_explicit on `mptcp_sock_destruct`.
+- **Token-table per-net cap** — refuse > GRSEC_MPTCP_TOKENS_MAX (default 65536) live tokens per netns; defends token-exhaustion DoS.
+- **ADD_ADDR HMAC strict** (already row-2) — extended with audit-log on per-msk repeated HMAC-fail beyond threshold.
+- **Per-msk subflow count cap** — refuse > GRSEC_MPTCP_SUBFLOW_MAX (default 8) joins; defends subflow-flood DoS.
+- **DSN window-tracking** (already row-2) — wrap-detect uses saturating arithmetic; audit-log on suspected wrap.
+- **Cross-namespace token-lookup refused** — token-table strictly per-net.
+
 ## Open Questions
 
 (none at this Tier-3 level)

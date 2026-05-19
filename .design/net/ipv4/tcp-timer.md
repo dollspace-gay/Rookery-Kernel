@@ -324,6 +324,30 @@ TCP timer reinforcement:
 - **Per-DACK_TIMER cleared post-send** — defense against per-redundant-ACK.
 - **Per-tcp_done releases sk reference** — defense against per-leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across the TCP timer subsystem:
+
+- **PAX_USERCOPY** — no user copies on the timer hot path; `inet_diag` export of timer state uses `nla_put` only.
+- **PAX_KERNEXEC** — `tcp_write_timer`, `tcp_keepalive_timer`, `tcp_delack_timer`, and `tcp_compressed_ack_kick` handler addresses in `__ro_after_init`; `timer_setup` resolves to a `.rodata` function pointer.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each softirq entry into the timer handler; defeats predictable-stack timer-spray primitives.
+- **PAX_REFCOUNT** — `sock_hold` in `tcp_write_timer_handler` / `tcp_keepalive_timer` uses saturating refcount; double-fire-vs-close UAF degrades to controlled leak.
+- **PAX_MEMORY_SANITIZE** — `tcp_sock`/`inet_csk` slab objects zeroed on `tcp_done` → free; freed timer state cannot leak into a freshly-allocated socket.
+- **PAX_UDEREF** — `setsockopt(TCP_USER_TIMEOUT, TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT)` reads via `copy_from_sockptr`.
+- **PAX_RAP / kCFI** — `timer_list->function` indirect call type-signature-checked; the four TCP timer handlers carry a verified prototype.
+- **GRKERNSEC_HIDESYM** — `tcp_write_timer`, `tcp_keepalive_timer`, `tcp_delack_timer` symbols hidden from `/proc/kallsyms` for non-root.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on RTO clamp and PROBE0 cap gated from unprivileged readers.
+
+tcp-timer-specific reinforcement:
+
+- **RTO / probe / keepalive `sock_hold`/`sock_put` use PAX_REFCOUNT** — defense against double-fire timer vs. socket-close UAF.
+- **Retransmit timeout bounded** to `[TCP_RTO_MIN, TCP_RTO_MAX]` with `icsk_user_timeout` overriding; `tcp_retries2` cap enforced and `inet_csk_rto_backoff` shift bounded under SIZE_OVERFLOW (no 64-bit shift overflow).
+- **`icsk_pending` cleared **atomically** before handler dispatch** with `bh_lock_sock`; defense against double-fire during `softirq` re-entry.
+- **PROBE0 (`icsk_probes_out`) capped at `sysctl_tcp_retries2`** with `tcp_write_err` on overrun; defense against zero-window peer-DoS.
+- **Delack timer cancellation under `bh_lock_sock`** with `inet_csk_clear_xmit_timer`; defense against handler-vs-user-thread race producing a stale ACK.
+
+Rationale: TCP timers fire in softirq on every connection and race the socket close path; historic timer-vs-close UAFs (CVE-2019-11479-class) are the standard primitive. REFCOUNT on the `sock_hold` pair plus RAP on `timer_list->function` plus bounded RTO arithmetic make the timer ladder a closed-loop state machine rather than a privesc primitive.
+
 ## Open Questions
 
 (none at this Tier-3 level)

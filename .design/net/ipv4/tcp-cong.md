@@ -234,6 +234,30 @@ CC-specific reinforcement:
 - **Per-namespace default validated** — defense against incorrect default propagating.
 - **CC-state transition validated** — defense against invalid TCP_CA transitions.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across the TCP CC framework:
+
+- **PAX_USERCOPY** — `getsockopt(TCP_CONGESTION)` writes name via `copy_to_user` with bound-checked length; INET_DIAG `TCPI_*` export uses `nla_put`.
+- **PAX_KERNEXEC** — registered `struct tcp_congestion_ops` instances forced to `__ro_after_init`/`.rodata`; post-init mutation is a fault, not a write.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on `tcp_ack` → `icsk_ca_ops->cong_control` dispatch.
+- **PAX_REFCOUNT** — `tcp_ca_ops->owner` module pin uses saturating `try_module_get`/`module_put`; rapid load/unload race collapses to controlled `WARN`.
+- **PAX_MEMORY_SANITIZE** — `icsk_ca_priv[]` zeroed on CC swap (`tcp_cleanup_congestion_control`); prior CC's per-flow state cannot leak into the new CC.
+- **PAX_UDEREF** — `setsockopt(TCP_CONGESTION, name, len)` reads `name` via `strncpy_from_sockptr` only.
+- **PAX_RAP / kCFI** — every indirect call through `tcp_ca_ops->{init, release, ssthresh, cong_avoid, cong_control, set_state, cwnd_event, pkts_acked, in_ack_event, undo_cwnd, sndbuf_expand, get_info}` is type-signature-checked.
+- **GRKERNSEC_HIDESYM** — `tcp_ca_list`, `tcp_register_congestion_control`, and `tcp_reno_ops` symbols hidden from `/proc/kallsyms` for non-root.
+- **GRKERNSEC_DMESG** — CC-register/unregister `pr_info` and bad-name `pr_warn_ratelimited` gated.
+
+CC-specific reinforcement:
+
+- **CC algorithm dispatch protected by PAX_RAP** — defense against off-signature gadget reached via swapped `tcp_ca_ops`.
+- **`net.ipv4.tcp_congestion_control` and `tcp_allowed_congestion_control` sysctl writes bounded** to the registered allowlist with `cap_validate(CAP_NET_ADMIN)`; GR-RBAC can deny per-subject.
+- **`TCP_CONG_NON_RESTRICTED` flag enforced via `capable(CAP_NET_ADMIN)`**; unprivileged sockets cannot select restricted CC (BBR/CDG/etc. when flagged).
+- **`icsk_ca_priv[]` size capped at `ICSK_CA_PRIV_SIZE` via `BUILD_BUG_ON`** per CC module; oversize private state is a build failure, not a runtime overflow.
+- **CC swap under `lock_sock`** with atomic `RCU_INIT_POINTER(icsk_ca_ops, ...)`; defense against torn vtable observed by a concurrent `tcp_ack`.
+
+Rationale: any unprivileged TCP socket can request a CC swap; if the `tcp_ca_ops` vtable is corrupted or replaced, every subsequent ACK on every flow becomes an indirect call to attacker-controlled memory. RAP/kCFI on the vtable plus KERNEXEC on `.rodata` placement plus REFCOUNT on the module pin make the CC registry a hardened plug-in surface rather than a JOP source.
+
 ## Open Questions
 
 (none at this Tier-3 level)

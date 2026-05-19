@@ -504,6 +504,31 @@ CAN_RAW-specific reinforcement:
 - **Per-`can_send` loopback path bounded to local-net sockets only** — defense against per-cross-namespace loop leak.
 - **Per-`raw_notifier` `dev->type == ARPHRD_CAN` early-return** — defense against per-eth-flap walking the CAN-raw socket list.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on `raw_sendmsg`/`raw_recvmsg` user `can_frame`/`canfd_frame`/`canxl_frame` buffers and the `CAN_RAW_FILTER` setsockopt array.
+- **PAX_KERNEXEC** — `.rodata` `raw_proto_ops` / `raw_proto`; W^X for the per-AF dispatch.
+- **PAX_RANDKSTACK** — per-syscall randomisation on `PF_CAN`/`SOCK_RAW`/`CAN_RAW` entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct raw_sock` and the per-filter `can_filter` array refcounting.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `raw_sock` and filter-array slabs.
+- **PAX_UDEREF** — enforced isolation between user `can_filter[]` and the in-kernel rx-filter registration path.
+- **PAX_RAP / kCFI** — forward-edge CFI on `raw_rcv` indirect callbacks and the per-filter `can_rx_register`/`can_rx_unregister`.
+- **GRKERNSEC_HIDESYM** — CAN-raw internal symbols withheld from non-CAP_SYSLOG kallsym readers.
+- **GRKERNSEC_DMESG** — CAN-raw warn/info gated behind CAP_SYSLOG.
+
+CAN-raw-specific reinforcement:
+
+- **`PF_CAN/SOCK_RAW` socket creation gated by CAP_NET_RAW** — defense against unprivileged frame-injection / promiscuous CAN sniff.
+- **`CAN_RAW_FILTER` array PAX_USERCOPY length-checked against `CAN_RAW_FILTER_MAX`** — defense against OOB stack write via crafted setsockopt.
+- **`copy_from_sockptr` bounded by per-option expected size** — defense against per-setsockopt OOB stack write.
+- **Per-CPU `uniqframe` de-dup** — defense against per-multi-filter same-skb duplication.
+- **`raw_notifier` early-return on `dev->type != ARPHRD_CAN`** — defense against per-eth-flap walking the CAN-raw socket list.
+- **Loopback delivery scoped to local-net sockets only** — defense against per-cross-namespace loop leak.
+
+Rationale: CAN-raw exposes raw bus access; without CAP_NET_RAW gating and bounded setsockopt copies, unprivileged userspace can inject onto a safety-critical bus or coerce OOB stack writes via crafted filter arrays. The grsec stack enforces capability gating, bounded copy-in, and per-callback CFI.
+
 ## Open Questions
 
 (none at this Tier-3 level)

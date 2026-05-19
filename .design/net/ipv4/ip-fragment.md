@@ -485,6 +485,29 @@ IPv4 reassembly reinforcement:
 - **Per-fqdir dead flag at pre_exit + RCU-deferred fqdir_exit** — defense against per-netns-teardown UAF.
 - **Per-inet_peer refcount get/put with refcount_inc_not_zero** — defense against per-peer UAF.
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: `ip_defrag` reassembles IPv4 fragments using a per-netns rhashtable of `ipq` queues — historically the source of countless CVEs (teardrop, jolt, frag overlap, frag-DOS exhaustion). A malformed-fragment OOB write into the linear reassembly buffer is direct heap corruption; an unbounded fragment-queue admit is a textbook memory DoS.
+
+Baseline (cross-ref `net/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: reassembled skb's linear buffer goes to upper-layer protocol; copy-to-user via standard recvmsg path with bounded `_copy_to_iter`.
+- **PAX_KERNEXEC**: per-netns `inet_frags` template (`ip4_frags`) and `rhashtable_params` live in `__ro_after_init`.
+- **PAX_RANDKSTACK**: every entry into `ip_defrag`, `inet_frag_kill`, `ip_frag_queue` re-randomises kernel-stack offset before the rhashtable lookup + insertion.
+- **PAX_REFCOUNT**: `frag_queue.refcnt`, `inet_peer.refcnt`, and per-netns `fqdir.rhashtable.tbl->nelems` saturate.
+- **PAX_MEMORY_SANITIZE**: `inet_frag_destroy` zero-fills the `ipq` slab block before slab-return, including the `q.fragments_tail` chain pointer slot.
+- **PAX_UDEREF**: defrag operates on kernel-owned skb chains; no `__user` deref.
+- **PAX_RAP / kCFI**: indirect calls through `inet_frags.constructor`/`->destructor`/`->skb_free` are kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: `ipq*` kernel pointers and per-netns `fqdir*` never echoed into `/proc/net/snmp` or `/proc/sys/net/ipv4/ipfrag_*`; only stat counts.
+- **GRKERNSEC_DMESG**: "ip_defrag: too many fragments" warnings ratelimited; CAP_SYSLOG.
+
+ip-fragment-specific reinforcement:
+- **ip_defrag PAX_USERCOPY linear-buffer bound** — `ip_frag_reasm` `memcpy` into linear reassembly buffer bounded by `iph->tot_len - iph->ihl*4`; per-fragment offset+len checked via `check_add_overflow` before slab-copy.
+- **Frag-DOS rate-limit** — per-netns `frags.high_thresh` (default 4MB) caps total bytes queued; per-source (`inet_peer`) per-second admission cap defeats frag-flood from a single source.
+- **Fragment-overlap refusal** — strict `IPSTATS_MIB_REASMFAILS` increment + drop on any overlap (post-2014 grsec policy, beyond upstream's permissive `accept_overlap`).
+- **Per-netns fqdir isolation** — separate `inet_frags` instance per netns; cross-netns fragment leak refused by `rhashtable_lookup` key including `fqdir*` pointer.
+- **fqdir_exit RCU-deferred teardown** — `fqdir->dead = 1` at netns pre_exit; live insertion refused; `synchronize_rcu` before slab-free of `fqdir` (defends netns-teardown UAF).
+- **ICMP TIME_EXCEEDED suppression for conntrack/AF_PACKET users** — defense against amplification reflection (frag triggers an ICMP-Frag-Reassembly-Time-Exceeded → reflector).
+
 ## Open Questions
 
 (none at this Tier-3 level)

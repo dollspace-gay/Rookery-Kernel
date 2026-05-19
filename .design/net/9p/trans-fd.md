@@ -673,6 +673,25 @@ trans-fd reinforcement:
 - **Per-flush_work on poll_work at module-exit** — defense against per-deferred-poll-after-unload.
 - **Per-net_ns scoping on __sock_create** — defense against per-namespace-violation.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — trans-fd kernel_read/kernel_write iov_iter paths use bounded payload sizes (MAX_SOCK_BUF = 1 MiB); no usercopy whitelist covers the transport buffers, which stay in kernel.
+- **PAX_KERNEXEC** — trans-fd workqueue handlers (p9_read_work, p9_write_work, p9_pollwake) execute from RX text; the poll-table install path uses statically-typed callbacks.
+- **PAX_RANDKSTACK** — p9_fd_create_tcp/_unix and connect helpers honor randomized stack offset; sockaddr_un.sun_path uses UNIX_PATH_MAX with no VLA.
+- **PAX_REFCOUNT** — p9_conn and p9_trans_fd refcounts, file-pointer holds, and req->refcount use hardened types; cancel_work_sync ordering prevents underflow into UAF.
+- **PAX_MEMORY_SANITIZE** — freed p9_conn and freed p9_req_t payloads are sanitized before kfree so file-pointer and tag-slot state cannot recur via slab recycle.
+- **PAX_UDEREF** — connect() path consumes user pathnames via copy_from_user with strict length cap; data plane reads/writes operate on kernel pages only.
+- **PAX_RAP / kCFI** — p9_trans_module ops (.create_tcp, .create_unix, .create_fd, .close, .request, .cancel, .show_options) are CFI-typed; the trans-mod dispatch is non-pivotable.
+- **GRKERNSEC_HIDESYM** — trans-fd /proc and debugfs surfaces hide file*, socket*, p9_conn* kernel addresses from non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — sticky-err logs, poll-table-full warnings, and module-exit drain timeouts gate behind dmesg_restrict.
+- **Per-transport PAX_REFCOUNT on p9_conn lifetime** — defense against per-cancel-vs-IO race UAF.
+- **Per-kernel_read/kernel_write bounded by MAX_SOCK_BUF** — defense against per-msize-abuse heap exhaustion.
+- **Per-O_NONBLOCK forced on fd at attach** — defense against per-blocking-syscall pinning workqueue worker.
+- **Per-cancel_work_sync before fput** — defense against per-worker-touching-freed-file UAF.
+- **Per-net_ns scoping on __sock_create** — defense against per-namespace-violation reaching a host-net socket from a container.
+
+Rationale: trans-fd is a transport that turns a userspace-provided fd or a kernel-created socket into a 9P pipe; its threat surface spans file lifetime, workqueue race windows, and bounded I/O sizing. Grsec compounding (REFCOUNT on p9_conn, kernel_read/write bounds, RAP/kCFI on trans_module ops, MEMORY_SANITIZE on free) ensures the transport cannot be turned into either a UAF primitive against a freed file* or an unbounded-allocation DoS via msize manipulation, and HIDESYM/DMESG suppress layout leakage through log messages a privileged operator might enable.
+
 ## Open Questions
 
 (none at this Tier-3 level)

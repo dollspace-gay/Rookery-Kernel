@@ -197,6 +197,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline hardening features applied across the IPv6 RX path:
+
+- **PAX_USERCOPY** — any `skb_copy_*` from linear/frag area into user buffer bound-checked; refuse slab-boundary straddling.
+- **PAX_KERNEXEC** — `ipv6_protocol[]`, `inet6_protos`, `ip6_input_finish` dispatch in `__ro_after_init`/`.rodata`.
+- **PAX_RANDKSTACK** — kstack offset re-randomized on each `ip6_rcv` / `ip6_rcv_core` entry.
+- **PAX_REFCOUNT** — `skb->users`, `dst->__refcnt`, and `inet_frag_queue->refcnt` saturating.
+- **PAX_MEMORY_SANITIZE** — freed frag-queue skbs zeroed; payload-in-flight cannot leak across slab reuse.
+- **PAX_UDEREF** — no user-pointer follow on the input path; netfilter user-attached objects only via verified accessors.
+- **PAX_RAP / kCFI** — `ipv6_protocol[]->handler`, `inet6_protos[].handler`, and netfilter `nf_hook_entry->hook` signature-checked.
+- **GRKERNSEC_HIDESYM** — `ip6_rcv`, `ip6_input_finish`, `ipv6_protocol`, `inet6_protos` hidden from non-root.
+- **GRKERNSEC_DMESG** — `pr_warn_ratelimited` on bad-version, bad-payload-length, bad-hop-by-hop gated.
+
+ip6-input-specific reinforcement:
+
+- **`ip6_rcv` user-visible copies covered by PAX_USERCOPY** — defense against linear-vs-frag boundary-straddling read.
+- **Hop-by-hop options strict-parse**: only known options accepted; unknown options handled per RFC 8200 `1xxx` (Discard + ICMP) bits; option-length walks under SIZE_OVERFLOW; defense against CVE-2017-7542-class.
+- **Source-address validation**: drop multicast-source, loopback-from-non-lo, unspecified-source-on-non-DAD; martian-source counted via `IPSTATS_MIB_INADDRERRORS`.
+- **Frag-queue per-namespace memory cap** (`ip6frag_high_thresh`/`low_thresh`) with PAX_REFCOUNT on `inet_frag_queue`; per-queue evict on LRU; defense against frag-slab exhaustion.
+- **Per-skb `IP6CB(skb)` scratch metadata** stored in skb control block (not user-visible); flags validated before use; defense against attacker-influenced `IP6CB` field.
+
+Rationale: `ip6_rcv` is reachable by every adjacent host and is the gate to all upper-layer IPv6 protocols; a single hop-by-hop option parse bug or a slab-boundary copy is a remote primitive. USERCOPY+SIZE_OVERFLOW+RAP on the dispatch path plus strict hop-by-hop processing plus bounded fragment memory close the standard remote-RX exploit surfaces.
+
 ## Open Questions
 
 (none — IPv6 RX path semantics are exhaustively specified by RFC 4291 + 8200 + 5095 + upstream)

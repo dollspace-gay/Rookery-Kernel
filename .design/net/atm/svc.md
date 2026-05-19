@@ -443,6 +443,29 @@ ATM SVC reinforcement:
 - **Per-`ATM_VF_SESSION` gating for ADDPARTY / DROPPARTY** — defense against per-non-P2MP party-modify.
 - **Per-`receive_queue` drain + reject in svc_disconnect** — defense against per-stale-indication leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline grsec/PaX posture inherited workspace-wide:
+
+- **PAX_USERCOPY** — strict bounds on `copy_{to,from}_user` for `sockaddr_atmsvc`, `ATM_GETADDR`/`ATM_SETADDR` ioctls, and Q.2931 user-IE buffers crossing the kernel boundary.
+- **PAX_KERNEXEC** — `.rodata`-resident `atm_proto_ops` / `vcc_proto`, W^X for the sigd-dispatch table.
+- **PAX_RANDKSTACK** — per-syscall stack randomisation across `connect`/`accept`/`listen`/`ioctl` entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `struct atm_vcc`, `atmsvc_msg` skbs, and the listening-socket queue head.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for VCC slabs and `atmsvc_msg` control blocks so dropped SETUP/CONNECT-ACK do not leak prior session data.
+- **PAX_UDEREF** — enforced segmentation between user `msghdr`/`sockaddr_atmsvc` and the in-kernel sigd-queue path.
+- **PAX_RAP / kCFI** — forward-edge CFI on `vcc->push`, `vcc->pop`, and the per-AF `sigd_send`/`sigd_enq` indirect dispatch.
+- **GRKERNSEC_HIDESYM** — sigd kallsym addresses unreadable to non-CAP_SYSLOG so an attacker cannot pivot from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — sigd state-machine warns ("not yet attached", "bogus message type") gated behind CAP_SYSLOG.
+
+ATM-SVC-specific reinforcement:
+
+- **PF_ATMSVC creation gated by CAP_NET_RAW** — defense against unprivileged signalling-socket creation pivoting onto sigd.
+- **Q.2931 IE audit at sigd boundary** — every ADDPARTY / DROPPARTY / CONNECT IE length bounded and audit-logged so a malicious sigd cannot smuggle oversized IEs through `atmsvc_msg`.
+- **GRKERNSEC_PROC_USER scoping on `/proc/net/atm/*`** — VCC listings (svc, vc, vcc) restricted from unprivileged enumeration.
+- **PAX_REFCOUNT on per-VCC `sk_wmem_alloc` / `sk_refcnt`** — saturating against per-listener pin abuse via half-open SETUP_PENDING storms.
+
+Rationale: ATM SVC sockets carry signed Q.2931 signalling, and the sigd userspace daemon is fully trusted by the kernel. The grsec stack ensures that even a hostile sigd cannot exfiltrate stale slab content via `atmsvc_msg`, cannot pivot through indirect-call corruption, and cannot exhaust the listening-VCC queue silently.
+
 ## Open Questions
 
 (none at this Tier-3 level)

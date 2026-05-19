@@ -284,6 +284,30 @@ None beyond upstream defaults (helpers are off by default per upstream 4.7+).
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Rationale: Conntrack helpers (ftp, sip, h.323, irc, tftp, pptp, sane, snmp, amanda, netbios-ns) deep-parse L7 protocols inside kernel context to inject expectations for related connections; they are the highest-risk parser surface in conntrack. Upstream 4.7+ defaults helpers off (`nf_conntrack_helper=0`) precisely because every shipped helper has had multiple CVEs from L7 parser bugs. Expectations are themselves a finite resource and a hostile helper-attached flow can flood the expectation table.
+
+Baseline (cross-ref `net/netfilter/00-overview.md` § Hardening):
+- **PAX_USERCOPY**: helper modules use no direct user-deref; ctnetlink `CTA_HELP_NAME` parse via NLA_POLICY.
+- **PAX_KERNEXEC**: `nf_conntrack_helper.help`, per-helper `expect_policy[]` placed `__ro_after_init`.
+- **PAX_RANDKSTACK**: re-randomise on every `nf_ct_helper` invocation from `nf_conntrack_confirm`.
+- **PAX_REFCOUNT**: `nf_conntrack_expect.use` saturating; per-helper module refcount via try_module_get bounded.
+- **PAX_MEMORY_SANITIZE**: freed expectation + per-conn helper extension zero-filled before slab reuse.
+- **PAX_UDEREF**: ctnetlink helper-attach attribute parse via NLA_POLICY only.
+- **PAX_RAP / kCFI**: `nf_conntrack_helper.help`, `from_nlattr`, `to_nlattr` indirect calls kCFI-tagged.
+- **GRKERNSEC_HIDESYM**: helper + expectation pointers never rendered to `/proc/net/nf_conntrack_expect` (only %pK).
+- **GRKERNSEC_DMESG**: helper-parse-fail warns ratelimited; per-helper attack patterns surfaced via MIB counter only.
+
+conntrack-helper-specific reinforcement:
+- **Helper-module CAP_NET_ADMIN strict-in-userns** — helper-attach via ctnetlink + iptables `CT --helper` refused from non-init userns.
+- **Expectation-flood gate** — per-master-conn expectation count capped at GRSEC_NF_CT_EXPECT_PER_CONN_MAX (default 4); per-net expectation total at GRSEC_NF_CT_EXPECT_MAX.
+- **Per-helper opt-in via /proc/sys/net/netfilter/nf_conntrack_helper_<name>** — every helper individually-enableable, not just the global flag; default deny.
+- **L7 parse pull-up strict** — every helper invokes `skb_linearize`/`pskb_may_pull` to its parse-window max before any byte-deref; refuse on fail.
+- **Expectation tuple validation** — refuse expectation insert whose tuple `dst_port`/`src_port` overlap reserved kernel ranges.
+- **GR-RBAC `helper_admin` role** — only marked subjects may load + attach helpers; CAP_NET_ADMIN alone insufficient under default policy.
+- **Audit-log on first expectation-create per helper per net** — defends silent rogue-helper deployment.
+
 ## Open Questions
 
 (none — helper framework + per-helper modules exhaustively specified by upstream + extensive iptables-test / conntrack-tools test coverage)
