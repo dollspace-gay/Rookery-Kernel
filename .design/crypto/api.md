@@ -179,6 +179,28 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on NETLINK_CRYPTO (`crypto_user`), `/proc/crypto` reads, and any AF_ALG-funneled UAPI.
+- **PAX_KERNEXEC** — W^X enforcement on cryptd worker + crypto_engine dispatch paths.
+- **PAX_RANDKSTACK** — kernel-stack randomization on `crypto_alloc_tfm`, larval-wait, and cryptd worker entry.
+- **PAX_REFCOUNT** — saturating `cra_refcnt` and per-tfm refcounts.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `crypto_tfm` instances + key state in tfm slabs; `kfree_sensitive` for explicit keys.
+- **PAX_UDEREF** — SMAP/SMEP user-pointer access on `crypto_user` netlink and `/proc/crypto`.
+- **PAX_RAP / kCFI** — `crypto_alg` ops vtables hardened against indirect-call hijack; per-type ops `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in `/proc/crypto` output (driver pointers + refcnt suppressed).
+- **GRKERNSEC_DMESG** — syslog restriction on crypto-API warnings.
+- **GRKERNSEC_KMOD** — `request_module("crypto-%s")` paths gated by per-subject GR-RBAC; denies opportunistic loading of arbitrary cipher modules.
+- **GRKERNSEC_PROC** — `/proc/crypto` visibility restricted to root + GR-RBAC subject set.
+- **PAX_CONSTIFY_PLUGIN** — per-type ops vtables `static const`.
+- **kfree_sensitive on tfm-destroy** — defense against per-key-residue across tfm lifecycle.
+- **LSM `security_keyctl`** for asymmetric-key access via `ALG_SET_KEY_BY_KEY_SERIAL`.
+- **PAX_SIZE_OVERFLOW** — alg-priority + ctxsize + name-length arithmetic checked.
+
+Per-doc rationale: the crypto API is the funnel through which fs-crypto, IPsec, dm-crypt/verity, kTLS, AF_ALG, and module-signing operate; per-tfm key residue is a primary leak vector, and `request_module` is the easiest path to load attacker-chosen cipher code. PAX_MEMORY_SANITIZE + kfree_sensitive remove the residue, GRKERNSEC_KMOD + LSM gates close the request_module surface, and PAX_RAP pins the per-type vtables that every consumer dereferences on every operation.
+
 ## Open Questions
 
 (none — crypto API semantics are exhaustively specified by upstream)

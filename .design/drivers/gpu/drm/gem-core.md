@@ -224,9 +224,23 @@ gem-core specific reinforcement:
 - **Per-FD handle close on FD close guaranteed** — even on process crash, kernel-side cleanup runs in `drm_release` → walks object_handles + drops each.
 - **dma_resv ww-mutex deadlock-free via wound-wait** — concurrent multi-object commits converge.
 
-## Open Questions
+## Grsecurity/PaX-style Reinforcement
 
-(none at this Tier-3 level)
+- **PAX_USERCOPY** — whitelisted slab caches for `drm_gem_object` and per-driver subclasses; strict bounds on prime-fd metadata import/export and on every GEM ioctl input/output buffer.
+- **PAX_KERNEXEC** — GEM core resides in W^X kernel text; per-driver `drm_gem_object_funcs` patched only via vetted alternatives, never at GEM-handle creation time.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across `DRM_IOCTL_GEM_*`, `DRM_IOCTL_PRIME_HANDLE_TO_FD`, and `DRM_IOCTL_PRIME_FD_TO_HANDLE` entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on GEM-object refcounts and per-FD handle table entries; trap on overflow to defeat classic handle-recycle-into-UAF patterns.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for GEM object slabs, dma_buf scatterlists, and per-object shmem pages once unpinned, preventing residual texture/framebuffer pixel leaks.
+- **PAX_UDEREF** — SMAP/PAN enforced across every GEM ioctl; user pointers reachable only via `copy_*_user` helpers, never via direct deref under `current->mm`.
+- **PAX_RAP / kCFI** — `drm_gem_object_funcs` (`free`, `open`, `close`, `vmap`, `mmap`, `pin`, `export`) tables marked `__ro_after_init`; kCFI-typed indirect calls block cross-vtable confusion between gem-shmem, gem-dma, gem-vram backends.
+- **GRKERNSEC_HIDESYM** — kallsyms gated behind CAP_SYSLOG; suppress raw kernel pointers in `drm_gem_*` debug prints and dma-buf tracepoint payloads.
+- **GRKERNSEC_DMESG** — restrict dma_buf import/export error traces and GEM handle-leak diagnostics to CAP_SYSLOG.
+- **prime fd cross-process** — every `PRIME_FD_TO_HANDLE` revalidates dma_buf ownership and re-checks render-node policy; refuse importing buffers whose exporter resides in a foreign user namespace without explicit policy.
+- **render-node CAP_SYS_RAWIO bypass** — render-node ioctls are explicitly _not_ a CAP_SYS_RAWIO shortcut; GEM mmap on render-node FDs is bounded to that client's handle table.
+- **GEM handle table** — bounded per-FD handle count, per-uid rlimit; idr lookups validated against the FD that opened the handle to defeat handle-spraying.
+- **dma_resv ww-mutex** — wound-wait ordering verified by lockdep; no driver helper may take a GEM lock outside the declared acquire context.
+
+Rationale: GEM handles cross process boundaries via prime fds and live for the lifetime of a graphics client, so a single refcount overflow or freed-handle reuse turns into a cross-process kernel-memory read or a render-node escape. RAP/kCFI on `drm_gem_object_funcs`, PAX_REFCOUNT on the handle table, and USERCOPY/UDEREF on prime metadata are the load-bearing mitigations.
 
 ## Out of Scope
 

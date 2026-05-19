@@ -656,6 +656,27 @@ AMD-cpu reinforcement:
 - **Per-invlpgb_count_max strict per CPUID** — defense against per-INVLPGB over-flush DoS.
 - **Per-amd_check_microcode ZEN2 broadcast** — defense against per-CPU-isolated zenbleed mitigation drift after late ucode load.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for kernel-text mappings, complementing the AMD-side MSR_EFER bits (`_EFER_AUTOIBRS`, `_EFER_TCE`) toggled here.
+- **MSR-write capability gate (CAP_SYS_RAWIO)** — all `wrmsrq` / `msr_set_bit` / `msr_clear_bit` operations against MSR_AMD64_*, MSR_K7_HWCR, MSR_VM_CR, MSR_AMD64_LS_CFG, MSR_AMD64_DE_CFG gated behind capability checks.
+- **Microcode-signature verification** — `amd_check_microcode` + `x86_match_min_microcode_rev` predicates require signature-validated revisions before enabling TSA_VERW_CLEAR / Zen2-zenbleed-fix / Zen5-RDSEED.
+- **PAX_USERCOPY** — bounded copy_to/from_user on AMD-specific CPUID and microcode revision surfaces exposed via `/proc/cpuinfo` and `/sys/devices/system/cpu`.
+- **PAX_REFCOUNT** — saturating refcount on per-CPU `amd_dr_addr_mask` and per-CPU `cache_state_incoherent` flags.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for SME/SEV-related per-CPU state on hotunplug.
+- **PAX_UDEREF (SMAP/SMEP/UMIP)** — enabled unconditionally on AMD via CR4 in `cpu-common.md` and reinforced here through CPUID-FAULT (`setup_force_cpu_cap(CPUID_FAULT)`).
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `cpu_dev` vtable (`c_early_init` / `c_bsp_init` / `c_init` / `c_detect_tlb`).
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in /proc and dmesg, including microcode-revision and family/model-stepping leaks.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG, including FW_BUG warnings about TSC-not-counting-with-P0 and broken-BIOS SEV state.
+- **SEV/SEV-ES/SEV-SNP gating via MSR_AMD64_SYSCFG.MEM_ENCRYPT + MSR_K7_HWCR.SMMLOCK** — refuse to advertise encryption caps unless both BIOS gates are correctly set.
+- **HYPERVISOR exclusion for `bsp_determine_snp`** — defense against guest-side spurious SNP-host claim.
+- **AutoIBRS guarantee via MSR_EFER._EFER_AUTOIBRS** — defense against AP-bringup missing eIBRS replication.
+- **RDRAND-CPUID-bit clear on suspend-broken BIOS** — defense against stale entropy post-S3.
+
+Per-doc rationale: AMD CPU init touches the most security-critical MSRs in the kernel (SVM_CR, EFER, LS_CFG, DE_CFG, SYSCFG, HWCR, BP_CFG, FP_CFG, SPECTRAL_CHICKEN); grsec/PaX hardening here enforces capability-gated write paths, microcode-signature validation before enabling mitigations, and HYPERVISOR-vs-bare-metal disambiguation so SEV/SNP claims cannot be forged.
+
 ## Open Questions
 
 (none at this Tier-3 level)

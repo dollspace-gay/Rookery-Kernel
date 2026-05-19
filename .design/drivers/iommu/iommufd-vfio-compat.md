@@ -203,6 +203,29 @@ vfio-compat specific reinforcement:
 - **CONFIG_IOMMUFD_VFIO_CONTAINER opt-in** — distros that don't want compat shim can disable; defense against unintended legacy code paths in security-hardened builds.
 - **Dirty-tracking flags enforced same as modern path** — `IOMMU_HWPT_DIRTY_TRACKING_ENABLE` capability validated against per-vendor HW support.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. The VFIO compatibility shim is the most attractive degradation path for a hostile userspace — it re-opens older, looser type1 semantics on top of iommufd internals. Under hardened policy this entire subsystem is deprecated and gated.
+
+- **PAX_USERCOPY** on every legacy VFIO ioctl arg (vfio_iommu_type1_dma_map / _unmap / _info / _dirty_bitmap).
+- **PAX_KERNEXEC** on `iommufd_vfio_ioctl` dispatch table and legacy translation functions (RO post-init).
+- **PAX_RANDKSTACK** on legacy ioctl entry chain.
+- **PAX_REFCOUNT** on `VfioCompat` struct and the underlying compat `Ioas` ref.
+- **PAX_MEMORY_SANITIZE** zeroes `VfioCompat` storage on clear / ctx close.
+- **PAX_UDEREF** on copy_from_user paths for legacy ioctl args (with strict argsz cap before access).
+- **PAX_RAP/kCFI** on legacy dispatch + cap-translation indirect calls.
+- **GRKERNSEC_HIDESYM** hides `VfioCompat` pointers and compat-IOAS linkage.
+- **GRKERNSEC_DMESG** restricts compat-shim warning printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** (raised from CAP_SYS_RAWIO) on every legacy VFIO ioctl in hardened mode.
+- **GRKERNSEC_DMA strict-mode** — compat IOAS default-empty until explicit allowlisted MAP_DMA.
+- **VFIO-compat path deprecated** under hardened policy: shim disabled unless `iommufd.allow_vfio_compat=1` boot-arg + LSM allowlist both pass; default refuses.
+- **NOIOMMU mode forbidden** under hardened policy regardless of `enable_unsafe_noiommu_mode` and CAP_SYS_RAWIO — refused at module init.
+- **Per-ioctl argsz cap** layered with per-userns rate-limit to defang multi-process legacy-flood.
+- **Cross-namespace legacy fd inheritance** denied via LSM hook on fork/exec.
+- **Force iommufd-native** migration path: hardened builds disable CONFIG_IOMMUFD_VFIO_CONTAINER by default.
+
+Rationale: this shim exists to support legacy qemu/DPDK callers and trades isolation for compatibility — exactly the property hardened Rookery cannot grant. The reinforcement here closes both implicit (`/dev/vfio/vfio` open) and explicit (`IOMMU_VFIO_IOAS`) compat paths behind capability + namespace + LSM + boot-arg gates.
+
 ## Open Questions
 
 - **Q1**: Deprecation timeline. Upstream plans to phase out CONFIG_IOMMUFD_VFIO_CONTAINER after qemu transition completes (~2-3 years). Rookery v0 keeps it on; v1 evaluates. **Resolution**: enabled in v0; deprecation gated on userspace migration metrics.

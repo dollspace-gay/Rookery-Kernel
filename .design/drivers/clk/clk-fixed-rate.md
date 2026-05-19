@@ -336,6 +336,27 @@ Fixed-rate reinforcement:
 - **Per-`init.num_parents` derived from exactly-one-of {parent_name, parent_hw, parent_data}** — defense against per-CCF rejection / per-bogus parent linkage.
 - **Per-`clk_fixed_rate_ops` exported `_GPL`** — defense against per-proprietary-module ABI leakage.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on debugfs fixed-rate reads.
+- **PAX_KERNEXEC** — W^X enforcement on fixed-rate `recalc_rate` / `recalc_accuracy` callbacks.
+- **PAX_RANDKSTACK** — kernel-stack randomization on fixed-rate consumer entry.
+- **PAX_REFCOUNT** — saturating refcount inherited from `clk_core`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `clk_fixed_rate` slabs (rate + accuracy + flags).
+- **PAX_UDEREF** — SMAP/SMEP enforcement on any debugfs-writer poking fixed-rate fields (rare; usually read-only).
+- **PAX_RAP / kCFI** — `clk_fixed_rate_ops` vtable hardened against indirect-call hijack; `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in clk_summary fixed-rate rows.
+- **GRKERNSEC_DMESG** — syslog restriction on DT-parsing warnings (mandatory clock-frequency, orphan provider).
+- **PAX_CONSTIFY_PLUGIN** — `clk_fixed_rate_ops` literal `static const`.
+- **CAP_SYS_ADMIN strict** — even fixed-rate "set_rate" debugfs writes (used for hot-patching reference frequencies) gated by GR-RBAC.
+- **PAX_SIZE_OVERFLOW** — `fixed_rate` (Hz) + `fixed_accuracy` (ppb) arithmetic checked at register.
+- **GRKERNSEC_SYSCTL** — fixed-rate sysctl knobs locked at boot.
+- **LSM `security_locked_down(LOCKDOWN_DEBUGFS)`** — denies debugfs fixed-rate override under integrity lockdown.
+
+Per-doc rationale: fixed-rate providers are the foundation of every downstream divider/PLL/mux; an attacker who can patch the cached `fixed_rate` poisons every recalc up the tree (every consumer's `clk_get_rate` returns a lie, breaking timing-critical drivers like serial UARTs, USB, RTC). PAX_RAP locks the `clk_fixed_rate_ops` table, GRKERNSEC_HIDESYM hides the cached rate from debugfs, and CAP_SYS_ADMIN + LSM lockdown deny the hot-patch path that some downstream BSPs expose.
+
 ## Open Questions
 
 (none at this Tier-3 level)

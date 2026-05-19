@@ -650,6 +650,26 @@ Trap-handler reinforcement:
 - **Per-WARN/BUG `__WARN_trap` static-call distinct from generic UD2** — defense against per-misclassification of UBSan / FineIBT / static_call patches as ordinary illegal-instruction.
 - **Per-`trap_init` ordering (cpu_entry_area → IST → IDT)** — defense against per-IDT-fires-before-IST-stacks-allocated boot-time crash.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `do_general_protection` / `do_segment_not_present` decode-loop uses `copy_from_kernel_nofault` only on bounded `pt_regs` regions; no raw user-pointer follows.
+- **PAX_KERNEXEC** — every IDT entry and IST stub mapped RX; `trap_init` seals the IDT page RO after publication, and `idt_setup_traps` runs before user mode is ever entered.
+- **PAX_RANDKSTACK** — kernel-stack offset re-randomized on every fault entry that returns to user mode (entry-common cooperation).
+- **PAX_REFCOUNT** — saturating refcount on `bp_patching` and tracepoint registrations consumed by `do_int3` / `smp_text_poke_int3_handler`.
+- **PAX_MEMORY_STACKLEAK** — kernel stack erased on every trap-handler return so #PF/#GP/#UD spills (decoded instruction bytes, fault address) do not survive to a subsequent task.
+- **PAX_MEMORY_SANITIZE** — `pt_regs` shadow on the IST stack zeroed before reuse.
+- **PAX_UDEREF** — SMAP enforced on every trap entry from user mode; `do_general_protection` LASS hint distinguished from non-canonical hint for accurate triage.
+- **PAX_RAP / kCFI** — IDT vector slots, `idt_table[]`, and `smp_text_poke_int3_handler` static-call all RAP-signed; FineIBT enforces `endbr64` on every trap stub.
+- **PAX_KSTACKOVERFLOW (= GRKERNSEC_KSTACKOVERFLOW)** — VMAP_STACK guard-page + #DF diagnosis prints overflow address and panics; never silently corrupts.
+- **PAX_IBT_PROTECT** — `__WARN_trap` static-call distinct from generic UD2; FineIBT prefix validated.
+- **GRKERNSEC_HIDESYM** — oops RIP, IST stack pointers, and `idt_table[]` addresses redacted for non-CAP_SYSLOG; only `dmesg_restrict`-cleared readers see raw symbols.
+- **GRKERNSEC_DMESG** — fault dumps (#GP / #PF / oops) gated behind `dmesg_restrict`; rate-limited.
+- **GRKERNSEC_KSTACKOVERFLOW** — VMAP_STACK guard explicitly required (mandatory, not opt-in).
+
+Per-doc rationale: traps are the kernel's privileged ingress for every CPU exception; KERNEXEC on the IDT + RX-only IST stubs + RAP/IBT on every vector + STACKLEAK on the return path + KSTACKOVERFLOW on guard-page #DF together close the historical class of bugs where a faulting instruction leaks `pt_regs`, an IDT entry gets rewritten, or a recursive #DB blows past its stack.
+
 ## Open Questions
 
 (none at this Tier-3 level)

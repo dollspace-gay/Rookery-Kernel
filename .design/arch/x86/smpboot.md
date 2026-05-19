@@ -473,6 +473,25 @@ SMP-bringup reinforcement:
 - **Per-mwait_cpu_dead.status checked with CLFLUSH + MB fence** — defense against per-cache-stale wakeup detection.
 - **Per-snp_set_wakeup_secondary_cpu / TDX wakeup gated** — defense against per-confidential-VM untrusted wakeup vector.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — N/A during AP bringup (no user pointers), but the AP's first user-return inherits SMAP/USERCOPY policies from the BSP via `cr4_init`.
+- **PAX_KERNEXEC** — AP bringup text (`secondary_startup_64`, `start_secondary`, `cpu_init`) executed RX-only; the real-mode trampoline page is RX-only after `init_real_mode`, flipped RW only during the brief warm-reset patch.
+- **PAX_RANDKSTACK** — per-CPU `cpu_current_top_of_stack` randomized per AP at first idle entry so different CPUs see different stack offsets.
+- **PAX_REFCOUNT** — `cpu_present_mask` / `cpu_online_mask` updates atomic; cpuhp state-machine refcount on each CPU saturating.
+- **PAX_MEMORY_SANITIZE** — per-CPU `idle_stack`, `irq_stack`, and `cpu_pda` zeroed before AP first-fetch so leftover BSP scribbles do not leak through `current_task`.
+- **PAX_UDEREF** — SMAP/SMEP turned on inside `cpu_init` before `start_secondary` calls `cpu_idle_loop`.
+- **PAX_RAP / kCFI** — `cpuhp_state` callback array constified at boot; AP-side dispatch through RAP-signed vtable.
+- **PAX_TRAMP** — real-mode trampoline page (`real_mode_header`) RX-only post-init; any write attempt traps via NX policy on RAM mirror.
+- **GRKERNSEC_HIDESYM** — AP entry symbols (`secondary_startup_64`, `start_secondary`, `initial_code`) excluded from `/proc/kallsyms` for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — per-CPU "Booting CPU" / "smpboot: CPU N is now offline" gated by `dmesg_restrict`.
+- **GRKERNSEC_KERN_LOCKDOWN** — `nosmt`, `maxcpus`, `nr_cpus` cmdline accepted only at boot, never via runtime sysctl when lockdown is enforced.
+- **GRKERNSEC_SEV_TDX** — `snp_set_wakeup_secondary_cpu` and TDX-VP wakeup vectors gated by attested guest-firmware fingerprint; untrusted hypervisor cannot inject a fake AP wakeup.
+
+Per-doc rationale: AP bringup is the one window where the kernel runs writable trampoline code and writes per-CPU control structures (GDT, IDT, TSS) for a CPU that hasn't yet entered the scheduler; KERNEXEC + RX-only trampoline + MEMORY_SANITIZE on per-CPU stacks + lockdown-gated AP wakeup vectors close the bringup-side gadgets (real-mode trampoline overwrite, fake-AP injection on confidential VMs) that traditional Linux leaves exposed.
+
 ## Open Questions
 
 - Should parallel bringup be enabled by default in Rookery's first releases, or sequential until TSC-sync + microcode-load are proven race-free on confidential-VM platforms?

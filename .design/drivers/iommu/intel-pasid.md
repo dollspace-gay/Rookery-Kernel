@@ -206,6 +206,28 @@ intel-pasid specific reinforcement:
 - **PRQ entry source-id validation** — per-entry BDF must correspond to a registered device; malformed entries dropped + WARN.
 - **PASID-entry mode validation** — only one mode (first-only / second-only / pass-through / nested) set per entry; conflicting bits rejected at setup.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. Intel PASID-table programming is the gateway by which user/guest address spaces become device-visible; PASID-entry corruption directly causes cross-process DMA leak, so PaX/grsec-equivalent mitigations are layered aggressively.
+
+- **PAX_USERCOPY** on PASID-info-leaks via `/proc/<pid>/iommu`, debugfs `pasid_table`, and SVA bind UAPI return values.
+- **PAX_KERNEXEC** on PASID-table writers, PRQ drain, and SVM bind/unbind paths (RO post-init).
+- **PAX_RANDKSTACK** on `svm_bind_mm` / `pasid_setup_*` entry chains.
+- **PAX_REFCOUNT** on `PasidTable`, per-device PASID refs, and SVA handles.
+- **PAX_MEMORY_SANITIZE** zeroes `pasid_entry.val[]` on tear-down before P=0 commit + flushes.
+- **PAX_UDEREF** on copy_from_user paths for SVA bind ioctl args.
+- **PAX_RAP/kCFI** on Intel page_response / fault dispatch indirect calls.
+- **GRKERNSEC_HIDESYM** hides PASID-table base addrs and per-PASID mm.pgd pointers.
+- **GRKERNSEC_DMESG** restricts PRQ-fault decoded printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on raw PASID alloc/setup via iommufd; userspace ATS/PASID-bind requires init-userns.
+- **GRKERNSEC_DMA strict-mode** — PASID-entries default-zero until full setup + invalidate sequence completes.
+- **ATS/PASID capability gating** — devices without proper PCIe ATS+PRI advertisement refused PASID setup regardless of ECAP.
+- **PRQ rate-limit** per-IOMMU + per-source-id; defense against malicious device PRI-storm targeting host scheduler.
+- **DMAR ACPI signature verify** before honoring ECAP.PSS / scalable-mode bits.
+- **VFIO-compat path deprecated** for PASID-using devices under hardened policy; iommufd-native only.
+
+Rationale: PASID-tables map user/guest virtual memory directly into device DMA. Hardened Rookery refuses every "trust the firmware/device" shortcut here — every cap bit is re-verified, every entry is sanitized, and every degraded-compat mode is locked behind explicit capability + namespace gates.
+
 ## Open Questions
 
 (none at this Tier-3 level)

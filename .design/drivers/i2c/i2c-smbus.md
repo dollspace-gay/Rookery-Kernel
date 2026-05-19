@@ -429,6 +429,25 @@ i2c-smbus reinforcement:
 - SMBus 3.0 32-bit register accesses (PEC-protected) are emulated through `i2c_smbus_xfer_emulated` in `i2c-core-smbus.c`; this file is unaware of the wider width. No action needed at this Tier-3.
 - DMI memory-type table values 0x24+ (LPDDR5X, future DDR generations) currently fall into the `default: dev_info "not supported yet"` arm. Track upstream for additions.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — whitelisted slab caches for `i2c_smbus_alert`, `alert_data`, and PEC scratch buffers; emulated 32-bit SMBus 3.0 accesses bounded against `I2C_SMBUS_BLOCK_MAX`.
+- **PAX_KERNEXEC** — SMBus core in W^X kernel text; ARA host-notify dispatch table and `i2c_driver.alert` callbacks not patchable at runtime.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across `smbus_do_alert`, host-notify IRQ paths, and `i2c_smbus_xfer_emulated` so PEC retry windows cannot be stack-groomed.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `i2c_smbus_alert_setup` host-notify devices and per-client alert references; overflow trap defeats unbind-vs-alert UAFs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for SPD payload buffers and host-notify alert records, so prior DIMM-serial / vendor-NV data never bleeds across reuses.
+- **PAX_UDEREF** — SMAP/PAN enforced on any userland-driven SMBus path (`I2C_SMBUS` ioctl) feeding into emulated transfers.
+- **PAX_RAP / kCFI** — `i2c_driver.alert`, ARA dispatch callbacks, and `smbus_host_notify`/`smbalert_irq` handlers marked `__ro_after_init`-style and kCFI-typed; SMBALERT vtable confusion cannot redirect to attacker text.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and per-alert client pointer leaks behind CAP_SYSLOG; suppress `%p` in ARA dispatch traces.
+- **GRKERNSEC_DMESG** — restrict SPD parse warnings, PEC mismatch banners, and DDR write-disable diagnostics to CAP_SYSLOG so attackers cannot fingerprint DIMM topology via dmesg.
+- **SMBus-alert CAP_SYS_RAWIO** — userland injection of synthetic alerts (test paths) requires CAP_SYS_RAWIO; ARA polling refuses to dispatch to `i2c_client` whose `dev->driver` is mid-unbind.
+- **PEC enforced** — `I2C_SMBUS_PEC` honoured unconditionally on adapters advertising it; silent PEC-off downgrade refused.
+- **SPD write protection** — DDR5 SPD5118 `write_disabled` strict gate; SPD NV-write paths require CAP_SYS_RAWIO and platform opt-in.
+- **`i2c_verify_client` in alert iter** — every host-notify walk verifies the child is an actual `i2c_client` (not a foreign device on the parent's child list) to defeat type-confusion across the adapter device tree.
+- **Host-notify IRQ bounds** — ARA addresses (0x0c) hard-coded; bogus address-claim attempts via `I2C_SLAVE_FORCE` rejected for ARA reservation.
+
+Rationale: SMBus alert dispatch hands an interrupt directly to a driver-supplied `.alert` callback while holding the alerting device's `device_lock`, which makes refcount-overflow and unbind-vs-alert races a privileged code-execution primitive. SPD parsing additionally trusts DIMM-supplied bytes for DDR5 NV-write enable, so without strict CAP_SYS_RAWIO gating, RAP/kCFI on `.alert`, PEC enforcement, and SANITIZE on SPD buffers, a malicious DIMM or a forced address-claim turns into kernel-text redirect or persistent DIMM corruption.
+
 ## Out of Scope
 
 - `i2c_smbus_xfer` / `_read_byte` / `_write_byte` / `_read_byte_data` / `_write_byte_data` / `_read_word_data` / `_write_word_data` / `_read_block_data` / `_write_block_data` / `_process_call` / `_write_quick` / `i2c_smbus_pec` / `i2c_smbus_msg_pec` — these live in `drivers/i2c/i2c-core-smbus.c` and are covered in `drivers/i2c/core-base.md`.

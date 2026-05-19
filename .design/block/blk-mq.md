@@ -181,6 +181,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — N/A directly; `blk_mq` operates on bios produced by upper layers that already enforced USERCOPY.
+- **PAX_KERNEXEC** — `blk_mq_ops.queue_rq`, `blk_mq_ops.complete`, `blk_mq_ops.timeout` resolve through module RX text; tagset publication is RO post-init.
+- **PAX_RANDKSTACK** — softirq-completion path is not user-syscall-bound, but the issue path (from `submit_bio_noacct`) inherits RANDKSTACK from the originating syscall.
+- **PAX_REFCOUNT** — `request->ref`, `hctx->refcount`, `tagset->users` saturating; concurrent hot-unplug + IO submission cannot wrap.
+- **PAX_MEMORY_SANITIZE** — freed request objects zeroed (especially `cmd`, `integrity-data`, and `bio_chain` fields) before slab reuse.
+- **PAX_UDEREF** — never touches user pointers; bio is the consumer-side boundary.
+- **PAX_RAP / kCFI** — `blk_mq_ops` vtable RAP-signed; per-driver `init_request`, `exit_request`, `init_hctx`, `exit_hctx` slots constified.
+- **PAX_AUTOSLAB** — per-hctx request slab cache type-tagged so cross-tagset freelist confusion is rejected.
+- **PAX_SIZE_OVERFLOW** — tag-index, sector, and `nr_segments` arithmetic uses checked operators.
+- **GRKERNSEC_HIDESYM** — `/sys/kernel/debug/block/*` (tagset, hctx, sched debug) restricted to CAP_SYSLOG + gr-rbac; pointer kaddrs redacted.
+- **GRKERNSEC_DMESG** — tag-allocation / freeze warnings rate-limited and gated by `dmesg_restrict`.
+- **GRKERNSEC_IO** — raw iopl/ioperm-based driver pokes that try to bypass blk-mq dispatch rejected outside CAP_SYS_RAWIO + gr-rbac.
+- **GRKERNSEC_BLOCKDEV** — `blk_mq_alloc_tag_set` with debug fault-injection only accepted under lockdown=integrity-cleared + gr-rbac role.
+
+Per-doc rationale: blk-mq is the kernel's primary multi-queue dispatch fabric where every modern device driver hooks; RAP on `mq_ops`, REFCOUNT on `request->ref` + `hctx->refcount`, SANITIZE on freed requests, and gr-rbac on the debug surface together neutralize the request-replay, hctx hot-unplug UAF, and tagset-debug info-leak classes.
+
 ## Open Questions
 
 (none — blk-mq semantics are exhaustively specified by upstream)

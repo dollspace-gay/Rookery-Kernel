@@ -251,6 +251,30 @@ iommufd-ioas specific reinforcement:
 - **`change_process` per-process credential check** — only the current process can claim ownership; defense against cross-process page-attribution attack.
 - **Dirty-tracking per-area cap** — per-IOAS dirty-bit tracking memory bounded by aperture/page-size; defense against unbounded dirty-bitmap growth.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. The IOAS is the kernel object that pins user pages on behalf of DMA-capable devices; a single mis-validated map can leak host memory into device address space or exhaust kernel RAM via pin-flood.
+
+- **PAX_USERCOPY** on map/unmap/copy ioctl arg structs and dirty-bitmap return paths.
+- **PAX_KERNEXEC** on IOAS alloc/map/unmap/copy paths and dirty-tracking ops (RO post-init).
+- **PAX_RANDKSTACK** on `IOMMU_IOAS_*` ioctl entry chains.
+- **PAX_REFCOUNT** on `Ioas`, `IoPagetable`, `IoptArea`, `IoptPages`, and hwpt_list links.
+- **PAX_MEMORY_SANITIZE** zeroes per-area metadata and pfn xarrays on unmap before refcount==0 finalize.
+- **PAX_UDEREF** on user_va copy-from-user paths in MAP / MAP_FILE / MAP_DMABUF.
+- **PAX_RAP/kCFI** on per-vendor `read_and_clear_dirty`, `iommu_map_pages`, and dma-buf ops dispatch.
+- **GRKERNSEC_HIDESYM** hides per-IOAS rb-tree roots, pfn xarrays, and IoptPages pointers.
+- **GRKERNSEC_DMESG** restricts pin/unpin and RLIMIT_MEMLOCK-violation messages to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on IOAS_CHANGE_PROCESS, IOAS_ALLOW_IOVAS, MAP_DMABUF; nested-userns blocked from cross-process attribution.
+- **GRKERNSEC_DMA strict-mode** — IOAS apertures default-empty until ALLOW_IOVAS explicitly enables a subset.
+- **PAX_USERCOPY** on user-iova mappings — every iova→pfn translation surfaced to userspace bounds-checked.
+- **RLIMIT_MEMLOCK strict** layered with per-cgroup `memory.lock_max` and per-userns pin-cap to defang multi-process pin exhaustion.
+- **Reserved-region enforcement** (MSI-X window, RMRR) mandatory; map onto reserved range refused even with FIXED_IOVA + CAP_SYS_ADMIN.
+- **VFIO-compat path refused** under hardened policy; iommufd-native IOAS only.
+- **DMABUF cross-namespace import** mediated by LSM hook + denied without explicit allowlist.
+- **IOAS_COPY between IOASes** in different userns refused; backing-page refcount must stay within a single trust domain.
+
+Rationale: the IOAS is the page-pin source for all device DMA; lax mapping policy here lets a hostile process pin or share kernel-visible memory. Hardened Rookery enforces capability, namespace, accounting, and reserved-range checks independently so each is sufficient to block a class of attack.
+
 ## Open Questions
 
 (none at this Tier-3 level)

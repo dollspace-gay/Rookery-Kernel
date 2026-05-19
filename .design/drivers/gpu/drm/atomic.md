@@ -195,9 +195,23 @@ atomic-specific reinforcement:
 - **Per-driver atomic_check callback time-bounded** — per-driver hook expected to complete within sane bound (~10ms); slow-driver detection via lockdep + tracepoint.
 - **DMA-fence dependency wait timeout** — per-fence wait bounded (default 10s); defense against hung GPU causing compositor freeze.
 
-## Open Questions
+## Grsecurity/PaX-style Reinforcement
 
-(none at this Tier-3 level)
+- **PAX_USERCOPY** — strict copy_from/to_user bounds on every `drm_mode_atomic` ioctl property blob and on user-provided fence-fd arrays, with allowlisted slab caches for `drm_atomic_state`.
+- **PAX_KERNEXEC** — atomic-commit fast path runs with kernel `.text` strictly W^X; no runtime patching of plane/CRTC ops outside dedicated alternatives windows.
+- **PAX_RANDKSTACK** — randomize the kernel stack offset across each `drm_atomic_check`/`drm_atomic_commit` ioctl entry to harden against stack-layout disclosure.
+- **PAX_REFCOUNT** — saturating, overflow-trapping refcounts on `drm_atomic_state`, `drm_plane_state`, `drm_crtc_state`, and `drm_connector_state` (use `refcount_t`, never raw `atomic_t`).
+- **PAX_MEMORY_SANITIZE** — zero-on-free for all `drm_atomic_state` slabs and per-object state caches so transient mode/property data never leaks into a reused allocation.
+- **PAX_UDEREF** — enforce SMAP/PAN on all atomic-ioctl entry points; reject any commit path that dereferences a user pointer outside the canonical access helpers.
+- **PAX_RAP / kCFI** — plane, CRTC, encoder, and connector helper vtables marked `__ro_after_init`; kCFI-typed indirect calls on `atomic_check`, `atomic_update`, `atomic_enable` so a corrupted helper pointer cannot redirect commit flow.
+- **GRKERNSEC_HIDESYM** — keep `kallsyms` and KMS-helper addresses gated to CAP_SYSLOG; suppress `%p` plain pointers in any `drm_dbg_atomic` traces.
+- **GRKERNSEC_DMESG** — restrict atomic-commit failure traces (driver-name + symbolised callstack) to CAP_SYSLOG to avoid handing attackers a precise display-stack map.
+- **GRKERNSEC_FBSPLASH** — gate raw `/dev/fb*` and unaccelerated framebuffer mapping behind explicit policy; atomic KMS path is the only sanctioned modesetting surface.
+- **drm-master capability gate** — keep `DRM_MASTER`/`DRM_RENDER_ALLOW` separation strict; render-node ioctls cannot reach atomic modeset paths even via flink/handle smuggling.
+- **Property blob hardening** — bounded-size property blobs, signed length checks on `IN_FENCE_FD` arrays, and explicit rejection of negative/oversized plane source rectangles before reaching driver hooks.
+- **TOCTOU on referenced objects** — atomic state takes refcounted snapshots of every referenced framebuffer/connector at duplicate-state time; no late dereference of a user-controlled handle after `atomic_check` returns.
+
+Rationale: the atomic modesetting ioctl is one of the largest user-controlled-data surfaces in the DRM stack — every commit walks dozens of helper vtables across multiple driver-supplied state objects. Without refcount-overflow trapping, RAP/kCFI-typed indirect calls, and strict USERCOPY/UDEREF on property blobs, a single use-after-free in a `drm_atomic_state` or a corrupted plane helper pointer becomes a kernel-text redirect from any `DRM_MASTER` client.
 
 ## Out of Scope
 

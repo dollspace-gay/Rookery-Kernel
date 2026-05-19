@@ -245,6 +245,28 @@ intel-IR-specific reinforcement:
 - **Per-IRQ free flushes IEC + clears IRTE.present** — defense against late-MSI delivery to freed virq.
 - **IRT_REG write-once at boot** — defense against runtime IRT-base relocation causing in-flight MSI mis-delivery.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement layered above the baseline `## Hardening`. Rookery treats Intel interrupt remapping as a system-trust anchor for MSI delivery; any compromise of IRTE entries gives device-issued IPIs the ability to target arbitrary LAPIC/vector pairs, so PaX/grsec-equivalent mitigations apply broadly.
+
+- **PAX_USERCOPY** on any IRTE-handle / source-id leaked to user via `/proc/interrupts` formatting.
+- **PAX_KERNEXEC** on IR allocator, `modify_irte`, and QI submission paths (RO post-init).
+- **PAX_RANDKSTACK** on MSI-alloc/free entry chains crossing PCI hotplug.
+- **PAX_REFCOUNT** on `IrData`, `IrtTable`, posted-IRQ GA-handles to catch refcount overflow into IRTE leaks.
+- **PAX_MEMORY_SANITIZE** zeroes IRT pages on alloc and IRTE entries on free (`present=0` + scrub).
+- **PAX_UDEREF** on copy_from_user paths for IRQ-affinity sysfs writes.
+- **PAX_RAP/kCFI** on the IR-domain irq_chip vtable (`activate`, `set_affinity`, `compose_msi_msg`) to forbid forged callbacks.
+- **GRKERNSEC_HIDESYM** hides `intel_ir_table_base` / `iommu->ir_table` from `/proc/kallsyms` and crash dumps.
+- **GRKERNSEC_DMESG** restricts DMAR/IR fault printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on `intel_iommu=` reconfiguration and any debugfs IR controls.
+- **GRKERNSEC_DMA strict-mode** default — devices behind disabled IR remain blocked from MSI delivery.
+- **SVT=1 mandatory** under hardened policy: SVT=0 IRTEs refused even for legacy compat shims.
+- **DMAR ACPI signature verify** before trusting ECAP.IR/PI bits; mismatched checksums disable IR rather than fall back.
+- **Posted-IRQ PDA** validated against KVM memslot + nested-userns boundary; nested guests barred from PI by default.
+- **VT-d IRT_REG write-once-locked** after boot via IOMMU register-write capability gate.
+
+Rationale: with IR active, an attacker who can corrupt an IRTE owns kernel control flow via crafted MSI vectors. Hardened Rookery treats IRT memory, IEC invalidation, and source-id validation as TCB-critical and refuses degraded modes (no SVT, no flush) that upstream tolerates for compatibility.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -368,6 +368,27 @@ Clock-gate reinforcement:
 - **Per-`devm_clk_hw_release_gate` calls `clk_hw_unregister_gate` which performs the single `kfree(gate)`** — defense against per-double-free (mirrors upstream invariant: devres holds the `clk_hw **` slot, gate is freed by the unregister helper).
 - **Per-`clk_gate_ops` exported `_GPL`** — defense against per-proprietary-module ABI leakage.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on debugfs gate state reads.
+- **PAX_KERNEXEC** — W^X enforcement on gate `enable` / `disable` / `is_enabled` callbacks.
+- **PAX_RANDKSTACK** — kernel-stack randomization on gate `enable_lock`-protected entries.
+- **PAX_REFCOUNT** — saturating refcount inherited from `clk_core` enable_count.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `clk_gate` slab (holds MMIO base + bit_idx + lock pointer).
+- **PAX_UDEREF** — SMAP/SMEP enforcement on debugfs writer poking gate enable state.
+- **PAX_RAP / kCFI** — `clk_gate_ops` vtable hardened against indirect-call hijack; per-gate ops `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in clk_summary enable column.
+- **GRKERNSEC_DMESG** — syslog restriction on gate WARN (bit_idx out of range, register-mismatch).
+- **PAX_CONSTIFY_PLUGIN** — `clk_gate_ops` literal `static const`.
+- **CAP_SYS_ADMIN strict** — debugfs gate-toggle write gated by GR-RBAC.
+- **PAX_SIZE_OVERFLOW** — `bit_idx` + `clk_gate_flags` arithmetic checked at register.
+- **GRKERNSEC_SYSCTL** — gate-related boot-locked sysctls.
+- **LSM `security_locked_down(LOCKDOWN_DEBUGFS)`** — denies debugfs gate write under integrity lockdown.
+
+Per-doc rationale: clock gates are the single bit that powers (or unpowers) every IP block; an attacker who can flip a gate bit can disable security-critical peripherals (TRNG, IOMMU, watchdog) or enable disabled blocks behind the OS's back. PAX_RAP locks the `clk_gate_ops` vtable that every `enable`/`disable` indirects through, CAP_SYS_ADMIN + LSM lockdown gate the debugfs path, and PAX_MEMORY_SANITIZE wipes the cached MMIO base in `clk_gate` slab on free.
+
 ## Open Questions
 
 (none at this Tier-3 level)

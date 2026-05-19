@@ -224,6 +224,30 @@ iommufd-main specific reinforcement:
 - **IOMMU_VFIO_IOAS legacy shim rate-limited** — defense against legacy VFIO-API-flood from misbehaved userspace.
 - **IOMMU_HWPT_INVALIDATE descriptor count cap** — per-batch invalidate descriptor count capped; defense against invalidate-flood DoS.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. `/dev/iommu` is the chardev that gates all userspace-driven device passthrough; hardened Rookery treats it as a CAP_SYS_RAWIO + namespace-restricted attack surface and refuses every legacy compatibility path that would re-open the older, looser VFIO type1 semantics.
+
+- **PAX_USERCOPY** on every ioctl argument struct (IOMMU_*) and dirty-bitmap return paths.
+- **PAX_KERNEXEC** on `iommufd_fops`, ioctl dispatch tables, and per-vendor driver registration (RO post-init).
+- **PAX_RANDKSTACK** on ioctl entry chain into Ctx handlers.
+- **PAX_REFCOUNT** on `Ctx`, every `Object`, `Device` bindings, and HWPT/IOAS refs.
+- **PAX_MEMORY_SANITIZE** zeroes per-ctx xarray slots on object destroy and per-ctx struct on close.
+- **PAX_UDEREF** on every copy_from_user path inside ioctl handlers.
+- **PAX_RAP/kCFI** on `Object` trait dispatch (`destroy`, etc.) and per-vendor `iommu_ops` indirect calls.
+- **GRKERNSEC_HIDESYM** hides `Ctx`, object pointers, and per-ctx xarray base from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** restricts iommufd warning/error decoded printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** for iommufd ioctl (raised above upstream's CAP_SYS_RAWIO) — non-init-userns blocked by default.
+- **GRKERNSEC_DMA strict-mode** default — IOASes empty, HWPTs detached until explicit allowlisted configuration.
+- **VFIO-compat path deprecated** under hardened policy: `IOMMU_VFIO_IOAS` returns -EPERM unless `iommufd.allow_vfio_compat=1` boot-arg passed.
+- **Per-ctx object cap** layered with per-userns cap to defang multi-fd flooding.
+- **ATS/PASID gating** verified at every device bind — devices without proper PCIe caps refused.
+- **Per-vendor cap re-validation** at every HWPT alloc (no cached domain_alloc shortcut).
+- **DMAR/IVRS ACPI signature verify** before any per-vendor driver registration is honored.
+- **/dev/iommu open** restricted to a single LSM-mediated group; default mode 0600 root:root.
+
+Rationale: every modern device-passthrough chain — qemu, cloud-hypervisor, dpdk, vhost-user — enters here. A laxly validated ioctl translates to direct DMA into kernel memory. Hardened Rookery enforces capability + namespace + accounting + cap-revalidation independently so no single misconfiguration is sufficient to escape.
+
 ## Open Questions
 
 (none at this Tier-3 level)

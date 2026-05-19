@@ -515,6 +515,27 @@ DMA-fence reinforcement:
 - **Per-stub fence always-signaled + ref-counted** — defense against per-NULL-fence import path (sync_file_export with no implicit fences).
 - **Per-set_deadline gated by !signaled + rcu** — defense against per-signaled-fence ops UAF in PM-hint path.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `sync_file` IOCTL payload + fence export/import buffers.
+- **PAX_KERNEXEC** — W^X enforcement on fence callback (`cb_func`) dispatch.
+- **PAX_RANDKSTACK** — kernel-stack randomization on `dma_fence_wait` syscall entry.
+- **PAX_REFCOUNT** — saturating `dma_fence->refcount` (kref) and per-context atomic64.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `dma_fence` slabs and `dma_fence_cb` callback closures.
+- **PAX_UDEREF** — SMAP/SMEP enforcement on sync_file IOCTL user-pointer access.
+- **PAX_RAP / kCFI** — `dma_fence_ops` (`get_driver_name` / `get_timeline_name` / `enable_signaling` / `signaled` / `wait` / `release`) and `dma_fence_cb.func` indirect calls hardened; per-exporter ops `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in fence debug output (timeline name + context ID OK; pointers suppressed).
+- **GRKERNSEC_DMESG** — syslog restriction on fence WARN (refcount underflow, pending-cb on release).
+- **PAX_CONSTIFY_PLUGIN** — every static `dma_fence_ops` literal `static const`.
+- **CAP_SYS_ADMIN** for any debugfs fence-state mutation.
+- **PAX_SIZE_OVERFLOW** — `seqno`, `context`, timeout arithmetic checked.
+- **GRKERNSEC_SYSCTL** — fence-related sysctl (lockdep priming, timeout caps) locked at boot.
+- **LSM `security_file_ioctl`** — sync_file IOCTL gated per GR-RBAC subject.
+
+Per-doc rationale: dma-fence callbacks are arbitrary indirect calls scheduled into a callback chain that fires under spinlock from any context (IRQ, NMI-soft, RT thread); a hijacked `cb_func` becomes the easiest path to kernel-mode RCE in GPU stacks. PAX_RAP locks both `dma_fence_ops` and the per-callback `cb_func` indirect; PAX_REFCOUNT prevents UAF on the fence under RCU + signal races, PAX_MEMORY_SANITIZE wipes callback closures (which carry driver-private data), and PAX_KERNEXEC ensures the callback target page is non-writable kernel text.
+
 ## Open Questions
 
 (none at this Tier-3 level)

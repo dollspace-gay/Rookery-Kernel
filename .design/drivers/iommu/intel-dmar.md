@@ -245,6 +245,26 @@ dmar-specific reinforcement:
 - **Per-PCI-bus-notifier reentrancy guard** — held during scope-update; defense against concurrent PCI-add/del with init.
 - **kernel cmdline `intel_iommu=off`** honored — early bail before any DMAR access; defense against forced VT-d on broken hardware.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — DMAR table parse paths consume ACPI-firmware bytes only via bounded helpers; whitelisted slab caches for `dmar_drhd_unit`, `dmar_rmrr_unit`, `dmar_atsr_unit`, `dmar_satc_unit`.
+- **PAX_KERNEXEC** — DMAR enumeration and PCI-bus-notifier registration in W^X kernel text; ACPI-table walkers not patchable at runtime.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across DMAR table parse, scope walk, and hotplug PCI-add/del notifier entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `dmar_drhd_unit` and scope-device references; overflow trap defeats hotplug-vs-init races on scope updates.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for DMAR unit slabs and scope-device arrays so prior ACPI-derived topology cannot bleed across boot-stage reuse.
+- **PAX_UDEREF** — SMAP/PAN enforced; DMAR has no userland data path but any debugfs/sysfs probe attribute coerces canonical helpers.
+- **PAX_RAP / kCFI** — DMAR walker callbacks (`dmar_walk_remapping_entries`, scope-handlers, hotplug-notifier) `__ro_after_init` and kCFI-typed.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and DMAR-unit pointer disclosure behind CAP_SYSLOG; suppress `%p` in DMAR debug.
+- **GRKERNSEC_DMESG** — restrict DMAR parse warnings, RMRR/ATSR-conflict banners, and hotplug scope-update logs to CAP_SYSLOG to deny attackers a free IOMMU topology map.
+- **CAP_SYS_ADMIN strict** — debugfs surfaces exposing DMAR enumeration require CAP_SYS_ADMIN; `intel_iommu=` and `dmar=` cmdline parsing locked down behind boot context.
+- **RMRR loopback protection** — RMRR ranges policed against overlap with kernel `.text`/`.rodata` and the direct-map; reject ACPI tables that name an RMRR over kernel image.
+- **ATS/PASID gating** — ATSR-described ATS-capable endpoints policed against allowlist; ATS not silently enabled for non-allowlisted devices.
+- **Hotplug notifier reentrancy** — `pci_bus_notifier` guard held during scope-update; lockdep-asserted against concurrent PCI-add/del during DMAR init.
+- **`intel_iommu=off` honoured** — early bail before any DMAR mmio access; defense against forcing VT-d on hardware with known-broken DMAR tables.
+- **DMAR parse-once flag** — table parse idempotent; multiple-entry-into-init refused to defeat double-alloc.
+
+Rationale: DMAR is firmware-supplied data that drives the very fabric of IOMMU isolation — a malicious or buggy ACPI table can declare RMRR loopback over kernel `.text`, force-enable ATS on attacker-controlled endpoints, or define overlapping scopes that break domain isolation. Without strict RMRR overlap policing, ATS allowlisting, refcount-overflow trapping on `drhd` units, and CAP_SYS_ADMIN gating on debugfs, the platform's IOMMU topology becomes attacker-influenceable from the supply chain inwards.
+
 ## Open Questions
 
 (none at this Tier-3 level)

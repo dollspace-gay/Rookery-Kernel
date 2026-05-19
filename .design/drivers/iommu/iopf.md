@@ -558,6 +558,30 @@ IOPF reinforcement:
 - **Per-WQ_UNBOUND policy explicit** — defense against per-CPU-bound starvation of fault-handling under load.
 - **Per-rate-limited abort log (`dev_warn_ratelimited`)** — defense against per-fault-storm log-flood.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. The IOPF framework is the generic plumbing through which untrusted device PRI faults reach domain handlers and ultimately the host mm — a single mis-validated PRG group is enough to leak host memory into a hostile device address space.
+
+- **PAX_USERCOPY** on per-PRG payloads exposed via iommufd eventq + per-fault metadata copied into userspace.
+- **PAX_KERNEXEC** on `report_device_fault`, `group_alloc`, `group_response`, queue add/remove paths (RO post-init).
+- **PAX_RANDKSTACK** on iopf workqueue handler entry to `handle_mm_fault`.
+- **PAX_REFCOUNT** on `IommuFaultParam.users`, `IopfQueue`, and per-`IopfGroup` lifetime tracking.
+- **PAX_MEMORY_SANITIZE** zeroes per-`IopfFault` heap allocations before `kfree` and per-group on free_group.
+- **PAX_UDEREF** on PRG payload fields surfaced to userspace via iommufd eventq.
+- **PAX_RAP/kCFI** on `ops->page_response`, `attach_handle->domain->iopf_handler`, and per-domain handler indirect calls.
+- **GRKERNSEC_HIDESYM** hides `IopfQueue`, `IommuFaultParam`, and per-device `fault_param` pointers.
+- **GRKERNSEC_DMESG** restricts iopf abort + rate-limit warnings to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** for any iommufd-side eventq consumer of IOPF; non-init-userns blocked from registering domain `iopf_handler`.
+- **GRKERNSEC_DMA strict-mode** — devices default-PRI-disabled until full ATS/PASID/PRI capability gating re-verified.
+- **ATS/PASID gating** — `queue_add_device` refused for devices missing verified PCIe caps regardless of cached `ops.page_response` pointer.
+- **VT-d PRQ rate-limit** + per-IOPF-queue rate-limit + per-userns rate-limit to defang multi-tenant PRI floods.
+- **DMAR/IVRS ACPI signature verify** before any per-vendor `page_response` implementation is honored.
+- **VFIO-compat path refused** for IOPF consumers under hardened policy; iommufd-native eventq only.
+- **PCI PASID Stop Marker validation hardened** — drivers required to discard at producer; framework rejects any reaching `report_device_fault`.
+- **Per-PRG `grpid` partition strictly enforced** — cross-group leakage of partials treated as fatal + group abort.
+
+Rationale: the IOPF subsystem couples a hostile device's PRI stream to host mm page-fault handling, dispatched via per-domain handlers that may run in user-trusted (SVA) or VMM-trusted (iommufd eventq) contexts. Hardened Rookery layers cap, namespace, rate, and ACPI verification independently so each is sufficient to block a class of attack against the host kernel.
+
 ## Open Questions
 
 (none at this Tier-3 level)

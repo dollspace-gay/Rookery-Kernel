@@ -208,6 +208,29 @@ iommufd-eventq specific reinforcement:
 - **Eventq fd close drains all pending groups** with INVALID response — defense against device-side timeout from unanswered faults.
 - **Per-PRGI ordering preserved** — read returns groups in submission order; defense against userspace-side fault-reordering breaking device assumptions.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. The eventq fd is the conduit by which a userspace VMM consumes device PRI faults; it crosses every isolation boundary (device DMA → IOMMU IRQ → fault group → userspace read/write → page-response back to device) and so receives intensive PaX/grsec mitigations.
+
+- **PAX_USERCOPY** on `iommufd_fault_event` read + `iommufd_fault_response` write paths (poll/epoll consumers).
+- **PAX_KERNEXEC** on eventq file_operations, `EventqIopf::handler`, and `complete_iopf` (RO post-init).
+- **PAX_RANDKSTACK** on read/write/poll syscall chains entering eventq.
+- **PAX_REFCOUNT** on `EventqIopf`, `IopfGroup`, attached `Device` refs.
+- **PAX_MEMORY_SANITIZE** zeroes `IopfGroup` storage and per-event bufs on free.
+- **PAX_UDEREF** on copy_from_user paths in `EventqIopf::write` (Page Response).
+- **PAX_RAP/kCFI** on eventq fops vtable and `iommu_ops->page_response` indirect dispatch.
+- **GRKERNSEC_HIDESYM** hides `EventqIopf` pointers, per-PRGI xarray, and per-device fault.eventq linkage.
+- **GRKERNSEC_DMESG** restricts fault-rate-limit warnings and PRI-disable logs to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** (and **CAP_SYS_RAWIO** for raw eventq alloc) — non-init-userns blocked from owning a PRI eventq.
+- **GRKERNSEC_DMA strict-mode** — PRI-capable devices default-detached from eventq until full PCIe PRI/ATS verification.
+- **VT-d PRQ rate-limit** strictly inherited; eventq pending_groups cap (default 1024) enforced per userns to deny multi-VM PRI-flood DoS.
+- **VFIO-compat refused** for eventq consumers under hardened policy; iommufd-native fd only.
+- **ATS/PASID gating** — eventq register refused for devices without verified PRI capability.
+- **Per-fault response code allowlist** strict (SUCCESS/INVALID/FAILURE); malformed codes drop the eventq.
+- **Userspace-write latency budget** enforced — overdue responses auto-INVALID by kernel to prevent device-side timeout-induced fault storms.
+
+Rationale: the eventq is a user-driven side-channel into IOMMU page-fault servicing; a misbehaving VMM can hang devices, starve other tenants, or pivot via spoofed Page Responses. Hardened Rookery applies refcount, capability, namespace, rate, and validation layers so each defense is independent.
+
 ## Open Questions
 
 (none at this Tier-3 level)

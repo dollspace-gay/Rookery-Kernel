@@ -420,6 +420,31 @@ CPUID-emulation reinforcement:
 - **Per-`kvm_can_set_cpuid_and_feature_msrs` gate** — defense against per-post-KVM_RUN-CPUID-replacement.
 - **Per-`KVM_REQ_RECALC_INTERCEPTS` request on set** — defense against per-stale-vendor-intercepts (VMX/SVM CPU-feature emulation).
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded `vmemdup_array_user` copy for KVM_SET_CPUID2 entries; strict `sanity_check_entries` padding-must-be-zero check.
+- **PAX_KERNEXEC** — W^X enforcement for kernel mappings; KVM CPUID emulation table is RO `.rodata`.
+- **PAX_REFCOUNT** — saturating refcount on per-vCPU `cpuid_entries` Vec lifetime.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for per-vCPU CPUID state on `kvm_vcpu_destroy`.
+- **PAX_UDEREF** — strict user-pointer access via SMAP/SMEP across KVM ioctls.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `microcode_ops` / `kvm_x86_ops` vtable dispatch in `after_set_cpuid`.
+- **PAX_RANDKSTACK** — VM-level per-syscall kernel-stack randomization on every `ioctl(KVM_SET_CPUID2)` / `KVM_RUN` exit through CPUID emulation.
+- **CAP_SYS_ADMIN gating** — `/dev/kvm` open + KVM_CREATE_VM require CAP_SYS_ADMIN under standard kvm policy; reinforced by GR-RBAC role gates.
+- **CAP_SYS_RAWIO** — required for any guest CPUID exposure that would surface host MSR state.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding for KVM internal structs in /proc and dmesg.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG (including invalid-CPUID warnings).
+- **KVM_MAX_CPUID_ENTRIES cap (256)** — defense against userspace-DoS via huge CPUID arrays.
+- **kvm_cpu_caps host-feature mask intersection** — defense against userspace advertising an unsupported feature.
+- **kvm_check_cpuid vaddr_bits ∈ {0, 48, 57}** — defense against invalid canonical-check assumptions in guest.
+- **kvm_cpuid_check_equal post-KVM_RUN immutability** — defense against mid-execution MAXPHYADDR change (MMU desync / L2-state corruption).
+- **lockdep_assert_irqs_enabled in find_entry2** — defense against hot-path CPUID-in-IRQ-disabled regression.
+- **fpu_enable_guest_xfd_features gate** — defense against FPU state without host XFD enable.
+- **AMD/Hygon no max-basic-redirect** — defense against vendor-spec violation.
+
+Per-doc rationale: KVM CPUID is the most-touched user→kernel→guest configuration surface in a virtualized host; grsec/PaX hardening here protects (a) the kernel from malicious VMM ioctl streams via PAX_USERCOPY + padding checks + bounded entry counts, and (b) the guest's architectural state from silent-feature-injection via host-cap intersection and post-RUN immutability — both of which are critical because VM escape primitives often start with CPUID feature mismatch.
+
 ## Open Questions
 
 (none at this Tier-3 level)

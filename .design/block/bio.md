@@ -201,9 +201,25 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
-## Open Questions
+## Grsecurity/PaX-style Reinforcement
 
-(none — bio semantics are exhaustively specified by upstream)
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `bio_iov_iter_get_pages` and `bio_map_user_iov` validate user iovec ranges against task `mm`; refuse spans crossing kernel/user.
+- **PAX_KERNEXEC** — `bio_ops`/`bi_end_io` callbacks live in module RX text; the function-pointer slot in `struct bio` is treated as kCFI-signed.
+- **PAX_RANDKSTACK** — N/A directly (bio runs in kthread / softirq context), but submitters from syscalls inherit RANDKSTACK.
+- **PAX_REFCOUNT** — `bi_remaining` (chain refcount) saturating; `bi_cnt` on `bio_get`/`bio_put` cannot wrap under chain-replay attacks.
+- **PAX_MEMORY_SANITIZE** — freed bio objects zeroed; DMA-coherent bounce buffers wiped post-completion so a leaked bio cannot expose neighbouring DMA payload.
+- **PAX_UDEREF** — user iovec dereferences bracketed by STAC/CLAC in `bio_copy_user_iov`; no raw user pointer access in softirq context.
+- **PAX_RAP / kCFI** — `bi_end_io`, `bi_destructor`, and `blk_integrity_profile` function-pointer slots RAP-signed.
+- **PAX_SIZE_OVERFLOW** — `bi_size`, `bi_sector`, bvec offset arithmetic uses checked ops; integer overflow on iovec assembly traps.
+- **PAX_AUTOSLAB** — bio allocated from per-bioset mempool + slab cache type-tagged; cross-cache freelist confusion blocked.
+- **GRKERNSEC_HIDESYM** — `/proc/diskstats`, `/sys/block/<dev>/stat`, and tracepoint `block_bio_*` redact bio kaddrs for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — bio-side `pr_warn`/`pr_err` (EOD, IO error) rate-limited and gated by `dmesg_restrict`.
+- **GRKERNSEC_IO** — direct raw-iopl/`/dev/sg` paths that craft bios at user direction require CAP_SYS_RAWIO + gr-rbac role.
+- **GRKERNSEC_TPE** — only trusted-path executables can submit `REQ_OP_ZONE_RESET_ALL` and `REQ_OP_WRITE_ZEROES` on shared disks.
+
+Per-doc rationale: bio is the lowest-level kernel I/O container that touches both kernel-side DMA buffers (kernel data residue risk) and user-page-pinned iovecs (UDEREF risk); REFCOUNT on `bi_remaining`, SANITIZE on freed bios + bounce buffers, USERCOPY on the user-iov assembly path, and RAP on `bi_end_io` together close the data-leak and free-list-confusion paths that have historically driven bio-side CVEs.
 
 ## Out of Scope
 

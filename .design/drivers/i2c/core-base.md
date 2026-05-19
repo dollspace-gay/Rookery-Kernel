@@ -585,6 +585,25 @@ I2C core-base reinforcement:
 - Slave-mode (`I2C_CLIENT_SLAVE`) interaction with master-only adapters: `i2c-core-slave.c` covered by separate Tier-3 (`drivers/i2c/slave-eeprom-testunit.md` for example slaves; slave core itself folds into `core.md` per current Tier-2 outline).
 - `i2c_recover_bus` semantics under nested-mux: parent-mux recovery must not race child-segment transfers — verified by `bus_lock` + `mux_lock` ordering.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — whitelisted slab caches for `i2c_adapter`, `i2c_client`, and `i2c_msg`; `I2C_RDWR` and `I2C_SMBUS` ioctl buffers strictly bounded against `I2C_RDWR_IOCTL_MAX_MSGS` and per-msg length caps before any copy_from/to_user.
+- **PAX_KERNEXEC** — i2c core in W^X kernel text; `i2c_algorithm` and `i2c_adapter_quirks` tables not patchable at runtime.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across `i2c_transfer`, `i2c_smbus_xfer`, and every `i2cdev_ioctl` entry.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `i2c_adapter`, `i2c_client`, and per-mux child references; overflow trap defeats unregister/race UAFs across adapter teardown.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `i2c_msg` buffers and DMA bounce buffers so prior bus payloads (sensor data, secure-element traffic) never leak into recycled allocations.
+- **PAX_UDEREF** — SMAP/PAN enforced on every `/dev/i2c-N` ioctl; reject any path that dereferences a user pointer outside canonical copy helpers.
+- **PAX_RAP / kCFI** — `i2c_algorithm` (`master_xfer`, `master_xfer_atomic`, `smbus_xfer`, `functionality`), `i2c_driver`, and `i2c_lock_operations` vtables marked `__ro_after_init` with kCFI-typed indirect dispatch.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and adapter/client pointer leaks behind CAP_SYSLOG; suppress raw `%p` printks in `i2c_transfer` tracepoints.
+- **GRKERNSEC_DMESG** — restrict bus-recovery, NAK, and timeout banners to CAP_SYSLOG to deny attackers a free bus-topology map.
+- **`/dev/i2c-N` userland-direct gate** — `i2c-dev` requires CAP_SYS_RAWIO (and optional `i2c-dev` udev allowlist) for raw transfers; refuses to attach to adapters marked `I2C_CLASS_HWMON` or `_SPD` unless policy explicitly opts in.
+- **`I2C_SLAVE_FORCE` gate** — claiming a busy address requires CAP_SYS_RAWIO; defeats a userland process hijacking an in-use sensor address.
+- **PEC enforcement** — SMBus packet-error-check honoured by default on `i2c-smbus` adapters; reject silent PEC downgrade.
+- **DMA-safe buffer invariant** — `I2C_M_DMA_SAFE` validated at `i2c_transfer` entry; stack-resident buffers bounce-copied unconditionally to defeat DMA-after-free.
+- **Class match required for detect** — `adapter->class & driver->class` lockdep-asserted; deprecated-class autoprobe loud-WARNs once.
+
+Rationale: the I2C bus carries SPD, TPM, secure-element, battery-gauge, and PMIC traffic that an `i2c-dev` ioctl-holder can fully impersonate. Without strict CAP_SYS_RAWIO on `/dev/i2c-N`, RAP/kCFI on `i2c_algorithm`, refcount-overflow trapping on adapters, and USERCOPY bounds on `I2C_RDWR` arrays, a single `i2c-dev` ioctl chain can rewrite firmware-fuse PMIC registers or smash adapter teardown into a kernel exploit primitive.
+
 ## Out of Scope
 
 - `i2c-core-acpi.c` ACPI enumeration internals (covered in `drivers/i2c/core.md` once split, or treated as helper called from base).

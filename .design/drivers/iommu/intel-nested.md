@@ -205,6 +205,29 @@ intel-nested-specific reinforcement:
 - **Per-S1 PGTT field constrained to {NESTED, FIRST_LEVEL}** — defense against PGTT mismatch with PGD type.
 - **Per-detach S1 PASID drain** before pasid-entry zero — defense against in-flight DMA after detach.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. Nested translation lets guest-controlled S1 page-tables co-author a host IOMMU walk; under a hardened policy the guest is treated as semi-trusted and the host enforces strict capability gating + tight invalidation discipline.
+
+- **PAX_USERCOPY** on `iommu_hwpt_vtd_s1` / `iommu_hwpt_vtd_s1_invalidate` UAPI structs.
+- **PAX_KERNEXEC** on `NESTED_OPS` vtable, QI submit, and pasid-entry writers (RO post-init).
+- **PAX_RANDKSTACK** on nested-attach + invalidate-batch entry chains.
+- **PAX_REFCOUNT** on `IntelNestedDomain`, parent S2 `IntelDomain`, and PASID-table refs.
+- **PAX_MEMORY_SANITIZE** zeroes pasid-table entries on detach and S1-domain memory on free.
+- **PAX_UDEREF** on copy_from_user of invalidation request arrays.
+- **PAX_RAP/kCFI** on nested domain-ops dispatch (`attach_dev`, `set_dev_pasid`, `cache_invalidate_user`).
+- **GRKERNSEC_HIDESYM** hides nested-domain pointers / S1-PGD addresses from `/proc/kallsyms` and crash dumps.
+- **GRKERNSEC_DMESG** restricts S1-walk fault decoded printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on iommufd HWPT-alloc with `IOMMU_HWPT_DATA_VTD_S1`; nested-userns barred.
+- **GRKERNSEC_DMA strict-mode** — devices default-blocked until both S1 and S2 fully populated.
+- **ECAP.NEST + ECAP.PSS** double-checked at attach (no cached-cap path) — defense against firmware lying.
+- **ATS/PASID gated** behind explicit policy bit; ATS-untrusted devices refused nested attach.
+- **DMAR ACPI signature + checksum verified** before honoring NEST capability bit.
+- **Per-S1 invalidation rate-limit** + **PRQ rate-limit** to deny guest-driven QI saturation.
+- **VFIO-compat path refused** for nested attach under hardened policy; iommufd-native only.
+
+Rationale: nested 2-stage walks are the highest-privilege IOMMU mode and the primary vIOMMU TCB surface. Compromise of S1 validation or invalidation order grants a guest VF DMA-to-host; hardened Rookery refuses every degraded compatibility shim that upstream tolerates here.
+
 ## Open Questions
 
 (none at this Tier-3 level)

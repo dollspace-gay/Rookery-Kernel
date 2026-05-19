@@ -250,6 +250,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — every ioctl carrying user buffers (`BLKGETSIZE64`, `BLKDISCARD`, `BLKZEROOUT`, `BLKTRACESETUP`) bounded; `UserPtr<...>` typed accessor enforced.
+- **PAX_KERNEXEC** — `block_device_operations`, `request_queue.queuedata`, and `gendisk` text RX-only; vtables constified after `add_disk`.
+- **PAX_RANDKSTACK** — `ioctl` path is a syscall; per-syscall kernel-stack randomization re-applied before entering `blkdev_ioctl`.
+- **PAX_REFCOUNT** — `request_queue.usage_counter`, `gendisk.open_partitions`, `block_device.bd_openers` saturating; teardown ordering enforced.
+- **PAX_MEMORY_SANITIZE** — freed `request_queue`, `gendisk`, `block_device` objects zeroed; especially `bd_inode`/`bd_holder` to prevent UAF on concurrent open.
+- **PAX_UDEREF** — STAC/CLAC bracket ioctl user-copies; `queue_lock` held only with IRQs off so user-pointer faults cannot reschedule into uaccess context.
+- **PAX_RAP / kCFI** — `block_device_operations.{open, release, ioctl, compat_ioctl, revalidate_disk, getgeo}` RAP-signed.
+- **PAX_AUTOSLAB** — per-driver request_queue + gendisk slab caches per-type-tagged.
+- **PAX_SIZE_OVERFLOW** — sector arithmetic uses checked operators; offset math saturating.
+- **GRKERNSEC_HIDESYM** — `/proc/partitions`, `/sys/block/*` redact queue + gendisk kaddrs for non-CAP_SYSLOG; only `dmesg_restrict`-cleared readers see raw pointers.
+- **GRKERNSEC_DMESG** — `add_disk` / `del_gendisk` / queue-freeze prints rate-limited and gated by `dmesg_restrict`.
+- **GRKERNSEC_IO** — raw `BLKRRPART`, `BLKFLSBUF`, `BLKDISCARD`, `BLKSECDISCARD` gated by CAP_SYS_ADMIN + gr-rbac role; chrooted tasks rejected unless explicitly delegated.
+- **GRKERNSEC_CHROOT** — block-device opens (`/dev/sd*`, `/dev/nvme*`) inside chroot rejected unless gr-rbac role allows.
+
+Per-doc rationale: `request_queue` + `gendisk` + `block_device` are the long-lived I/O lifecycle objects with the most aggressive concurrent-teardown patterns in the block layer; REFCOUNT-saturation on `usage_counter` / `open_partitions`, SANITIZE on freed queues/disks, USERCOPY on ioctl entrypoints, and GRKERNSEC_IO on raw partition-rescan / discard close the queue-teardown UAF and partition-rescan privilege-escalation paths.
+
 ## Open Questions
 
 (none — request_queue + gendisk + bdev semantics fully specified by upstream)

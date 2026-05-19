@@ -457,6 +457,27 @@ Divider reinforcement:
 - **Per-WARN on zero-divisor when `!_ALLOW_ZERO`** — defense against per-silent-malformed-HW state propagating up the tree.
 - **Per-`min(value, clk_div_mask(width))` in `divider_get_val`** — defense against per-bit-field overflow into adjacent fields.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on debugfs divider state reads.
+- **PAX_KERNEXEC** — W^X enforcement on divider `set_rate` / `recalc_rate` dispatch.
+- **PAX_RANDKSTACK** — kernel-stack randomization on divider syscall entry from CCF.
+- **PAX_REFCOUNT** — saturating refcount inherited from `clk_core` (parent CCF).
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `clk_divider` struct + table slabs.
+- **PAX_UDEREF** — SMAP/SMEP enforcement on any debugfs writer poking divider fields.
+- **PAX_RAP / kCFI** — `clk_divider_ops` (and `_ro`, `_big_endian` variants) vtable hardened; per-divider ops `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in clk_summary divider rows.
+- **GRKERNSEC_DMESG** — syslog restriction on divider WARN (zero-divisor, out-of-table).
+- **PAX_CONSTIFY_PLUGIN** — every `clk_divider_ops` literal `static const`.
+- **CAP_SYS_ADMIN strict** — divider rate-set via debugfs gated by GR-RBAC.
+- **PAX_SIZE_OVERFLOW** — `rate * div`, `parent_rate / div`, `clk_div_mask(width)` arithmetic checked.
+- **GRKERNSEC_SYSCTL** — divider-related boot-locked sysctls.
+- **STACKLEAK** — kstack erased on divider set_rate return.
+
+Per-doc rationale: divider blocks sit one indirection below `clk_core` and provide the actual MMIO RMW that programs frequency; a hijacked `clk_divider_ops` vtable becomes a direct write to any address in the divider's region, enabling fault-injection (under-divider crashes, over-divider data corruption). PAX_RAP pins the vtable, GRKERNSEC_HIDESYM hides the MMIO base from debugfs, and CAP_SYS_ADMIN + PAX_SIZE_OVERFLOW gate the rate-set path that performs the `rate * i` arithmetic.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -187,6 +187,29 @@ None beyond upstream defaults (GR-RBAC's default empty policy permits all AF_ALG
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy across `setsockopt(ALG_SET_KEY)`, `sendmsg`/`recvmsg` payload, and cmsg parsers; rejects oversize key/IV/AAD writes.
+- **PAX_KERNEXEC** — W^X enforcement across algif dispatch.
+- **PAX_RANDKSTACK** — kernel-stack randomization on per-op syscall entry.
+- **PAX_REFCOUNT** — saturating refcount on `AfAlg` control + operation sockets and bound `crypto_tfm` references.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for per-op socket state including key material, IV, AAD scratch, and keystream buffers; per-op-socket close zeroes `setsockopt` key buffer.
+- **PAX_UDEREF** — SMAP/SMEP user-pointer access enforced on every `copy_from_user`/`copy_to_user` in cmsg parser + sendmsg/recvmsg.
+- **PAX_RAP / kCFI** — per-class algif ops vtables (`algif_skcipher`, `algif_aead`, `algif_hash`, `algif_rng`) hardened against indirect-call hijack; control + operation socket ops `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in any `/proc`-exposed AF_ALG state.
+- **GRKERNSEC_DMESG** — syslog restriction on AF_ALG warnings (key-set failures, EBADMSG floods).
+- **PAX_CONSTIFY_PLUGIN** — algif per-class ops vtables `static const`.
+- **GRKERNSEC_CHROOT** — AF_ALG socket creation gated inside chroot.
+- **GRKERNSEC_SYSCTL** — `net.crypto.alg.*` toggles locked at boot under GRKERNSEC_SYSCTL_ON.
+- **CAP_NET_RAW** + LSM `security_socket_create(PF_ALG)` — per-subject GR-RBAC denial of `socket(AF_ALG, ...)`.
+- **LSM `security_socket_setsockopt`** for `ALG_SET_KEY` / `ALG_SET_KEY_BY_KEY_SERIAL` — per-subject denial of key-setting where policy requires.
+- **kfree_sensitive** — every key + IV + AAD + tag scratch freed via sensitive variant.
+- **PAX_SIZE_OVERFLOW** — cmsg length arithmetic + AEAD `authsize`/`assoclen` integer bounds checked.
+
+Per-doc rationale: AF_ALG is the userspace funnel into kernel crypto; an attacker who can `socket(AF_ALG, ...)` controls key material, IV reuse, and cipher selection. PAX_USERCOPY + UDEREF block the most common abuse (oversized setsockopt + unchecked cmsg), PAX_MEMORY_SANITIZE + kfree_sensitive deny key residue post-close, and PAX_RAP + CONSTIFY pin algif vtables against ROP/JOP into per-class dispatch.
+
 ## Open Questions
 
 (none — AF_ALG ABI is exhaustively specified by upstream)

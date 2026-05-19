@@ -949,6 +949,27 @@ skcipher reinforcement:
 - **Per-`crypto_alloc_sync_skcipher` masks ASYNC ∧ REQSIZE_LARGE + reqsize ceiling** — defense against per-on-stack `SYNC_SKCIPHER_REQUEST_ON_STACK` overflow.
 - **Per-statesize consistency (statesize > 0 ⟹ both import ∧ export required)** — defense against per-partial-state-API hole.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on key buffer ingress (`setkey`) and any AF_ALG-funneled skcipher op; oversized keys rejected.
+- **PAX_KERNEXEC** — W^X enforcement on `skcipher_walk` slow-path scratch + asm primitive dispatch.
+- **PAX_RANDKSTACK** — kernel-stack randomization on skcipher request entry (especially `SYNC_SKCIPHER_REQUEST_ON_STACK` path).
+- **PAX_REFCOUNT** — saturating refcount on `crypto_skcipher` tfm slabs and skcipher template instances.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for tfm slabs + walk scratch buffers (may hold plaintext/ciphertext chunks); `kfree_sensitive` for unaligned setkey shadow + slow-path heap.
+- **PAX_UDEREF** — SMAP/SMEP enforcement on every key ingress (AF_ALG `ALG_SET_KEY`, kTLS `tls_setsockopt`).
+- **PAX_RAP / kCFI** — `skcipher_alg` ops vtable (`setkey` / `encrypt` / `decrypt` / `init_tfm` / `exit_tfm` / `free`) hardened against indirect-call hijack; per-template ops `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in `/proc/crypto` skcipher entries.
+- **GRKERNSEC_DMESG** — syslog restriction on skcipher warnings (`CRYPTO_TFM_NEED_KEY` denials, walk slow-path errors).
+- **PAX_CONSTIFY_PLUGIN** — every static `skcipher_alg` literal `static const`.
+- **kfree_sensitive on tfm exit** — every key + IV + walk-scratch freed via sensitive variant.
+- **PAX_SIZE_OVERFLOW** — `keylen`, `ivsize`, `chunksize`, `walksize`, `statesize` arithmetic checked; alg-registration bounds (`ivsize ≤ PAGE_SIZE/8`) enforced.
+- **STACKLEAK** — kstack erased on skcipher syscall return to prevent residual key/plaintext on stack.
+- **GRKERNSEC_SYSCTL** — any skcipher-related sysctl (selftest mode, async dispatch) locked at boot.
+
+Per-doc rationale: skcipher tfms carry the live symmetric-cipher key + working IV; key residue is the highest-value leak. PAX_USERCOPY + UDEREF gate key ingress, kfree_sensitive + PAX_MEMORY_SANITIZE wipe key on every free path, STACKLEAK closes the on-stack `SYNC_SKCIPHER_REQUEST_ON_STACK` residue, and PAX_RAP pins the `skcipher_alg` vtable that the slow-path scratch + walk machinery indirects through on every op.
+
 ## Open Questions
 
 (none at this Tier-3 level)

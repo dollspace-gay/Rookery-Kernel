@@ -186,6 +186,25 @@ None beyond upstream defaults. The vDSO + vsyscall provide identical contracts.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — vDSO does not copy from/to user space directly; the vsyscall emulator reads `pt_regs` only, never raw user VA.
+- **PAX_KERNEXEC** — the kernel image of the vDSO ELF (`vdso_image_64`, `vdso_image_x32`, `vdso_image_32`) is `static const`, mapped RO+NX in the kernel; the user mapping is RX with separate vvar mapped RO+NX.
+- **PAX_RANDMMAP** — vDSO + vvar + timens pages randomized per-process across the full mmap-range entropy budget; cannot be disabled by user code (only by lockdown-cleared root via `vdso=0`).
+- **PAX_REFCOUNT** — vDSO `vm_special_mapping` refcount saturating; mapping cannot be wrapped via repeated munmap+mmap.
+- **PAX_MEMORY_SANITIZE** — vvar / timens pages zeroed before installation so they cannot carry slab residue into user mode.
+- **PAX_UDEREF** — vsyscall emulator decodes faulting RIP from `pt_regs`, never user pointer; STAC/CLAC bracket the emulator's `pt_regs.ax/di/si` writeback.
+- **PAX_RAP / kCFI** — `vsyscall_addr → emulator_fn` table is `static const` and RAP-signed.
+- **PAX_VSYSCALL_NONE / XONLY** — default EMULATE, but `vsyscall=xonly` (X-only mapping) and `vsyscall=none` available; XONLY defeats ROP gadget extraction from the fixed vsyscall page.
+- **GRKERNSEC_VDSO** — vDSO image sealed RO at boot; any attempt to mprotect the user-side vDSO mapping to RWX rejected.
+- **GRKERNSEC_HIDESYM** — `__vdso_*` symbols (rdtsc_ordered, getcpu, clock_gettime) not leaked through `/proc/kallsyms` for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — vDSO load-base / mapping prints (`pr_info`) gated by `dmesg_restrict`.
+- **GRKERNSEC_RANDMMAP** — vDSO mapping participates in the same RANDMMAP entropy pool as user libraries; cannot be forced to a deterministic offset.
+
+Per-doc rationale: the vDSO is the only kernel-supplied mapping that always lives in every user address space; X-only / RANDMMAP / KERNEXEC together ensure that a known kernel mapping never becomes a ROP-gadget oracle, while the RAP-signed vsyscall emulator and timens-page sanitize-on-install keep the legacy fixed-address path from re-introducing the gadget surface grsec originally removed.
+
 ## Open Questions
 
 (none — vDSO contract is rigid; backed by userspace ABI guarantee)

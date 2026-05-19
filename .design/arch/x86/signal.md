@@ -199,6 +199,25 @@ None beyond upstream defaults. Signal-frame layout is byte-identical.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — every sigframe / rt_sigframe / xstate write to the user stack flows through bounded `__copy_to_user` plus typed `UserPtr<Sigcontext>`; cross-region writes refused.
+- **PAX_KERNEXEC** — sigreturn trampoline executed only out of the vDSO (`__kernel_rt_sigreturn`); the kernel never builds a user-stack restorer, eliminating the classic sigreturn-trampoline gadget.
+- **PAX_RANDKSTACK** — signal delivery is a syscall-return event; the post-delivery return into user mode re-randomizes kernel-stack top so a delivered signal cannot probe its return-stack offset.
+- **PAX_REFCOUNT** — refcount on `sigqueue` and `ksignal` entries saturating; cannot wrap under signal-flood DoS.
+- **PAX_MEMORY_SANITIZE** — `ksignal`, `siginfo`, and `pt_regs` shadow used for restore zeroed-on-free; xstate buffer area cleared on failure-paths so partial restore never leaks neighbouring task FPU state.
+- **PAX_UDEREF** — STAC/CLAC bracket every sigframe access; SMAP catches in-kernel pointer mistakes immediately.
+- **PAX_RAP / kCFI** — signal-action vtable (`k_sigaction.sa_handler` is user-side, but `sa_restorer` callability) constrained; only vDSO-blessed restorers accepted.
+- **PAX_REGISTER_OVERWRITE** — sigcontext `cs`/`ss`/`eflags` validated on sigreturn (`force_valid_ss`, `RPL3` enforce); CR-bits not user-controlled.
+- **GRKERNSEC_HIDESYM** — kernel pointers (handler addresses if `SA_KERNEL`-style nonexistent path) never leak; `/proc/<pid>/syscall` and `/proc/<pid>/stat` redact in-signal kstack pointers.
+- **GRKERNSEC_DMESG** — `force_sig_info` and friends do not pr_info kernel addresses for non-CAP_SYSLOG readers.
+- **GRKERNSEC_SIGNALS** — `SI_USER`/`SI_KERNEL` strictly distinguished; userland cannot forge `SI_KERNEL` siginfo via `rt_sigqueueinfo`; cross-uid signal delivery extra-audited against gr-rbac.
+- **GRKERNSEC_PROC_USERGROUP** — signal masks, pending sets, and queued siginfo exposed only to matching uid or CAP_KILL.
+
+Per-doc rationale: signal delivery is one of the two paths (alongside `execve`) where the kernel writes attacker-influenced control-flow state to user memory and reads it back; USERCOPY-bounded sigframe writes, vDSO-only restorers (no kernel-built trampolines), sigcontext register validation, and `SI_KERNEL` forgery rejection eliminate the historical Linux signal-handling gadgets that grsec specifically addressed.
+
 ## Open Questions
 
 (none — signal-frame layout is contractually rigid via the userspace ABI guarantee)

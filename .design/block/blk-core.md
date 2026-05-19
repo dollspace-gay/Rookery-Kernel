@@ -765,6 +765,26 @@ blk-core reinforcement:
 - **Per-`blk_queue_enter` lockdep cookie pair (`io_lockdep_map` / `q_lockdep_map`)** — defense against per-freeze ↔ fs_reclaim deadlock.
 - **Per-`blk_start_plug` nested-plug no-overwrite** — defense against per-inner-callee plug-clobber on outer.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `/sys/block/<dev>/queue/*` and `/sys/class/block/<dev>/*` reads bounded by `kobject` attr framework; no raw queue-pointer leak.
+- **PAX_KERNEXEC** — `request_queue` text symbols (`blk_mq_submit_bio`, `blk_finish_plug`, `submit_bio_noacct`) RX-only; queue-ops vtables RAP-signed in module text.
+- **PAX_RANDKSTACK** — submitting syscalls (`io_uring`, `pread`, `pwrite`, `aio`) re-randomize kernel-stack offset before entering `submit_bio`.
+- **PAX_REFCOUNT** — `request_queue.usage_counter` (percpu_ref) and `disk->open_partitions` saturating; teardown ordering enforced.
+- **PAX_MEMORY_SANITIZE** — freed `request_queue` objects (post `call_rcu` + `percpu_ref_exit`) zeroed before reuse so concurrent reader cannot resurrect.
+- **PAX_UDEREF** — direct path does not touch user pointers; `BLKDISCARD` / `BLKZEROOUT` ioctl front-ends enforce SMAP/UDEREF in `block/ioctl.c`.
+- **PAX_RAP / kCFI** — `request_queue.ops`, `make_request_fn` (legacy), `mq_ops.queue_rq`, `mq_ops.complete` all RAP-signed.
+- **PAX_REFCOUNT_FULL** — `bio_list` recursion guard cannot be bypassed by stacking-driver replay attacks.
+- **GRKERNSEC_KMEM** — `/dev/mem`, `/dev/kmem`, `/dev/port` accesses to PCI BARs and IOPORTs that bypass the block layer require lockdown=confidentiality.
+- **GRKERNSEC_HIDESYM** — `/proc/diskstats`, `/proc/partitions`, `/sys/block/*` redact queue kaddrs; only CAP_SYSLOG sees raw pointers.
+- **GRKERNSEC_DMESG** — queue freeze / dying transitions logged behind `dmesg_restrict`.
+- **GRKERNSEC_IO** — raw `BLKRRPART`, `BLKFLSBUF`, `BLKDISCARD`, `BLKSECDISCARD` ioctls gated by CAP_SYS_ADMIN + gr-rbac role.
+- **GRKERNSEC_CHROOT** — block-device ioctls inside a chroot rejected unless gr-rbac role explicitly permits.
+
+Per-doc rationale: blk-core owns the queue lifecycle, request submission entry point, and the disk-state RCU teardown; KMEM lockdown + RAP on queue-ops + REFCOUNT-saturation on `usage_counter` + SANITIZE on freed queues close the disk-teardown UAF, queue-freeze race, and queue-ops-redirection attack classes that have shipped against upstream block-core.
+
 ## Open Questions
 
 (none at this Tier-3 level)

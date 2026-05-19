@@ -318,6 +318,28 @@ The boot path runs before any LSM is initialized; no LSM hooks fire during boot.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for executable kernel mappings established by the early identity-map page tables; `.text`/`.rodata` are RX/RO from the long-mode-entry forward.
+- **PAX_RANDMMAP / KASLR** — randomized kernel base + physical-load address per `kaslr.c`; bootloader-supplied entropy plus CPU RDRAND/RDSEED.
+- **PAX_RANDKSTACK** — kernel-stack randomization initialized before `start_kernel` so the BSP and every AP enter with fresh stack offsets.
+- **PAX_USERCOPY** — bounded boot_params/cmdline copies from the zero-page into kernel structures.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for the decompression scratch buffer and purgatory's intermediate buffer.
+- **PAX_UDEREF** — SMAP/SMEP enabled in `head64.c::x86_64_start_kernel` AFTER paging is on (CR4 bits set early to deny user-pointer kernel deref).
+- **GRKERNSEC_KERN_LOCKDOWN** — engage lockdown-integrity mode when Secure Boot is asserted via `boot_params.secure_boot`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in early-boot dmesg and the eventual `/proc/kallsyms`.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG once `start_kernel` initializes the printk subsystem.
+- **Signed-kernel verification** — purgatory SHA-256 over the destination image on kexec; SBAT entry validated against Secure Boot dbx revocations.
+- **PAX_REFCOUNT** — saturating refcount on `setup_data` linked-list nodes consumed during boot.
+- **Trusted-launch attestation** — SEV-SNP GHCB and TDX TDCALL paths preserve the architectural contract end-to-end so attestation reports cover the same boot measurements as upstream.
+- **5-level paging CR4.LA57 lockstep with CONFIG_X86_5LEVEL** — defense against bootloader-induced paging-mode mismatch.
+- **GRKERNSEC_MODHARDEN** — module-loading hooks deferred until `start_kernel`; early-boot decompressor cannot load modules.
+- **Early IDT for #VC/#PF before encrypted-memory access** — defense against SEV-SNP early-boot crash on a stray fault.
+
+Per-doc rationale: the boot path runs before any LSM/grsec hook is initialized, so hardening here is about (a) establishing W^X paging, KASLR entropy, and CR4 mitigation bits *before* untrusted memory is touched and (b) ensuring the contract handed to `start_kernel` is byte-identical to upstream so downstream grsec policy applies on a known-good architectural state.
+
 ## Open Questions
 
 (none — boot path is contractually rigid; ambiguities resolved by upstream documentation)

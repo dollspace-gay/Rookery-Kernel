@@ -563,6 +563,25 @@ Throttle reinforcement:
 - **Per-`__tg_update_carryover` rebases `bytes_disp`/`io_disp` before installing new limit** — defense against per-limit-decrease granting free burst from stale credit.
 - **Per-`kthrotld_workqueue` with `WQ_MEM_RECLAIM`** — defense against per-memory-pressure stalling dispatch on writeback path.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `/sys/fs/cgroup/<cg>/io.max`, `io.weight`, and friends use bounded `cftype` reader/writer; raw cgroup-internal pointers never crossed.
+- **PAX_KERNEXEC** — `throtl_policy.pd_*` and dispatch-work text RX-only; cgroup-policy ops table constified post-registration.
+- **PAX_RANDKSTACK** — `dispatch_work` runs on the workqueue (kernel context) so it is not user-syscall-bound; controlling syscalls (`write` to `io.max`) inherit per-syscall RANDKSTACK.
+- **PAX_REFCOUNT** — `throtl_grp.refs`, `throtl_data` refcount, and `blkg.refcnt` saturating; cgroup teardown cannot wrap under churn.
+- **PAX_MEMORY_SANITIZE** — `throtl_grp` and `throtl_data` slab objects zeroed on free; pending qnode rings wiped so leftover bio pointers do not resurface.
+- **PAX_UDEREF** — STAC/CLAC bracket the `cgroupfs` write path that delivers `io.max` strings; tokenizer refuses cross-boundary buffers.
+- **PAX_RAP / kCFI** — `throtl_policy.pd_alloc_fn`, `pd_free_fn`, `pd_init_fn`, `pd_offline_fn`, `pd_stat` slots RAP-signed.
+- **PAX_SIZE_OVERFLOW** — `calculate_bytes_allowed` / `calculate_io_allowed` already overflow-guarded; arithmetic uses checked operators throughout.
+- **GRKERNSEC_HIDESYM** — `/sys/kernel/debug/block/<dev>/blk-throttle/*` restricted to CAP_SYSLOG; pointer addresses redacted.
+- **GRKERNSEC_DMESG** — `pr_warn` on misconfigured `io.max` rate-limited and gated by `dmesg_restrict`.
+- **GRKERNSEC_RBAC** — cgroup `io.max` / `io.weight` writes inside non-root userns gated by gr-rbac role; cannot escalate priority by writing a parent cgroup.
+- **GRKERNSEC_CHROOT** — chrooted tasks cannot write cgroup throttle limits outside their delegated subtree.
+
+Per-doc rationale: blk-throttle is the kernel's cgroup-driven bandwidth oracle; protecting USERCOPY on the cgroupfs control buffers, REFCOUNT on `throtl_grp`, RAP on policy ops, and gr-rbac on the writer side closes the cgroup-confused-deputy and limit-overflow paths that have historically allowed a non-root userns to evade I/O caps.
+
 ## Open Questions
 
 (none at this Tier-3 level)

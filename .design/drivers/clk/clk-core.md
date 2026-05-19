@@ -532,6 +532,28 @@ CCF reinforcement:
 - **Per-SRCU notifier (sleepable, no callback-reentry)** — defense against per-notifier deadlock.
 - **Per-kref refcount on clk_core** — defense against per-UAF across module unload.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on debugfs `clk_summary`, `clk_dump`, and any sysfs clock-control surface.
+- **PAX_KERNEXEC** — W^X enforcement on CCF `prepare` / `enable` / `set_rate` dispatch.
+- **PAX_RANDKSTACK** — kernel-stack randomization on `clk_prepare` / `clk_set_rate` entry from consumer paths.
+- **PAX_REFCOUNT** — saturating `kref` on `clk_core`; saturating `prepare_count` + `enable_count`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `clk_core` + `clk_hw` slabs (may carry MMIO base + ops vtable pointers).
+- **PAX_UDEREF** — SMAP/SMEP enforcement on `debugfs` writers that adjust clk state.
+- **PAX_RAP / kCFI** — `clk_ops` vtable (`prepare` / `enable` / `set_rate` / `recalc_rate` / `determine_rate` / `set_parent` / `get_parent`) hardened against indirect-call hijack; provider ops `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in `clk_summary`, `clk_dump`, `clk_orphan_summary` (no `clk_core *` addresses leaked).
+- **GRKERNSEC_DMESG** — syslog restriction on CCF warnings (rate-veto, orphan log, critical-clk disable attempts).
+- **GRKERNSEC_PROC** — `/proc` and `debugfs` clk views root-only via GR-RBAC.
+- **CAP_SYS_ADMIN strict** — every clk-tree mutation surface (debugfs writes, `clk_set_rate`-via-IOCTL) gated; GR-RBAC denies grant.
+- **PAX_CONSTIFY_PLUGIN** — every static `clk_ops` literal `static const`.
+- **GRKERNSEC_SYSCTL** — clk-related sysctls locked at boot.
+- **PAX_SIZE_OVERFLOW** — `rate`, `min_rate`, `max_rate`, `accuracy` (Hz) arithmetic checked.
+- **LSM `security_locked_down(LOCKDOWN_DEBUGFS)`** — denies debugfs clk write under integrity lockdown.
+
+Per-doc rationale: CCF is a control-plane shared by every clock consumer (regulators, CPUFreq, peripheral drivers); a corrupted `clk_ops` vtable lets an attacker glitch every device on the SoC (under-voltage attacks, frequency-induced data corruption, EM emanation tuning). PAX_RAP pins the per-provider `clk_ops` table that every prepare/enable indirects through, GRKERNSEC_HIDESYM + LSM lockdown close the debugfs leak path (`clk_summary` exposes the full topology), and CAP_SYS_ADMIN + GR-RBAC gate the mutation surface so non-admin code cannot tune rates.
+
 ## Open Questions
 
 (none at this Tier-3 level)

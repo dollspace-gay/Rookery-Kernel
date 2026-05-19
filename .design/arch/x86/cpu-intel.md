@@ -430,6 +430,28 @@ Intel-cpu reinforcement:
 - **Per-forcepae taint TAINT_CPU_OUT_OF_SPEC + LOCKDEP_NOW_UNRELIABLE** — defense against silently-running unsupported PAE.
 - **Per-intel_unlock_cpuid_leafs vendor-guarded** — defense against per-cross-vendor misuse on AMD.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for kernel-text mappings, complementing the Intel-side `MSR_IA32_MISC_ENABLE` and `MSR_MISC_FEATURES_ENABLES` writes done here.
+- **MSR-write capability gate (CAP_SYS_RAWIO)** — all `wrmsrq`/`msr_set_bit`/`msr_clear_bit` operations against MSR_IA32_MISC_ENABLE, MSR_MISC_FEATURES_ENABLES, MSR_PLATFORM_INFO, MSR_IA32_TME_ACTIVATE gated behind capability checks.
+- **Microcode-signature verification** — `intel_get_microcode_revision` + `bad_spectre_microcode` enforce blacklist matching against signature-validated ucode revisions.
+- **PAX_USERCOPY** — bounded copy_to/from_user on Intel-specific CPUID and microcode-revision surfaces exposed via `/proc/cpuinfo` and `/sys/devices/system/cpu`.
+- **PAX_REFCOUNT** — saturating refcount on per-CPU `msr_misc_features_shadow` and platform-id.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for TME-related per-CPU state on hotunplug.
+- **PAX_UDEREF (SMAP/SMEP/UMIP)** — enabled in `cpu-common.md` via CR4 and reinforced here through CPUID-FAULT detection (`init_cpuid_fault` reads `MSR_PLATFORM_INFO`).
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `intel_cpu_dev` vtable.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in /proc and dmesg, including microcode-revision and platform-id leaks.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG, including "Disabled fast string operations" and TME-not-enabled-by-BIOS messages.
+- **TME LOCKED ∧ ENABLED gating + KeyID-bits phys_bits decrement** — defense against MKTME physical-address-aliased-keys attack.
+- **HYPERVISOR-aware bad_spectre_microcode** — hypervisor-claimed ucode revision distrusted; defense against hypervisor-lying ucode trapping kernel into wrong spec-ctrl policy.
+- **forcepae taint TAINT_CPU_OUT_OF_SPEC + LOCKDEP_NOW_UNRELIABLE** — defense against silently-running unsupported PAE.
+- **MSR_MISC_FEATURES_ENABLES shadow strictly drives wrmsrq** — defense against uninitialized-shadow races.
+- **ZMM-downclock exclusion list ⟹ PREFER_YMM** — defense against AVX-512-frequency-collapse DoS on shared CPUs.
+
+Per-doc rationale: Intel CPU init owns the most policy-laden MSRs in the kernel (MISC_ENABLE for fast-string/PEBS/BTS, MISC_FEATURES_ENABLES for Ring-3-MWAIT + CPUID-FAULT, TME_ACTIVATE for memory-encryption keying); grsec/PaX hardening here enforces capability-gated MSR write paths, microcode-signature validation before believing CPUID feature claims, and HYPERVISOR-aware blacklisting so a malicious hypervisor cannot disable Spectre-mitigation by claiming a fixed ucode revision.
+
 ## Open Questions
 
 (none at this Tier-3 level)

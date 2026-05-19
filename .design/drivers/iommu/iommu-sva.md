@@ -220,6 +220,29 @@ iommu-sva specific reinforcement:
 - **Per-process bind cap** — per-process maximum SVA bindings (default 64); defense against unbounded bind attack.
 - **iopf workqueue priority** — high-priority workqueue ensures fault response within bounded latency; defense against device-side timeout while waiting.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. The generic SVA layer is where untrusted userspace + untrusted device DMA + host mm-fault path all meet; Rookery treats every bind path here as TCB-critical and refuses every degraded compatibility mode that upstream allows for accelerator vendor flexibility.
+
+- **PAX_USERCOPY** on SVA UAPI return paths exposing PASID values and fault info.
+- **PAX_KERNEXEC** on `iopf_handle_*`, `sva_bind`, and MMU-notifier ops vtables (RO post-init).
+- **PAX_RANDKSTACK** on `iopf_handle_group_work` entry into `handle_mm_fault`.
+- **PAX_REFCOUNT** on `Sva`, `IopfQueue`, `IopfGroup`, and per-mm bind refs.
+- **PAX_MEMORY_SANITIZE** zeroes `IopfGroup` storage on completion and per-PASID PT roots on unbind.
+- **PAX_UDEREF** on copy_from_user paths in SVA bind ioctls.
+- **PAX_RAP/kCFI** on `iommu_ops->page_response`, `iotlb_sync`, and per-device fault handler vtables.
+- **GRKERNSEC_HIDESYM** hides `Sva`, `IopfQueue`, and per-mm PASID assignment pointers.
+- **GRKERNSEC_DMESG** restricts PRI-fault and rate-limit warnings to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on SVA bind from outside init userns; userns-nested processes blocked.
+- **GRKERNSEC_DMA strict-mode** — SVA-capable devices default-blocked until PASID+PRI+ATS triple-verified.
+- **ATS/PASID capability gating** — devices missing any of PASID, PRI, ATS rejected regardless of vendor flag cache.
+- **Per-device PRI rate-limit hardened** (default 100k/s) and per-process bind cap (default 64) enforced even for CAP_SYS_ADMIN.
+- **iopf workqueue isolated** from kernel-wide WQ + bound to fault-handling CPUs to defang scheduler-DoS via PRI floods.
+- **VFIO-compat path refused** for SVA-bound devices under hardened policy; iommufd-native only.
+- **DMAR ACPI / IVRS signature verify** before per-vendor SVA capability claims trusted.
+
+Rationale: a single mis-validated SVA bind breaks the cross-process DMA boundary. Hardened Rookery layers refcount, capability, rate, and namespace gates over the upstream API so each is independent and sufficient — every degraded path upstream allows for accelerator compat is explicitly closed.
+
 ## Open Questions
 
 (none at this Tier-3 level)

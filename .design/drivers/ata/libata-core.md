@@ -613,6 +613,28 @@ libata-core reinforcement:
 - **Per-`ata_port_pm_poweroff` flushes write cache + spindown** — defense against per-S4-hibernation data-loss.
 - **Per-`ATA_PFLAG_UNLOADING` on detach** — defense against per-EH-running-after-host-gone.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on any libata IOCTL / SG_IO / ATA passthrough payload.
+- **PAX_KERNEXEC** — W^X enforcement on EH worker + LLD-callback dispatch.
+- **PAX_RANDKSTACK** — kernel-stack randomization on libata IRQ-thread / EH-thread entry.
+- **PAX_REFCOUNT** — saturating refcount on `ata_host` `kref` and `ata_port` PM counters.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `ata_taskfile`, qc scratch, IDENTIFY page buffers (may contain serial numbers, WWN, security state).
+- **PAX_UDEREF** — SMAP/SMEP enforcement on every SG_IO / HDIO_* / ATA_PASSTHROUGH user pointer.
+- **PAX_RAP / kCFI** — `ata_port_operations` vtable hardened against indirect-call hijack; per-LLD ops `static const` post-`ata_finalize_port_ops`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in libata sysfs / `dmesg` (no `ata_host *` addresses leaked).
+- **GRKERNSEC_DMESG** — syslog restriction on EH messages, IDENTIFY dumps, SError logs.
+- **GRKERNSEC_KMOD** — module-load restriction blocks attacker-driven LLD load on hot-plug.
+- **CAP_SYS_RAWIO strict** — every SG_IO / ATA_PASSTHROUGH / HDIO_DRIVE_CMD requires `CAP_SYS_RAWIO`; GR-RBAC denies opportunistic grant.
+- **PAX_CONSTIFY_PLUGIN** — every `ata_port_info`, `ata_port_operations` literal `static const`.
+- **GRKERNSEC_SYSFS_RESTRICT** — `/sys/class/ata_*` visible only to root + GR-RBAC subject set.
+- **PAX_SIZE_OVERFLOW** — LBA48/LBA28 arithmetic, `n_sectors`, `tf->nsect` checked.
+- **LSM `security_file_ioctl`** — denies SG_IO / passthrough IOCTLs per GR-RBAC policy.
+
+Per-doc rationale: libata-core hands raw SATA command issue to userspace via SG_IO and ATA passthrough — a path that bypasses the filesystem entirely and can issue SECURITY_ERASE_UNIT, firmware downloads, and DMA setup. CAP_SYS_RAWIO + GR-RBAC + LSM `security_file_ioctl` gate the entry, PAX_RAP locks the post-`ata_finalize_port_ops` vtable that every command issue indirects through, and PAX_MEMORY_SANITIZE wipes IDENTIFY pages (serial numbers, WWN, encryption state) that LLD scratch holds.
+
 ## Open Questions
 
 (none at this Tier-3 level)

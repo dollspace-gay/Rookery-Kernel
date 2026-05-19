@@ -227,6 +227,30 @@ iommufd-pages specific reinforcement:
 - **Per-pages bitmap size cap** — bounded by pages.npages; defense against bitmap-OOM via huge mappings.
 - **COW state tracking accurate** — per-page COW transitions observed at VM layer + reflected in iopt_pages tracking.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. `IoptPages` is where userspace pages, file inodes, and cross-driver dmabufs are pinned + refcounted for DMA — the largest single file in `iommufd/` is also the largest single attack surface against host memory accounting and cross-namespace leaks.
+
+- **PAX_USERCOPY** on user-iova mappings and any rw_access path that copies in/out user buffers.
+- **PAX_KERNEXEC** on `fill_xarray`, `unfill_xarray`, `change_process`, and per-type alloc/destroy paths (RO post-init).
+- **PAX_RANDKSTACK** on pin/unpin entry chains crossing `pin_user_pages_remote`.
+- **PAX_REFCOUNT** on `IoptPages`, `PagesAccess`, source mm/file/dmabuf refs.
+- **PAX_MEMORY_SANITIZE** zeroes pfn xarray entries and `PagesAccess` storage on unfill/destroy.
+- **PAX_UDEREF** on uptr / file-offset / sg-table address handling at user boundary.
+- **PAX_RAP/kCFI** on per-type cleanup function pointers (USER/FILE/DMABUF).
+- **GRKERNSEC_HIDESYM** hides per-pages pinned_pfns xarray pointer and `IoptPages` itself.
+- **GRKERNSEC_DMESG** restricts pin/unpin and RLIMIT-violation decoded printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on `change_process` (re-attribution between processes); nested-userns blocked.
+- **GRKERNSEC_DMA strict-mode** — devices DMA-blocked until full pinning + xarray fill verified.
+- **RLIMIT_MEMLOCK strict** + per-cgroup `memory.lock_max` + per-userns pin-cap layered.
+- **PAX_USERCOPY on user-iova mappings** — every iova→pfn cross-check enforces bounds.
+- **DMABUF cross-namespace import** denied by default; explicit LSM allowlist required.
+- **DMAR/IVRS ACPI verify** required before any dmabuf-aware IOMMU op trusts vendor cap bits.
+- **File pin uses inode-stable path** — truncate races deliver EFAULT cleanly without dangling pin.
+- **VFIO-compat path refused** under hardened policy; iommufd-native pin only.
+
+Rationale: `IoptPages` controls who can pin what memory on behalf of which device for how long. A laxly accounted pin lets an unprivileged process lock host RAM; a cross-namespace dmabuf import lets a guest leak host memory into a peer guest. Hardened Rookery requires capability, namespace, accounting, and LSM checks to all pass independently.
+
 ## Open Questions
 
 (none at this Tier-3 level)

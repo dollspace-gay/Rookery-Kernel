@@ -823,9 +823,24 @@ HID-core reinforcement:
 - **Per-hid_destroy_device free path tolerates partial init** — defense against per-mid-probe-failure leak.
 - **Per-hid_close_report idempotent** — defense against per-double-free on probe rollback.
 
-## Open Questions
+## Grsecurity/PaX-style Reinforcement
 
-(none at this Tier-3 level)
+- **PAX_USERCOPY** — whitelisted slab caches for `struct hid_device`, `hid_report`, and `hid_field`; hidraw and uhid copy_from/to_user paths bounded against report-descriptor size limits.
+- **PAX_KERNEXEC** — HID core, report parser, and driver dispatch run in W^X kernel text; no runtime patching of `hid_driver` ops or `hid_ll_driver` callbacks.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across every `hid_input_report`, `hid_hw_request`, and hidraw ioctl entry so report-parsing stack layouts cannot be reliably groomed.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `hid_device` reference counts and on per-report buffer references; overflow trap defeats devnode-recycle UAFs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `hid_report`, `hid_field`, and parsed report-descriptor slabs so prior keystroke/mouse data cannot bleed into a recycled allocation.
+- **PAX_UDEREF** — SMAP/PAN enforced on every hidraw, uhid, and `HIDIOCSREPORT`/`HIDIOCGREPORT` ioctl entry; user pointers reach core only through canonical helpers.
+- **PAX_RAP / kCFI** — `hid_driver`, `hid_ll_driver`, and `hid_report_callback` vtables marked `__ro_after_init`; kCFI-typed indirect calls on `raw_event`, `event`, `report_fixup`, and `hidinput_input_event` block transport-layer pointer confusion.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and HID driver-name leaks behind CAP_SYSLOG; suppress raw `%p` printks in report-parser debug.
+- **GRKERNSEC_DMESG** — restrict HID parse errors and BadUSB-style descriptor-malformation traces to CAP_SYSLOG so attackers cannot probe parser internals via dmesg.
+- **hidraw ioctl gate** — `/dev/hidraw*` requires uid match or explicit udev rule; `HIDIOCSFEATURE`/`HIDIOCGFEATURE` and `HIDIOCSREPORT` capped to CAP_SYS_RAWIO holders by default.
+- **HID-class LSM hook (USBGuard-style)** — `security_hid_device_connect` invoked at probe time so policy can deny rogue HID-class interfaces (BadUSB keyboard masquerading as a flash drive).
+- **Report-descriptor bounds** — hard ceiling on descriptor length (`HID_MAX_DESCRIPTOR_SIZE`), usage-page count, and report-count; reject pathological descriptors before allocating field arrays.
+- **uhid namespace gate** — `/dev/uhid` writes require CAP_SYS_ADMIN in the device's user namespace; prevents unprivileged userspace from synthesising fake HID devices to keylog the console.
+- **Connect/destroy ordering** — `hid_destroy_device` tolerates partial init via explicit state machine; `ll_open_count` non-negative invariant lockdep-asserted.
+
+Rationale: HID is the canonical BadUSB and keylogging vector — every USB-, Bluetooth-, or I2C-attached HID device hands the kernel an attacker-controlled report descriptor that is then parsed, allocated against, and routed through driver vtables. Without RAP/kCFI on `hid_driver`/`hid_ll_driver`, USERCOPY on hidraw, a USBGuard-style class hook, and refcount-overflow trapping on `hid_device`, a malicious descriptor or rogue HID-class device escalates from "plug in cable" to kernel code execution.
 
 ## Out of Scope
 

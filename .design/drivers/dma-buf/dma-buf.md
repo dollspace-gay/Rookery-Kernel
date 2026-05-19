@@ -537,6 +537,28 @@ DMA-BUF reinforcement:
 - **Per-DMA_BUF_NAME_LEN bound in set_name** — defense against per-unbounded-userspace-name allocation.
 - **Per-DMA_BUF_SYNC_VALID_FLAGS_MASK check** — defense against per-future-flag-bits silently honored.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `DMA_BUF_IOCTL_SYNC`, `DMA_BUF_IOCTL_NAME`, `DMA_BUF_IOCTL_EXPORT_SYNC_FILE`, `DMA_BUF_IOCTL_IMPORT_SYNC_FILE` payloads.
+- **PAX_KERNEXEC** — W^X enforcement on exporter `dma_buf_ops` dispatch.
+- **PAX_RANDKSTACK** — kernel-stack randomization on dma-buf IOCTL entry.
+- **PAX_REFCOUNT** — saturating refcount on `dma_buf->file`, attachments, and vmap_ptr counter; sync_file refs likewise.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `dma_buf`, `dma_buf_attachment`, and `sg_table` slabs (page-link pointers, MMIO addresses).
+- **PAX_UDEREF** — SMAP/SMEP enforcement on every dma-buf IOCTL user-pointer access (sync, name, sync_file fd payload).
+- **PAX_RAP / kCFI** — `dma_buf_ops` vtable (`map_dma_buf` / `unmap_dma_buf` / `mmap` / `vmap` / `vunmap` / `begin_cpu_access` / `release`) hardened against indirect-call hijack; per-exporter ops `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in `/sys/kernel/debug/dma_buf/bufinfo`.
+- **GRKERNSEC_DMESG** — syslog restriction on dma-buf BUG_ON / WARN (release-with-pending-cb, vmap mismatch).
+- **PAX_CONSTIFY_PLUGIN** — every static `dma_buf_ops` literal `static const`.
+- **GRKERNSEC_PROC** — debugfs `bufinfo` view restricted root + GR-RBAC subject set.
+- **CAP_SYS_ADMIN** for debugfs writes that adjust dma-buf stats.
+- **PAX_SIZE_OVERFLOW** — `pgoff`, `size`, attachment count arithmetic checked; `DMA_BUF_NAME_LEN` bound enforced.
+- **LSM `security_file_ioctl`** — per-subject GR-RBAC denial of dma-buf IOCTL surface.
+- **LSM `security_locked_down(LOCKDOWN_DEBUGFS)`** — denies debugfs bufinfo write under lockdown.
+
+Per-doc rationale: dma-buf is the cross-driver pinned-DMA exchange — a forged `dma_buf_ops` vtable lets an attacker hand an importer (GPU, video codec, IOMMU) a sg_table that points at any physical memory, including kernel text and other processes' DMA buffers. PAX_RAP locks the exporter ops vtable, PAX_REFCOUNT prevents UAF on the `file *` + attachments under EH races, PAX_MEMORY_SANITIZE wipes `sg_table` page-link arrays on free (which leak page-frame numbers), and CAP_SYS_ADMIN + GR-RBAC + LSM gate the debugfs `bufinfo` view that exposes every live mapping in the system.
+
 ## Open Questions
 
 (none at this Tier-3 level)

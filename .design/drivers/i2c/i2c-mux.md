@@ -382,6 +382,24 @@ I2C-mux reinforcement:
 - Should the mux core grow an explicit invariant that the `select` callback is idempotent w.r.t. the currently-selected channel? Several mux drivers already short-circuit redundant selects; promoting this to the core would let parent-locked transfers skip the bus-quiet window. Out of scope for parity; track for post-parity optimisation.
 - The current `deselect = NULL` convention (mux stays on last channel) is widely used but undocumented in `<linux/i2c-mux.h>`. Worth adding a Rookery doc-comment on the trait.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — whitelisted slab caches for `i2c_mux_core` and per-channel `i2c_adapter` shadows; bus transfer buffers crossing a mux channel use the same DMA-safe invariant as the parent adapter.
+- **PAX_KERNEXEC** — mux core code in W^X kernel text; per-mux `select`/`deselect` and `algo` tables not patchable at runtime.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across each parent-locked transfer so the select→xfer→deselect window cannot be reliably stack-groomed.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `i2c_mux_core`, child adapters, and parent-adapter references taken via `i2c_mux_alloc`; overflow trap defeats double-`del_adapters` UAFs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `i2c_mux_priv` allocations so stale `algo_data` cannot bleed across module reload.
+- **PAX_UDEREF** — SMAP/PAN enforced on any `/dev/i2c-N` ioctl that descends through a mux child adapter.
+- **PAX_RAP / kCFI** — `i2c_mux_core` ops (`select`, `deselect`) and the synthesised child `i2c_algorithm` tables marked `__ro_after_init` with kCFI-typed indirect dispatch.
+- **GRKERNSEC_HIDESYM** — gate mux-chip kallsyms and `i2c_mux_priv` pointer leaks behind CAP_SYSLOG; suppress `%p` in mux-select tracepoints.
+- **GRKERNSEC_DMESG** — restrict mux-select failure and parent-bus-recovery banners to CAP_SYSLOG to deny attackers a topology map of muxed sub-busses.
+- **Cross-channel isolation** — `i2c-mux` enforces parent-bus-lock + mux-lock ordering; lockdep proves no child-channel transfer can leak past a `deselect`.
+- **Functionality forwarding** — child adapter `functionality` is the strict intersection of parent capabilities and mux-chip restrictions; refuse advertising features the parent cannot deliver.
+- **Class downgrade** — child adapters default to `I2C_CLASS_DEPRECATED = 0`; do not silently inherit parent's `I2C_CLASS_HWMON`/`_SPD` autoprobe class to a child segment.
+- **`I2C_MUX_LOCKED` adapters** — when the mux requires parent-lock, the child adapter's `bus_lock` lockdep-class is distinct so nested-lock cycles are caught at boot.
+
+Rationale: an i2c mux silently re-routes attacker-controlled `I2C_RDWR` traffic across electrically-isolated segments that often carry TPM, secure-element, or SPD payloads. Without RAP/kCFI on `select`/`deselect`, refcount-overflow trapping on child adapters, and strict cross-channel lock ordering, a malicious `/dev/i2c-N` user can race the mux select to address a secure device on a sibling channel or smash module-unload teardown into a UAF.
+
 ## Out of Scope
 
 - Per-mux chip drivers (pca954x, gpio, mlxcpld, demux-pinctrl, etc.) — covered by `drivers/i2c/muxes/*.md` Tier-3 docs.

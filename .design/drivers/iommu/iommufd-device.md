@@ -208,6 +208,29 @@ iommufd-device specific reinforcement:
 - **Detach during in-flight DMA safe** — per-vendor IOMMU ops drain HW IOTLB before returning from detach; subsequent device DMA faults cleanly.
 - **Per-device VDPA + VFIO bind path validated** — backend identifies itself; cross-backend bind rejected at iommu_attach_group.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. The per-device bind/attach/replace path is where untrusted userspace (qemu, vfio-user, DPDK) takes control of a PCIe device's DMA — every degraded ownership / capability / replace mode is a privilege-escalation surface and is locked down here.
+
+- **PAX_USERCOPY** on GET_HW_INFO output buffers and per-PASID UAPI returns.
+- **PAX_KERNEXEC** on `Device::bind`/`attach`/`replace`/`detach` and all iommufd_ops dispatch (RO post-init).
+- **PAX_RANDKSTACK** on `iommufd_device_bind`/`attach`/`replace` ioctl entry chains.
+- **PAX_REFCOUNT** on `Device`, attached `HwptPaging`/`HwptNested`, `IommuGroup`, and `iommufd_ctx` refs.
+- **PAX_MEMORY_SANITIZE** zeroes `Device` storage on destroy and clears `dev->iommufd_dev` atomically.
+- **PAX_UDEREF** on copy_from_user for bind/attach/replace ioctl args.
+- **PAX_RAP/kCFI** on `iommu_ops` indirect calls (`attach_dev`, `set_dev_pasid`, `hw_info`).
+- **GRKERNSEC_HIDESYM** hides `Device`/`Hwpt`/`Ctx` pointers and per-device PASID maps.
+- **GRKERNSEC_DMESG** restricts attach/detach/replace decoded printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on iommufd device-ioctls; non-init-userns blocked from bind/attach/replace.
+- **GRKERNSEC_DMA strict-mode** — devices default-detached + DMA-blocked until full attach sequence verified.
+- **ATS/PASID gating** — devices missing PCIe ATS/PRI advertisement refused per-PASID attach regardless of cached cap flags.
+- **Per-vendor cap re-validation** at every attach — defense against cap-cache desync after firmware update.
+- **VFIO-compat path deprecated** under hardened policy; iommufd-native bind only — legacy type1 container refused.
+- **Per-PASID alloc cap** enforced per-userns (not just per-device) to defang multi-process PASID exhaustion.
+- **GET_HW_INFO output** filtered through allowlist of vendor capability fields to deny info-leak of model-stepping data.
+
+Rationale: a successful unsafe bind/attach gives userspace full DMA control over a PCIe device with whatever IOMMU translation policy it managed to install. Hardened Rookery enforces strict exclusive-ownership, capability re-validation, namespace gating, and refuses every "compat" shortcut around the iommufd-native path.
+
 ## Open Questions
 
 (none at this Tier-3 level)

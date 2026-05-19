@@ -578,6 +578,26 @@ dma-iommu reinforcement:
 - **Per-`dma_info_to_prot` direction-strict** — defense against per-driver-bug mapping write-only / read-only buffers with wrong direction (would skip cache invalidation on the wrong side).
 - **Per-cookie msi_page_list mutex via iommu_group_mutex** — defense against per-concurrent msi_desc set+get racing get_msi_page.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — whitelisted slab caches for `iommu_dma_cookie`, `iommu_dma_msi_page`, and per-device `dma_iommu_mapping`; reject DMA bounce paths whose target is not in a known DMA-safe cache.
+- **PAX_KERNEXEC** — dma-iommu core in W^X kernel text; `iommu_dma_ops`/`dma_map_ops` tables not patchable at runtime.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across `iommu_dma_map_*`, `iommu_dma_unmap_*`, IOVA-allocator slow path, and MSI doorbell handlers.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `iommu_dma_cookie`, IOVA reservation nodes, and per-MSI-page references; overflow trap defeats double-unmap UAFs and IOVA-leak escalation.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for IOVA magazines, bounce buffers, and `msi_page_list` entries so prior DMA-mapped pointers cannot bleed across reuse.
+- **PAX_UDEREF** — SMAP/PAN enforced on any user-driven path (iommufd/vfio) that feeds dma-iommu; reject user-pointer deref outside canonical helpers.
+- **PAX_RAP / kCFI** — `dma_map_ops` and `iommu_dma_ops` (`map_page`, `unmap_page`, `map_sg`, `unmap_sg`, `alloc`, `free`, `sync_*`) marked `__ro_after_init` with kCFI-typed indirect dispatch.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and IOVA/cookie pointer disclosure behind CAP_SYSLOG; suppress `%p` in iommu-dma tracepoints.
+- **GRKERNSEC_DMESG** — restrict map/unmap failure, IOVA-exhaustion, and MSI-doorbell containment banners to CAP_SYSLOG.
+- **GRKERNSEC_DMA strict-mode** — default to `iommu.strict=1` and `iommu.passthrough=0` for endpoint devices outside the trusted-bus allowlist; refuse silent fallback to identity-domain on attach failure.
+- **MSI-doorbell containment** — `iommu_dma_prepare_msi`/`iommu_dma_compose_msi_msg` confines each MSI to its device's IOMMU domain; cross-device MSI doorbell aliasing rejected.
+- **p2pdma bus-addr bypass** — peer-to-peer DMA bus addresses excluded from IOVA-allocator paths to defeat double-translation that would expose the wrong PCI hierarchy.
+- **`dma_info_to_prot` direction-strict** — refuse mismatched direction (write-only mapped as read or vice versa) that would skip cache invalidation on the wrong side.
+- **Cookie `msi_page_list` mutex** — `iommu_group_mutex` serialises `set_msi` / `get_msi_page` racing; lockdep proves no readers see a half-formed list.
+- **swiotlb fallback strict** — when SWIOTLB bouncing fires, bounce buffer zero-on-allocate and zero-on-free; force-bounce mode opt-in via boot param for confidential-VM guests.
+
+Rationale: dma-iommu sits between device-driver DMA requests and the per-vendor IOMMU page tables, deciding which IOVAs each device may emit. A refcount underflow on `iommu_dma_cookie`, a corrupted `dma_map_ops` vtable, or a relaxed-mode default would let a malicious or compromised PCI endpoint DMA into unrelated kernel memory before the IOMMU domain refresh completes. Strict mode by default, RAP/kCFI on the ops vtables, refcount-overflow trapping on cookies/IOVAs, MSI-doorbell containment, and SANITIZE on bounce buffers turn DMA isolation from an opt-in feature into a structural guarantee.
+
 ## Open Questions
 
 (none at this Tier-3 level)

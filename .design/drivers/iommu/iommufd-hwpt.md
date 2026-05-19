@@ -207,6 +207,29 @@ iommufd-hwpt specific reinforcement:
 - **Per-vendor cache-invalidate completion-wait** — IOMMU_HWPT_INVALIDATE ioctl returns only after per-vendor invalidate fully completes; defense against userspace assuming invalidate done before HW actually drained.
 - **HWPT-nested parent reference held via Arc** — parent HwptPaging cannot be destroyed while child HwptNested references it.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. The HWPT is the iommufd-side handle for an actual hardware translation domain; corruption, premature destroy, or insecure nested-data accept here turns into device-DMA-into-host-memory.
+
+- **PAX_USERCOPY** on dirty-bitmap read/write paths and HWPT ioctl arg structs.
+- **PAX_KERNEXEC** on HWPT alloc/destroy/attach paths and invalidate dispatch (RO post-init).
+- **PAX_RANDKSTACK** on `IOMMU_HWPT_*` ioctl entry chains.
+- **PAX_REFCOUNT** on `HwptPaging`, `HwptNested`, parent refs, attached-device refs, and IOAS hwpt_list links.
+- **PAX_MEMORY_SANITIZE** zeroes domain memory + nested L1/L2 PT roots on destroy.
+- **PAX_UDEREF** on `data_uptr` blob copy_from_user before any per-vendor consumption.
+- **PAX_RAP/kCFI** on `iommu_ops->domain_alloc_*`, `set_dirty_tracking`, `cache_invalidate_user` dispatch.
+- **GRKERNSEC_HIDESYM** hides HWPT pointers and per-domain PT root physical addrs.
+- **GRKERNSEC_DMESG** restricts invalidate / dirty-tracking decoded printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on HWPT alloc/replace; nested-userns blocked from nested HWPT alloc.
+- **GRKERNSEC_DMA strict-mode** — newly-allocated HWPTs default-isolated (no device attach until full validation).
+- **ATS/PASID gating** — devices missing PASID/PRI verified caps refused as nested HWPT targets.
+- **VT-d cap re-validation** at every nested alloc (ECAP.NEST, ECAP.PSS, SLADE); cached-cap path refused.
+- **VFIO-compat HWPT path refused** under hardened policy; iommufd-native HWPT only.
+- **RMRR allowlist** required before any HWPT attach can target devices in the RMRR list.
+- **DMAR ACPI signature + checksum verified** before honoring nested or dirty-tracking enablement.
+
+Rationale: HWPT is the kernel object that wraps the hardware page-table — every nested-data byte, every dirty-bit-tracking transition, every replace operation must be atomic and validated, because compromise here directly arms a hostile VMM or device with cross-VM DMA capability.
+
 ## Open Questions
 
 (none at this Tier-3 level)

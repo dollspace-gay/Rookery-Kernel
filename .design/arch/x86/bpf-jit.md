@@ -602,6 +602,29 @@ BPF-JIT reinforcement:
 - **Per-cfi_get_offset symmetric on free** — defense against per-CFI hash drift on prog teardown.
 - **Per-padding-pass is_imm8_jmp_offset cap 123** — defense against per-jmp-encoding-oscillation (non-converging JIT).
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for JIT pages: `image` mapping is ROX-only; `rw_image` is the sole writable handle, bound at allocation and dropped after `bpf_jit_binary_pack_finalize`.
+- **GRKERNSEC_BPF_HARDEN** — JIT-disabled-by-default for unprivileged users; constant blinding (`bpf_jit_blind_constants`) enforced when enabled.
+- **PAX_USERCOPY** — bounded copy on BPF map prog-attach surfaces and BPF arena fault-fixup reporting paths.
+- **PAX_RAP / kCFI / FineIBT** — indirect-call signature enforcement: `emit_cfi` / `emit_kcfi` / `emit_fineibt` stamp per-program hashes at every subprog + main entry; ENDBR at every indirect-target.
+- **PAX_MEMORY_SANITIZE** — INT3 (0xCC) fill via `jit_fill_hole` on all freshly allocated JIT pages and on `bpf_arch_text_invalidate`; priv-stack 0xEB guard pattern checked at free.
+- **PAX_REFCOUNT** — saturating refcount on `struct bpf_prog` and trampoline lifetime.
+- **PAX_RANDKSTACK** — JIT-emitted prologues respect the per-syscall kernel-stack randomization on entry from userspace via syscall.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in `/proc/kallsyms` for JIT-emitted symbols + trampolines (`bpf_prog_kallsyms_verify_off` enforced on free).
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG (including arena-violation reports).
+- **MITIGATION_RETPOLINE + MITIGATION_SLS** — `emit_indirect_jump` consults `X86_FEATURE_RETPOLINE` / `RETPOLINE_LFENCE` / `INDIRECT_THUNK_ITS` / `CALL_DEPTH`; bare ret/indirect followed by 0xCC under SLS.
+- **CAP_BPF + CAP_SYS_ADMIN gating** — JIT compile-and-load path gated by capability surface (verifier enforces, JIT trusts).
+- **text_mutex + smp_text_poke_single atomicity** — defense against text-patch racing concurrent execution.
+- **Tail-call cnt bounded by MAX_TAIL_CALL_CNT (33)** — defense against tail-call infinite-loop DoS.
+- **Spectre BHB barrier (IBHF)** — emitted on tail-call jumps; defense against Branch-History-Injection.
+- **Module-text-only rejection in `bpf_arch_text_poke`** — defense against poke misuse outside kernel text + BPF text.
+- **Arena PROBE_MEM extable fixup** — defense against BPF-prog crashing kernel on bad pointer; arena-violation tracked via `bpf_prog_report_arena_violation`.
+
+Per-doc rationale: the BPF JIT emits writable+executable code at runtime, so grsec/PaX hardening here is the single largest surface for keeping the kernel's W^X promise honest in the presence of unprivileged-attached programs; CFI/FineIBT/retpoline/RSB-stuffing are non-negotiable for the indirect-call-heavy tail-call and trampoline paths.
+
 ## Open Questions
 
 (none at this Tier-3 level)

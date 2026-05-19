@@ -364,6 +364,27 @@ Mux reinforcement:
 - **Per-OF and platform-device dual registration path** — defense against per-binding-mode regression (DT-only vs device-attached).
 - **Per-`fls(mask) - ffs(mask) + 1` width derivation** — defense against per-non-contiguous-mask silent acceptance under hiword check.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on debugfs mux state reads (current parent / parent table).
+- **PAX_KERNEXEC** — W^X enforcement on mux `get_parent` / `set_parent` callbacks.
+- **PAX_RANDKSTACK** — kernel-stack randomization on mux parent-switch entry.
+- **PAX_REFCOUNT** — saturating refcount inherited from `clk_core`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `clk_mux` slab (holds MMIO base + table pointer + mask/shift).
+- **PAX_UDEREF** — SMAP/SMEP enforcement on debugfs writer poking parent selection.
+- **PAX_RAP / kCFI** — `clk_mux_ops` (and `_ro` variant) vtable hardened against indirect-call hijack; per-mux ops `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in clk_summary mux columns (no parent-table address leaked).
+- **GRKERNSEC_DMESG** — syslog restriction on mux WARN (table-miss, overflow guard trip).
+- **PAX_CONSTIFY_PLUGIN** — `clk_mux_ops` literal + every parent-table `static const`.
+- **CAP_SYS_ADMIN strict** — debugfs parent-switch write gated by GR-RBAC.
+- **PAX_SIZE_OVERFLOW** — `mask`, `shift`, `num_parents`, `val_to_index(val)` arithmetic checked.
+- **GRKERNSEC_SYSCTL** — mux-related boot-locked sysctls.
+- **LSM `security_locked_down(LOCKDOWN_DEBUGFS)`** — denies debugfs parent override under integrity lockdown.
+
+Per-doc rationale: mux blocks pick parent — switching from a vetted secure-PLL to an attacker-injected ring oscillator is a real fault-injection vector. PAX_RAP locks the `clk_mux_ops` vtable, GRKERNSEC_HIDESYM hides the parent-table address (which encodes the security-by-obscurity vendor-irregular mapping), and CAP_SYS_ADMIN + LSM lockdown gate the parent-switch debugfs path. PAX_CONSTIFY_PLUGIN pins the parent-table itself against runtime mutation.
+
 ## Open Questions
 
 (none at this Tier-3 level)

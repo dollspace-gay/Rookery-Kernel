@@ -564,6 +564,29 @@ gpiolib reinforcement:
 - **Per-`/dev/gpiochipN` line-state notifier rate-limited via blocking-notifier semantics** — defense against per-userspace flood of state events.
 - **Per-cdev ioctl arg copy bounded by `struct gpio_v2_line_request`** — defense against per-uAPI overread.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on `/dev/gpiochipN` IOCTLs (`GPIO_V2_GET_LINE_IOCTL`, `GPIO_V2_LINE_SET_CONFIG_IOCTL`, `GPIO_V2_LINE_SET_VALUES_IOCTL`).
+- **PAX_KERNEXEC** — W^X enforcement on `gpiochip` ops + irqchip handler dispatch.
+- **PAX_RANDKSTACK** — kernel-stack randomization on gpio cdev IOCTL entry + IRQ-thread handler entry.
+- **PAX_REFCOUNT** — saturating refcount on `gpio_device`, `gpio_desc`, line-event consumer state, and irqchip parent ref.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `gpio_device`, `gpio_desc` arrays, line-event ring buffer, hog list slabs.
+- **PAX_UDEREF** — SMAP/SMEP enforcement on every gpio cdev IOCTL user-pointer access.
+- **PAX_RAP / kCFI** — `gpio_chip` ops (`request` / `free` / `get_direction` / `direction_input` / `direction_output` / `get` / `set` / `to_irq`) and `irq_chip` ops (`irq_ack` / `irq_mask` / `irq_unmask` / `irq_set_type` / `irq_set_wake`) hardened against indirect-call hijack; per-driver tables `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in `/sys/class/gpio/*` and `gpioinfo` debugfs.
+- **GRKERNSEC_DMESG** — syslog restriction on gpiolib WARN (invalid-line, USED_AS_IRQ vs direction_output conflict, hog list errors).
+- **PAX_CONSTIFY_PLUGIN** — every `gpio_chip` and `irq_chip` literal `static const`.
+- **CAP_SYS_ADMIN strict** — `/dev/gpiochipN` IOCTLs gated; GR-RBAC denies opportunistic grant.
+- **GRKERNSEC_KMOD** — denies opportunistic driver load on gpio hot-plug.
+- **GRKERNSEC_SYSFS_RESTRICT** — `/sys/class/gpio/*` (legacy ABI) restricted; new code uses chardev with LSM gates.
+- **PAX_SIZE_OVERFLOW** — line offset, line count, ring-buffer producer/consumer arithmetic checked; `GPIO_V2_LINES_MAX` enforced.
+- **LSM `security_file_ioctl`** — every gpio cdev IOCTL gated per GR-RBAC subject; line-event sub-channel inherits the subject.
+- **LSM `security_locked_down(LOCKDOWN_DEV_MEM)`** — denies legacy `/dev/gpiochip` raw register pokes under lockdown.
+
+Per-doc rationale: GPIOs are bare-metal I/O — flipping a line can reset the SoC, toggle external write-protect pins on flash, drive bus-isolation gates, or strobe security peripherals (TPM reset, TRNG enable). PAX_RAP locks both the per-driver `gpio_chip` ops and the IRQ-chip vtable that every IRQ entry indirects through (highest-frequency indirect calls in the IRQ subsystem); CAP_SYS_ADMIN + LSM `security_file_ioctl` gate `/dev/gpiochipN`, PAX_USERCOPY + UDEREF clamp the IOCTL ingress, and PAX_MEMORY_SANITIZE wipes the line-event ring buffer (which can carry timing-channel data leaked by neighbor consumers).
+
 ## Open Questions
 
 (none at this Tier-3 level)

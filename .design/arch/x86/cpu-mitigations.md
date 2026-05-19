@@ -217,6 +217,28 @@ None beyond upstream defaults. CET default-on matches upstream; kCFI default-on 
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for kernel-text mappings; retpoline thunks, callthunks, and IBT prologues are all RX/RO with no runtime self-modification outside `text_poke` under stop_machine.
+- **PAX_RAP / kCFI** — clang-CFI indirect-call signature enforcement on every indirect call (Spectre-v2 + control-flow integrity in one); per-function 32-bit type-signature literals match upstream byte-for-byte so out-of-tree modules stay compatible.
+- **Intel CET shadow stack + IBT** — userspace shadow stack via `arch_prctl(ARCH_SHSTK_ENABLE)` and `map_shadow_stack(2)`; kernel-side IBT-tagged code with ENDBR-validated indirect branches.
+- **PAX_USERCOPY** — bounded copy_to/from_user on `/sys/devices/system/cpu/vulnerabilities/*` sysfs paths.
+- **PAX_REFCOUNT** — saturating refcount on shadow-stack region structs; never overflows on rapid arch_prctl cycles.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for per-task shadow-stack regions on `exit_thread`.
+- **PAX_UDEREF (SMEP/SMAP/LASS)** — SMEP+SMAP CR4 bits verified-set across CPU hotplug + S3 wakeup; LASS programmed when supported.
+- **PAX_RANDKSTACK** — entry path applies per-syscall stack-offset randomization (cross-ref `entry.md`).
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in /proc and dmesg; mitigation strings carry no kernel-internal addresses.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG (including kCFI BUG_ON traces).
+- **MITIGATION_RETPOLINE + MITIGATION_SLS** — retpoline thunks for indirect calls; INT3 padding after RET under straight-line-speculation defense.
+- **KPTI per-CPU CR3 swap** — Meltdown mitigation enforced via per-CPU `user_pcid_flush_mask`; defense against L1TF / Meltdown class.
+- **IBPB on cross-privilege context switch** — defense against indirect-branch-predictor poisoning.
+- **eIBRS / AutoIBRS / SBPB** — enhanced/auto IBRS programmed via MSR_IA32_SPEC_CTRL + MSR_EFER._EFER_AUTOIBRS where supported.
+- **Microcode-version vulnerability re-scan** — `/sys/.../vulnerabilities/*` re-evaluated after late ucode load; defense against silent capability disappearance.
+
+Per-doc rationale: cpu-mitigations IS the kernel's primary speculative-execution defense surface; grsec/PaX hardening here layers PAX_KERNEXEC/PAX_RAP/CET/IBT/retpoline/IBPB/eIBRS/KPTI/SMAP/SMEP/LASS as overlapping defenses so a single category compromise does not collapse the whole hardening tree, and so the upstream `/sys/.../vulnerabilities` reporting remains accurate after late microcode updates.
+
 ## Open Questions
 
 (none — CPU-mitigation strategy is fully specified by upstream Linux + microarchitecture vendor recommendations)

@@ -561,6 +561,29 @@ libata-scsi reinforcement:
 - **Per-`ata_scsi_hotplug` + `dev_rescan` delayed_work cancel on detach** — defense against per-detach-with-pending-rescan UAF.
 - **Per-`ata_scsi_user_scan` validated channel/id/lun** — defense against per-/sys/.../scan invalid input crashing find_dev.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on every SG_IO CDB ingress + DATA-IN/OUT staging.
+- **PAX_KERNEXEC** — W^X enforcement on the SCSI mid-layer dispatch + libata-scsi `queuecmd` callback.
+- **PAX_RANDKSTACK** — kernel-stack randomization on SCSI command-completion entry.
+- **PAX_REFCOUNT** — saturating refcount on `scsi_device` ↔ `ata_port` link and `deferred_qc` slot.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for INQUIRY/VPD/MODE-SENSE response buffers (may carry serial numbers, encryption status, SED state) and sense buffer.
+- **PAX_UDEREF** — SMAP/SMEP enforcement on every SG_IO `iov` and bsg ingress.
+- **PAX_RAP / kCFI** — `scsi_host_template` + `ata_port_operations` indirect calls hardened; `static const` for every libata-scsi template.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in sysfs `/sys/class/scsi_*` and dmesg.
+- **GRKERNSEC_DMESG** — syslog restriction on libata-scsi error sense logs (which expose LBA + opcode).
+- **GRKERNSEC_KMOD** — denies opportunistic LLD module load.
+- **CAP_SYS_RAWIO strict + LSM `security_file_ioctl`** — every SG_IO / ATA_PASSTHROUGH / `WRITE_SAME_16` / `SECURITY_PROTOCOL_*` gated; GR-RBAC denies grant.
+- **PAX_CONSTIFY_PLUGIN** — `ata_scsi_pass_thru_*` vtables + `scsi_host_template` `static const`.
+- **GRKERNSEC_SYSFS_RESTRICT** — `/sys/.../scan` write restricted; `ata_scsi_user_scan` LSM-checked.
+- **PAX_SIZE_OVERFLOW** — `cmd_len`, `nblocks`, `scmd->cmd_len` arithmetic checked.
+- **LSM `security_capable(CAP_SYS_RAWIO)`** verified on every passthrough entry.
+- **LSM `security_inode_permission`** on `/dev/sgN` and `/dev/bsg/*`.
+
+Per-doc rationale: libata-scsi is the SG_IO + ATA_PASSTHROUGH bridge — the same set of commands but funneled through SCSI semantics, which broadens the attack surface (TRIM, SECURITY_PROTOCOL, WRITE_SAME). PAX_USERCOPY + UDEREF gate CDB+payload ingress, CAP_SYS_RAWIO + LSM gates the passthrough entry, PAX_RAP locks the `scsi_host_template` vtable that every SG_IO indirects through, and PAX_MEMORY_SANITIZE wipes INQUIRY/VPD pages that carry sensitive device identity.
+
 ## Open Questions
 
 (none at this Tier-3 level)

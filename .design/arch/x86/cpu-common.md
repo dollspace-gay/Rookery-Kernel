@@ -578,6 +578,29 @@ x86 CPU-common reinforcement:
 - **Per-cpu_init mmgrab(init_mm) + active_mm assignment** — defense against per-CPU bring-up TLB-poison.
 - **Per-microcode_check feature-drift diagnostic** — defense against per-microcode-load silent capability disappearance.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for executable kernel mappings; CR4.SMEP/SMAP/UMIP/FSGSBASE pinned at boot and re-asserted across resume by `native_write_cr0`/`_cr4`.
+- **PAX_USERCOPY** — bounded copy_to/from_user on `/proc/cpuinfo`, MSR-readouts, and feature-flag bitmap surfaces.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization activated at `cpu_init` along with `load_sp0`.
+- **PAX_REFCOUNT** — saturating refcount on per-CPU `cpuinfo_x86` and on `mmgrab(&init_mm)`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for per-CPU TSS / IST stacks on hotunplug.
+- **PAX_UDEREF (SMAP/SMEP)** — `setup_smap` + `setup_smep` + `setup_umip` invoked unconditionally in `identify_cpu`; CR pinning prevents runtime downgrade.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on vendor `cpu_dev` vtable (`c_early_init` / `c_bsp_init` / `c_init` / `c_identify`).
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in /proc, dmesg, and `/proc/kallsyms` — including hiding the per-CPU `cpu_info` struct addresses.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG, including microcode_check feature-drift warnings.
+- **CR pinning lockdown** — `native_write_cr0` re-loops to restore X86_CR0_WP; `native_write_cr4` re-applies `cr4_pinned_bits` and WARN_ONCEs on any unauthorized clear of WP/SMEP/SMAP/UMIP/FSGSBASE.
+- **GRKERNSEC_KMEM** — block `/dev/mem` access to per-CPU GDT/IDT/TSS pages and to MSR space.
+- **PAX_LATENT_ENTROPY** — `early_cpu_init` and `cpu_init` stamp the latent-entropy pool.
+- **CET / IBT enabled when available** — `setup_cet(c)` invoked in `identify_cpu`; pr_info'd on boot CPU.
+- **CAP_SYS_RAWIO gate** — required for any `wrmsrq`/`wrmsrq_safe` from userspace (msr driver bound here).
+- **FRED-aware exception-handling** — `cpu_init_exception_handling` chooses FRED RSPs or legacy IDT exactly once, preventing dual-mode confusion.
+- **microcode_check feature-drift diagnostic** — late-microcode-load is detected and warned; capability AND-intersection enforced.
+
+Per-doc rationale: cpu/common is the shared backbone for every x86 CPU's identification, GDT/TSS/IDT install, CR-register pinning, and capability synthesis; grsec/PaX hardening here ensures the CR pinning machinery (the linchpin of runtime W^X / SMEP / SMAP defense) is enforced from boot through hotplug-and-resume, and that vendor cpu_dev vtable dispatch is CFI-checked.
+
 ## Open Questions
 
 (none at this Tier-3 level)

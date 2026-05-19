@@ -496,6 +496,27 @@ AEAD reinforcement:
 - **Per-`crypto_aead_alg` indirect call only through frontend-validated `cra_type`** — defense against per-type-confusion across crypto subsystems.
 - **Per-`-EBADMSG` propagation from `alg->decrypt`** — defense against per-tag-mismatch silent-pass.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `setkey` and `setauthsize` user-buffer paths bounded; `AF_ALG` socket reads/writes through typed `UserPtr<KeyBuf>` so key material never crosses without length-check.
+- **PAX_KERNEXEC** — `aead_alg.{setkey, setauthsize, encrypt, decrypt, init, exit}` text RX-only; per-template instance vtables constified post-`aead_register_instance`.
+- **PAX_RANDKSTACK** — `AF_ALG` and `crypto_aead_*` syscall entries re-randomize kernel-stack offset before per-request work.
+- **PAX_REFCOUNT** — `crypto_alg.cra_refcnt`, `aead_instance.s.frontend.refcnt`, and template-spawner refs saturating; cannot wrap under bulk `crypto_register_aeads`.
+- **PAX_MEMORY_SANITIZE** — `kfree_sensitive` on every unaligned setkey shadow buffer; transformed key schedule (`tfm->__crt_ctx`) zeroed on `crypto_destroy_tfm`; IV / nonce scratch wiped on completion.
+- **PAX_UDEREF** — STAC/CLAC bracket the `AF_ALG` socket data path; setkey from user buffer rejected if SMAP-blocked.
+- **PAX_RAP / kCFI** — `aead_alg.encrypt/decrypt` function-pointer slots RAP-signed; type-confusion across crypto subsystems (skcipher vs aead vs hash) rejected by `cra_type` indirect-call check.
+- **PAX_SIZE_OVERFLOW** — `cryptlen + assoclen + ivsize` arithmetic checked; `max3(maxauthsize, ivsize, chunksize) ≤ PAGE_SIZE/8` pre-validated.
+- **PAX_CONSTIFY** — alg registration tables (`aead_alg[]` in driver modules) `static const`.
+- **GRKERNSEC_RAND** — IVs and one-shot nonces drawn from kernel CSPRNG (`get_random_bytes`); never from user-supplied entropy unless explicit `RNG_DRBG_USER_INPUT`.
+- **GRKERNSEC_HIDESYM** — `/proc/crypto` redacts module/internal symbol addresses for non-CAP_SYSLOG.
+- **GRKERNSEC_DMESG** — alg-registration / self-test prints gated by `dmesg_restrict`.
+- **GRKERNSEC_KEYS** — keyring entries holding AEAD raw keys are gr-rbac-tagged; possession alone insufficient without role grant.
+- **GRKERNSEC_KMEM** — `/dev/mem`/`/dev/kmem` cannot be used to read in-flight tfm key context; mapping rejected under lockdown.
+
+Per-doc rationale: AEAD owns long-lived key material plus IV/nonce scratch buffers and is reachable from unprivileged userspace through `AF_ALG`; SANITIZE-on-free of every key shadow + USERCOPY-bounded setkey + RAP on `encrypt/decrypt` + CSPRNG-only IVs together close the key-residue, nonce-misuse, and type-confusion attack classes that have driven historical crypto-subsystem CVEs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

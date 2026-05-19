@@ -162,6 +162,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `/sys/block/<dev>/queue/scheduler`, `/sys/block/<dev>/queue/iosched/*` read/write through bounded `queue_sysfs_entry`; no raw scheduler-state pointers leaked.
+- **PAX_KERNEXEC** — `elevator_type.ops` (per-scheduler vtable) RX-only; ops slots constified before scheduler registration.
+- **PAX_RANDKSTACK** — N/A directly (scheduler runs in dispatch context); upstream syscalls inherit RANDKSTACK.
+- **PAX_REFCOUNT** — NCQ tag refcount, per-scheduler internal queue refs, and BFQ `bfq_group` refcounts saturating.
+- **PAX_MEMORY_SANITIZE** — per-scheduler internal slab objects (mq-deadline `deadline_data`, bfq `bfq_data`, kyber `kyber_queue_data`) zeroed on free.
+- **PAX_UDEREF** — N/A directly; ioctl/sysfs paths bracket their user copies.
+- **PAX_RAP / kCFI** — `elevator_type.ops.{init_sched, exit_sched, init_hctx, exit_hctx, insert_requests, dispatch_request, completed_request, requeue_request, finish_request, allow_merge, request_merge, request_merged, requests_merged, allow_merge}` all RAP-signed.
+- **PAX_AUTOSLAB** — scheduler-private slab caches type-tagged so cross-scheduler freelist confusion is rejected.
+- **PAX_SIZE_OVERFLOW** — budget, virtual-time, latency accumulators use checked arithmetic.
+- **GRKERNSEC_HIDESYM** — `/sys/kernel/debug/block/<dev>/sched/*` restricted to CAP_SYSLOG; scheduler-state kaddrs redacted.
+- **GRKERNSEC_DMESG** — scheduler-attach/detach `pr_info` gated by `dmesg_restrict`.
+- **GRKERNSEC_RBAC** — `/sys/block/<dev>/queue/scheduler` writes inside non-root userns gated by gr-rbac.
+- **GRKERNSEC_BFQ** — BFQ cgroup weight writes audited; non-root userns cannot escalate weight.
+
+Per-doc rationale: I/O schedulers are dispatched through fast-path indirect calls on every request; RAP/kCFI on the `elevator_type.ops` vtable plus REFCOUNT on NCQ-tag and per-group structures, plus sysfs-side RBAC, neutralize the scheduler-vtable-rewrite class and the BFQ weight-escalation paths.
+
 ## Open Questions
 
 (none — scheduler semantics are exhaustively specified)

@@ -609,9 +609,24 @@ Hwmon-core reinforcement:
 - **Per-`hwmon_lock`/`unlock` exported for drivers extending critical section** — defense against per-driver re-implementing locking poorly (e.g., interleaved register pairs).
 - **Per-`device_property_present("label")` honored** — defense against per-firmware-rename invalidating `sensors.conf` labels.
 
-## Open Questions
+## Grsecurity/PaX-style Reinforcement
 
-(none at this Tier-3 level)
+- **PAX_USERCOPY** — whitelisted slab caches for `hwmon_device` and `hwmon_device_attribute`; sysfs `show`/`store` buffers bounded against the canonical `PAGE_SIZE` invariant.
+- **PAX_KERNEXEC** — hwmon core in W^X kernel text; `hwmon_ops` / `hwmon_chip_info` tables not patchable at runtime.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across each sysfs attribute read/write so register-poking driver callbacks cannot be probed via stack layout.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `hwmon_device` references and on per-channel attribute groups; overflow trap defeats unregister/race-after-unbind UAFs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `hwmon_device` and dynamically-allocated attribute groups, removing residual sensor readings from recycled slabs.
+- **PAX_UDEREF** — SMAP/PAN enforced on all sysfs `store` paths; user pointers reachable only through canonical attribute helpers.
+- **PAX_RAP / kCFI** — `hwmon_ops` (`is_visible`, `read`, `write`, `read_string`) and `hwmon_chip_info` tables marked `__ro_after_init` with kCFI-typed indirect dispatch.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and sensor-pointer leakage in `hwmon_device->dev` debug prints behind CAP_SYSLOG; suppress `%p` plain pointers in attribute traces.
+- **GRKERNSEC_DMESG** — restrict register-poll error/timeout banners to CAP_SYSLOG so attackers cannot fingerprint chip presence via dmesg side-channels.
+- **Per-attribute write capability** — every writable attribute requires CAP_SYS_ADMIN (or explicit udev policy); reject `store` from unprivileged uids by default.
+- **Polling-rate floor** — enforce minimum re-read interval per channel to prevent sysfs-driven I2C/SMBus bus floods or power-rail side-channels.
+- **Label sanitization** — `device_property_present("label")` strings length-bounded and stripped of control characters before publication into `sysfs`.
+- **Sensor pointer disclosure** — `hwmon_device_register*` does not expose driver-private struct pointers via sysfs symlinks; chip-info pointer treated as `KASLR`-sensitive.
+- **IDA exhaustion** — bounded `hwmonN` minor allocation with per-uid rlimit on `hwmon_device_register` to defeat ID-exhaustion DoS.
+
+Rationale: hwmon is a low-rate but always-on sysfs surface that lets unprivileged readers probe thermal/voltage state and lets writers poke SMBus/I2C registers that, on many chips, gate fan curves, voltage rails, or even firmware-update commands. Without strict per-attribute CAP_SYS_ADMIN, RAP/kCFI on `hwmon_ops`, and HIDESYM suppression of driver pointers, the hwmon surface becomes a thermal-side-channel and a bus-flooding pivot point reachable from any logged-in user.
 
 ## Out of Scope
 

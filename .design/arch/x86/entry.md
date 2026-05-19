@@ -350,6 +350,30 @@ Per Axiom 4 of `00-security-principles.md`:
 
 (See § Verification above; consolidated table covers Layers 1–4.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_RANDKSTACK** — per-syscall kernel-stack offset randomization applied at every user→kernel transition (REQ-13); default-on sysctl `kernel.randomize_kstack_offset=1`.
+- **PAX_MEMORY_STACKLEAK** — kernel-stack scrubbing on syscall exit; defense against syscall-to-syscall stack-data carryover.
+- **PAX_KERNEXEC** — entry assembly (`entry_64.S`, `entry_64_compat.S`, `entry_64_fred.S`, `thunk.S`) is RX/RO `.text` with no runtime self-modification outside `text_poke` under stop_machine.
+- **PRIVATE_KSTACKS** — per-task kernel stack switched in via TSS->rsp0; per-CPU IST stacks for NMI/MCE/double-fault; per-task isolation enforced.
+- **PAX_USERCOPY** — `pt_regs` from userspace is untrusted; signal-frame construction bounded; `sigreturn` validates user-supplied `struct sigcontext` against canonical form before restoring.
+- **PAX_UDEREF (SMAP/SMEP)** — CR4 SMEP+SMAP bits set at boot and verified preserved across hotplug + S3; ASM_CLAC at every entry stub.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on syscall table dispatch, exception-handler vtable, IRQ-handler chain.
+- **MPROTECT-W→X-block per-task state propagation** — `task->exec_gain_state` read on every user→kernel transition; ELF-note + prctl-set bits honored by mm/mmap enforcement.
+- **NOEXEC-strict default-on** — same per-task exemption mechanism.
+- **PAX_REFCOUNT** — saturating refcount on `cpu_entry_area` and per-task signal-frame metadata.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for per-task FPU XSAVE areas on `exit_thread`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in /proc/kallsyms; entry symbols masked from non-CAP_SYSLOG userspace.
+- **GRKERNSEC_DMESG** — restrict dmesg output to CAP_SYSLOG.
+- **KPTI per-CPU CR3 swap** — Meltdown mitigation enforced on every user↔kernel transition.
+- **Spectre-v2 entry-side mitigations** — retpolined indirect calls + IBRS write on entry / clear on exit, per `cpu-mitigations.md` policy.
+- **vsyscall EMULATE-only** — vector 0x14 emulates legacy vsyscall page reads; NONE / XONLY modes disabled in v0 per `arch/x86/00-overview.md` D5; defense against vsyscall ROP-gadget reuse.
+- **Exception → signal byte-identity** — defense against userspace test-suite divergence that would mask exception-mapping regressions.
+
+Per-doc rationale: entry/ is the kernel's single highest-traffic security boundary — every syscall, IRQ, exception, NMI, and signal-delivery passes through here; grsec/PaX hardening here is overlapping (RANDKSTACK + STACKLEAK + PRIVATE_KSTACKS + KPTI + KERNEXEC + UDEREF + RAP + MPROTECT-W→X-block) so any single failure cannot collapse the privilege barrier.
+
 ## Open Questions
 
 <!-- OPEN: Q1 -->

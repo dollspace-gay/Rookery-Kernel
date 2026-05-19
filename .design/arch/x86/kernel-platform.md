@@ -281,6 +281,28 @@ None beyond the upstream-default behavior. CET shadow stack default-on matches u
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for kernel-text mappings; runtime patching (`jump_label` + `static_call` + `alternative`) uses `text_poke` under stop_machine.
+- **PAX_REFCOUNT** — saturating refcount on idle subsystems (clockevents, timer wheels), per-CPU `tss_struct`, per-CPU `gdt_page`, per-task FPU XSAVE state.
+- **PAX_USERCOPY** — bounded copy_to/from_user on `/proc/cpuinfo`, MSR / CPUID dev nodes, MTRR proc, time-related sysfs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for per-task FPU state, per-CPU IRQ stacks, per-CPU exception stacks on hotunplug.
+- **PAX_UDEREF (SMEP/SMAP/UMIP)** — CR4 bits set early in `cpu_init` and verified preserved across hotplug + S3.
+- **PAX_RAP / kCFI** — clang-CFI signature enforcement on vendor `cpu_dev->c_init` vtable, APIC driver dispatch, paravirt PV-OPS, and module-loaded indirect calls.
+- **CET shadow stack + IBT** — userspace shadow stack via `arch_prctl(ARCH_SHSTK_*)` + `map_shadow_stack(2)`; kernel-side IBT-tagged code.
+- **PAX_LATENT_ENTROPY** — stamp entropy pool at `setup_arch`, `start_kernel`, every interrupt entry, and clocksource read.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding for IDT / GDT / per-CPU TSS / `__switch_to` etc. in /proc.
+- **GRKERNSEC_DMESG** — restrict dmesg output to CAP_SYSLOG.
+- **GRKERNSEC_KMEM** — block `/dev/mem` and `/dev/kmem` access to per-CPU GDT/IDT/TSS pages, MSR space, MTRR ranges.
+- **CAP_SYS_RAWIO gate on /dev/cpu/N/msr + /dev/cpu/N/cpuid** — required to read/write MSR/CPUID from userspace.
+- **Microcode-signature verification** — `microcode_check` re-evaluates capability bitmap after late ucode load; AMD `final_levels` + Intel `min_req_ver` enforced.
+- **Runtime-patching atomicity (stop_machine + smp_text_poke_single)** — defense against text-patch racing concurrent execution.
+- **Microcode update under stop_machine** — defense against per-CPU divergence during application.
+
+Per-doc rationale: kernel-platform owns the substrate that every other subsystem trusts: descriptor tables, FPU save areas, MSR/CPUID access, time-keeping, runtime code patching, paravirt dispatch, module relocation, kCFI/CET; grsec/PaX hardening here is broad and overlapping because a single category compromise (e.g. text_poke under stop_machine) collapses the integrity of the entire kernel.
+
 ## Open Questions
 
 (none — platform substrate is rigidly constrained by Intel/AMD architecture and upstream Linux semantics; no architectural ambiguities at this tier)

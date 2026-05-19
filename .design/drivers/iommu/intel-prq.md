@@ -220,6 +220,29 @@ PRQ-specific reinforcement:
 - **iommufd-eventq dispatch validated** — only registered eventq receives faults; defense against cross-process leak.
 - **Per-PRQ-thread NUMA-bound** — defense against cross-NUMA cacheline ping-pong on hot fault path.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. The PRQ is the only IOMMU subsystem where DMA-capable devices drive host-MM page-fault handling synchronously — Rookery therefore treats PRQ entry validation, drain ordering, and rate-limiting as TCB-critical.
+
+- **PAX_USERCOPY** on PRQ fault info exposed to iommufd-eventq userspace consumers.
+- **PAX_KERNEXEC** on `prq_thread`, `process_event`, `response_pri`, and QI submit (RO post-init).
+- **PAX_RANDKSTACK** on `prq_thread` per-iteration entry into `handle_mm_fault` callchain.
+- **PAX_REFCOUNT** on `Prq`, per-PASID mm refs, and SVA handle lifetimes.
+- **PAX_MEMORY_SANITIZE** zeroes consumed PRQ entries after head-advance.
+- **PAX_UDEREF** on any user-pointer fields surfaced from PRQ to userspace eventq.
+- **PAX_RAP/kCFI** on fault-handler indirect dispatch (`report_device_fault` ops).
+- **GRKERNSEC_HIDESYM** hides PRQ ring base, per-IOMMU thread pointers, and PASID-table refs.
+- **GRKERNSEC_DMESG** restricts PFOR/PFNR overflow logs to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on `enable_prq` runtime knobs and PRQ debugfs introspection.
+- **GRKERNSEC_DMA strict-mode** — PRQ-capable devices default-blocked from SVA until full PRI capability re-validated.
+- **VT-d PRQ rate-limit** per source-id + per-PASID; defense against malicious device PRI-storms saturating mm-fault path.
+- **ATS/PASID gating** — devices without verified PCIe PRI capability bits refused PRQ enablement.
+- **DMAR ACPI signature verify** before honoring ECAP.PRS bit.
+- **VFIO-compat refused** for PRI-using devices under hardened policy; iommufd-native eventq only.
+- **Per-entry source-id sanity check** against registered device list; spoofed BDFs dropped + ratelimited WARN.
+
+Rationale: PRQ couples a hostile device's DMA stream directly to host kernel mm-fault handling. Hardened Rookery enforces every PCIe-spec validation upstream treats as optional and refuses every compatibility fallback that would let an unverified device speak PRI.
+
 ## Open Questions
 
 (none at this Tier-3 level)

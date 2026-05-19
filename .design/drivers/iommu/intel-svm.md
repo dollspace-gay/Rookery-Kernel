@@ -151,6 +151,29 @@ intel-svm specific reinforcement:
 - **Cross-process bind isolation** — per-bind handle ties PASID to specific mm; cross-mm DMA via stale PASID rejected at per-vendor PRQ entry source-id check.
 - **PASID-entry mode validation** — Intel SVM uses first-level-only mode; nested + identity rejected at intel_svm_bind_mm.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. SVM binds a user `mm_struct` directly into device DMA via PASID — any drift between the IOMMU TLB and the host MMU translates to cross-process info-leak or kernel UAF, so SVA bind ergonomics are gated tightly.
+
+- **PAX_USERCOPY** on SVA bind ioctl return paths and PASID-info leaks via debugfs.
+- **PAX_KERNEXEC** on `intel_svm_bind_mm`, MMU-notifier callbacks, and unbind paths (RO post-init).
+- **PAX_RANDKSTACK** on bind/unbind entry chains crossing mm-notifier registration.
+- **PAX_REFCOUNT** on `iommu_sva` handles, mm refs (mmgrab), and per-PASID device refs.
+- **PAX_MEMORY_SANITIZE** zeroes SVA-domain memory + PASID-entries on unbind.
+- **PAX_UDEREF** on copy_from_user paths in SVA bind UAPI (iommufd ioctls).
+- **PAX_RAP/kCFI** on `intel_sva_mn_ops` (MMU-notifier vtable) and SVA domain-ops.
+- **GRKERNSEC_HIDESYM** hides per-mm PASID assignments and bound-device PASID-tables.
+- **GRKERNSEC_DMESG** restricts SVA bind/unbind decoded printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN strict** on SVA-bind from outside init userns; nested-userns blocked from raw SVA.
+- **GRKERNSEC_DMA strict-mode** — SVA-capable devices default-blocked until PASID+PRI+ATS triple-verified.
+- **ATS/PASID capability gating** — devices must expose all three (PASID, PRI, ATS) via verified PCIe caps; ECAP-only path refused.
+- **VT-d PRQ rate-limit** per PASID; defense against malicious DSA workload PRI-flooding the host scheduler.
+- **DMAR ACPI signature verify** before honoring SMTS bit / scalable-mode enablement.
+- **VFIO-compat path refused** for SVM-bound devices under hardened policy; iommufd-native bind only.
+- **Per-bind PASID-mode constrained to first-level-only** — nested / identity rejected at SVA bind path.
+
+Rationale: SVM erases the boundary between a user process's mm and a hostile device's DMA. Hardened Rookery enforces every PCIe + VT-d cap re-validation on every bind, never trusts cached vendor flags, and refuses each fallback (legacy mode, VFIO-compat, missing PRI) that upstream tolerates.
+
 ## Open Questions
 
 (none at this Tier-3 level)

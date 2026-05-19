@@ -479,6 +479,26 @@ Device-registration reinforcement:
 - **Per-port immutable snapshot at register** — defense against per-port-cnt or per-pkey_tbl_len change while clients hold cached pointers.
 - **Per-RCU-protected netdev lookup** — defense against per-netdev-unregister race in ib_device_get_by_netdev.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — whitelisted slab caches for `ib_device`, `ib_client`, and `ib_port_data`; sysfs and netlink boundary buffers (`RDMA_NL_*`) strictly bounded before copy-in/out.
+- **PAX_KERNEXEC** — IB device core in W^X kernel text; `ib_device_ops`, per-client tables, and the immutable per-port snapshot live in `__ro_after_init` memory.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across `ib_register_device`, `ib_register_client`, and rdmacg cgroup-association entry points.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `ib_device`, `ib_client`, and per-port `ib_port_data`; xarray-based ID tables verified against ref overflow.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `ib_device` and per-port snapshot slabs so stale GID/PKey tables cannot leak across re-registration.
+- **PAX_UDEREF** — SMAP/PAN enforced on every RDMA netlink and sysfs entry into the device core.
+- **PAX_RAP / kCFI** — `ib_device_ops` (`add`, `remove`, `query_device`, `query_port`, `get_netdev`) and `ib_client` ops tables `__ro_after_init` with kCFI-typed indirect dispatch.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and `ib_device->dev` pointer disclosure behind CAP_SYSLOG; suppress `%p` printks on per-port data and netdev pointers.
+- **GRKERNSEC_DMESG** — restrict device-register/unregister, port-state, and rdmacg-failure banners to CAP_SYSLOG.
+- **ucontext CAP_NET_ADMIN gate** — `ib_uverbs_get_context` and any user-context allocation require CAP_NET_ADMIN in the device's net namespace (in addition to file-mode policy on `/dev/infiniband/*`).
+- **kverbs allowlist** — kernel-only verbs entry points are reachable only by ULPs registered through `ib_register_client`; userspace-reachable verbs strictly disjoint from kverbs allowlist.
+- **rdmacg ordering invariant** — RDMA cgroup registration completes before xarray enables device visibility so no in-flight resource allocation escapes quota enforcement.
+- **Port-immutable snapshot** — `port_immutable` taken at register time and never mutated; defense against attribute-mutation races against cached client pointers.
+- **RCU-protected netdev lookup** — `ib_device_get_by_netdev` only traverses RCU-grace-period-safe pointers, defeating netdev-unregister races.
+- **net-namespace isolation** — every `ib_device` carries an owning net-ns; userland `RDMA_NL_*` ops refuse to operate across foreign namespaces.
+
+Rationale: the IB device core is the registration root for every QP/CQ/MR allocator and exposes a netlink/sysfs surface that can synthesise userspace contexts capable of pinning kernel DMA-mapped memory. Without CAP_NET_ADMIN gating on ucontext, kverbs/userverbs disjointness, RAP/kCFI on `ib_device_ops`, and refcount-overflow trapping on devices and clients, a single in-flight unregister race becomes a kernel pointer disclosure and an unbounded DMA-pinning DoS.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -209,6 +209,25 @@ cache-tag-specific reinforcement:
 - **Per-IOMMU error-counter on QI failure** — defense against silent flush-loss.
 - **NESTING_IOTLB tags only for nested domains** — defense against tag-type / domain-type mismatch.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — whitelisted slab caches for `cache_tag` entries; reject any user-driven path that would materialise a tag from a non-canonical allocator.
+- **PAX_KERNEXEC** — Intel cache-invalidation core in W^X kernel text; QI descriptor-build helpers and tag-walk functions live in `__ro_after_init` text.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across `cache_tag_flush_*` and `qi_submit_sync` entry to defeat QI-descriptor-stack grooming.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `cache_tag` reference counts and per-domain tag lists; overflow trap defeats detach-vs-flush UAFs on tag removal.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `cache_tag` slabs and per-IOMMU QI scratch pages so stale IOVA/PASID metadata cannot leak across reuse.
+- **PAX_UDEREF** — SMAP/PAN enforced on any iommufd or userspace path that drives explicit cache invalidation; QI-descriptor user pointers never directly dereferenced.
+- **PAX_RAP / kCFI** — cache-tag walker callbacks and `iommu_flush_ops` (`flush_iotlb_all`, `flush_iotlb_range`, `iotlb_sync`) marked `__ro_after_init` with kCFI-typed indirect dispatch.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and `cache_tag` pointer disclosure behind CAP_SYSLOG; suppress `%p` in QI tracepoints.
+- **GRKERNSEC_DMESG** — restrict QI-error-counter, QI-submit-timeout, and IOMMU-fault banners to CAP_SYSLOG to deny attackers a precise flush-state map.
+- **CAP_SYS_ADMIN strict** — userland explicit-invalidate paths (via iommufd) require CAP_SYS_ADMIN; any host-driven cache flush rejects requests from foreign user namespaces.
+- **Detach ordering invariant** — tag remove sequences strictly before PASID-entry zero to prevent a stale tag flushing a freshly zeroed PASID and triggering an IOMMU fault.
+- **QI failure error-counter** — every QI submission failure increments a per-IOMMU error counter; silent flush-loss raises an event consumer-visible to the IOMMU core.
+- **NESTING_IOTLB tag-type** — `NESTING_IOTLB` tags only allocable for `IOMMU_DOMAIN_NESTED` parents; reject tag-type vs domain-type mismatch at insert time.
+- **Per-domain tag list lock** — domain `cache_lock` lockdep-class distinct from device-domain lock so flush-vs-attach races are caught at boot.
+
+Rationale: cache tags drive the actual IOTLB invalidations that enforce domain isolation; a missed or misrouted flush silently leaves stale translations live and turns a re-used PASID into a cross-domain memory leak. Without RAP/kCFI on the flush ops, refcount-overflow trapping on tags, strict detach ordering, and QI-error visibility, an attacker with iommufd or a buggy driver can degrade IOMMU isolation to "best-effort" without dmesg ever flagging it.
+
 ## Open Questions
 
 (none at this Tier-3 level)

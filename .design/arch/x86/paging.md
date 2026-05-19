@@ -260,6 +260,29 @@ None beyond what `arch/x86/00-overview.md` already documented. KASLR strict-mode
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for kernel rwx zones; `.text` / `.rodata` are RX/RO; `set_memory_x`/`set_memory_nx`/`set_memory_ro`/`set_memory_rw` preserve W^X invariants for kernel sections.
+- **PAX_PAGEEXEC (NX bit)** — default for all data/heap/stack pages; enforced at PTE level.
+- **PAX_RANDMMAP / KASLR** — `arch/x86/mm/kaslr.c` analog randomizes kernel base + direct map + vmalloc + kasan-shadow regions per CONFIG_RANDOMIZE_BASE.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization (cross-ref `entry.md`).
+- **KPTI / Meltdown mitigation** — `arch/x86/mm/pti.c` maintains separate user PGD with only entry-trampoline mapped; auto-on for Meltdown-affected CPUs; CR3 swap on entry/exit.
+- **PAX_UDEREF (SMAP/SMEP)** — CR4 bits set in boot and verified preserved; page-table walker honors U/S bit; `kernel::user::UserPtr<T>` newtype enforces typed user-pointer access.
+- **PAX_USERCOPY** — bounded copy on `/proc/<pid>/pagemap`, `/sys/kernel/debug/x86/dump_pagetables`, `pat_memtype_list`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for page-table pages; sanitizer (KASAN/KMSAN) shadow regions detect post-free use.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on TLB-flush op vtable, ioremap region ops, paravirt PV-OPS dispatch.
+- **PAX_REFCOUNT** — saturating refcount on ioremap region table entries and per-mm PGD.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in /proc and dmesg; `dump_pagetables` access gated.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG (including page-fault traces).
+- **GRKERNSEC_KMEM** — block `/dev/mem` access to kernel direct-map and page-table pages.
+- **AMD SME C-bit + SEV memory-encryption tagging** — defense against memory-bus snooping on AMD platforms; C-bit ordering verified via TLA+ model.
+- **TLB flush coordination via IPI** — defense against cross-CPU stale-TLB reads after PTE update.
+- **Sanitizer shadow init (KASAN/KMSAN)** — defense against use-after-free / use-of-uninit-memory in kernel-space.
+
+Per-doc rationale: paging IS the kernel's primary memory-security primitive; every grsec/PaX feature above operates at the page-table layer; a single failure (e.g., a missed PTI swap, a stale TLB after mprotect, a misplaced C-bit) is a complete privilege boundary collapse, so hardening here is overlapping and mechanical (set_memory_* + PTI + KASLR + KASAN + SMAP/SMEP + TLB-flush IPI).
+
 ## Open Questions
 
 (none — paging is contractually defined by Intel/AMD architecture + upstream Linux semantics; no architectural ambiguities at this tier)

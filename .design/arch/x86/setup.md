@@ -462,6 +462,25 @@ setup_arch reinforcement:
 - **Per-`mmu_cr4_features` masked of PCIDE** — defense against per-trampoline-CR4 invalid in non-long-mode.
 - **Per-`dump_kernel_offset` panic-notifier registered** — defense against per-KASLR-aware crash forensic loss.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — none in `setup_arch` (no user pointers at boot), but the same bounds-check policy applies to the post-init `/proc/iomem`, `/proc/ioports`, and `/sys/firmware/efi/*` readers seeded here.
+- **PAX_KERNEXEC** — early page-table built with W^X: `.text`/`.rodata` mapped RX/RO, `.data`/`.bss` mapped NX; trampoline / real-mode pages flipped RX-only after `init_real_mode`.
+- **PAX_RANDMMAP** — KASLR base randomization (`kernel_randomize_memory`) drives the same entropy budget reused by user-mmap randomization later; bootparams that try to disable it are dropped under lockdown.
+- **PAX_REFCOUNT** — refcounts on `iomem_resource` / `ioport_resource` saturating; setup-time resource trees cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `SETUP_RNG_SEED` and any in-place command-line copies poisoned (`memzero_explicit`) post-consumption; e820 stash buffers wiped before being marked read-only.
+- **PAX_UDEREF** — N/A at boot; later runtime entry paths (boot CPU's first syscall) inherit SMAP from `cr4_init`.
+- **PAX_RAP / kCFI** — early `x86_platform_ops`, `x86_init.*`, and `pv_ops.*` vtables installed once, then constified by `mark_rodata_ro`.
+- **GRKERNSEC_KERN_LOCKDOWN** — `lockdown=integrity` enforced from `setup_arch` onward: blocks `mem=`, `memmap=`, `iomem=relaxed`, kexec without sig, and `/dev/mem`/`/dev/kmem` (see GRKERNSEC_KMEM).
+- **GRKERNSEC_HIDESYM** — KASLR offset, `_text`, `_etext`, `init_top_pgt` never logged at runtime; only `dump_kernel_offset` panic-notifier exposes it post-crash, gated by `kptr_restrict`.
+- **GRKERNSEC_DMESG** — early `pr_info` traces of e820/efi/acpi tables gated by `dmesg_restrict` once user-mode is up.
+- **GRKERNSEC_EFI** — EFI runtime services called only under `efi_enter_virtual_mode`; runtime pool allocations marked RO post-`mark_rodata_ro`; SetVariable filtered against deny-list.
+- **GRKERNSEC_BOOT** — `boot_params` zero-page parsed once, sealed RO immediately after; later writes oops.
+
+Per-doc rationale: `setup_arch` is the one-shot fountain from which every other subsystem inherits its memory map, command line, and policy posture; reinforcing lockdown, RANDMMAP entropy, EFI-runtime isolation, and zero-page seal here means later subsystems (vDSO, signal, block, crypto) start from a verifiably hardened baseline rather than retro-fitting checks.
+
 ## Open Questions
 
 (none at this Tier-3 level)

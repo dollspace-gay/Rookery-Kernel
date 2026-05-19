@@ -225,6 +225,26 @@ intel-iommu specific reinforcement:
 - **PRQ IRQ handler bounded per-invocation** — defense against PRQ-flood causing soft-lockup.
 - **Per-IOMMU `iommu_state` save/restore on suspend/resume** — defense against state-loss on S3 cycles.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — whitelisted slab caches for `intel_iommu`, `dmar_domain`, `device_domain_info`, root/context tables, and PASID-table allocations; iommufd userland buffers strictly bounded.
+- **PAX_KERNEXEC** — Intel IOMMU driver core in W^X kernel text; `iommu_ops`, fault-handler dispatch, and PRQ workqueue paths live in `__ro_after_init` text.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across `intel_iommu_attach_dev`, `intel_iommu_map_pages`, fault-handler, and PRQ IRQ entries.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `dmar_domain`, `device_domain_info`, and per-PASID references; overflow trap defeats attach/detach race UAFs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for root/context tables, PASID tables, page-table page caches, and IOMMU-state save areas so stale translations and PASID entries cannot bleed across reuse.
+- **PAX_UDEREF** — SMAP/PAN enforced on every iommufd/vfio entry into the Intel driver; reject user-pointer deref outside canonical helpers.
+- **PAX_RAP / kCFI** — `iommu_ops` (`attach_dev`, `detach_dev`, `map_pages`, `unmap_pages`, `iova_to_phys`, `iotlb_sync`), domain-ops, and fault-handler vtable marked `__ro_after_init` with kCFI-typed indirect dispatch.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and per-IOMMU register/base pointer disclosure behind CAP_SYSLOG; suppress `%p` in fault/PRQ tracepoints.
+- **GRKERNSEC_DMESG** — restrict IOMMU fault, PRQ-overflow, and IRTE-program-fail banners to CAP_SYSLOG so attackers cannot probe DMA-access patterns via dmesg.
+- **CAP_SYS_ADMIN strict** — debugfs (`intel-iommu/`) and sysfs control surfaces require CAP_SYS_ADMIN; iommufd userland operations gated by CAP_SYS_ADMIN in the owning user namespace.
+- **RMRR loopback protection** — RMRR-required ranges policed against kernel image; refuse identity mapping that would expose `.text`/`.rodata` to DMA.
+- **ATS/PASID gating** — ATS only enabled for endpoints on the platform allowlist; PASID-capable devices require explicit attach with PASID-table install audited.
+- **IRTE target validation** — every IRTE program validates target-CPU + vector against the active scheduling domain; refuse malformed IRTEs.
+- **PRQ flood bound** — PRQ IRQ handler bounded per invocation with deferred-work overflow path; defense against PRQ-storm soft-lockup.
+- **Suspend/resume state** — per-IOMMU `iommu_state` save/restore validated on S3/S0ix cycles; refuse to resume with mismatched root/context tables.
+
+Rationale: the Intel IOMMU driver is the kernel's authoritative arbiter of which physical addresses each PCI/PCIe device may emit. A refcount underflow on `dmar_domain`, a missed IRTE validation, a relaxed RMRR policy, or a PRQ-flood lockup will silently demote DMA isolation. RAP/kCFI on `iommu_ops`, CAP_SYS_ADMIN on debugfs/iommufd, RMRR overlap rejection, ATS allowlisting, and refcount-overflow trapping turn VT-d from "isolation if everyone behaves" into a structural enforcement boundary.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -638,6 +638,31 @@ microcode-loader reinforcement:
 - **Per-hypervisor_present disables loader by default** — defense against per-hypervisor-microcode collision.
 - **Per-soft-offline siblings allowed only with ops->nmi_safe OR (use_nmi && nmi_to_offline_cpu)** — defense against per-NMI-in-play_dead corruption.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **GRKERNSEC_MODHARDEN** — microcode-blob signature verification: Intel `microcode_header_intel.min_req_ver` and AMD vendor-signed blob enforced at load; firmware-loader checksums match upstream.
+- **GRKERNSEC_KERN_LOCKDOWN** — late microcode loading restricted under lockdown-integrity mode (CONFIG_MICROCODE_LATE_LOADING gated by lockdown policy).
+- **PAX_KERNEXEC** — W^X enforcement for kernel-text mappings; the microcode loader does not modify kernel text, but the post-load `microcode_check` warns on capability changes that might invalidate runtime-patched call sites.
+- **PAX_USERCOPY** — bounded copy_from_user / copy_to_user on `/dev/cpu/N/microcode`, `/sys/devices/system/cpu/microcode/reload`, `version`, `processor_flags` paths.
+- **PAX_REFCOUNT** — saturating refcount on per-CPU `ucode_cpu_info.mc` blob references.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for microcode blobs and the rendezvous control struct on CPU hotunplug.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `microcode_ops` vtable (`request_microcode_fw`, `apply_microcode`, `collect_cpu_info`, `stage_microcode`, `finalize_late_load`).
+- **CAP_SYS_RAWIO gate on /dev/cpu/N/microcode** — required for direct ioctl write path.
+- **reload sysfs WO mode 0200 root-only** — defense against unprivileged trigger.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding for `ucode_cpu_info`, `microcode_ops`, `ucode_ctrl` in /proc.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG, including `microcode_check` capability-drift warnings and rendezvous timeout messages.
+- **AMD final_levels[] hard-disable** — defense against write-to-bricked-CPU.
+- **DIS_UCODE_LDR sticky once set** — defense against toggle-after-failure.
+- **force_minrev requires CONFIG_MICROCODE_LATE_FORCE_MINREV + cmdline** — defense against silent debug-override.
+- **stop_machine_cpuslocked + primary/secondary SMT rendezvous** — defense against mid-update sibling interference.
+- **noinstr on NMI rendezvous path** — defense against IRET-from-#INT3/#DB/#PF re-enabling NMI mid-rendezvous.
+- **microcode_check warns on CPUID capability change** — defense against silent feature-mismatch after late load.
+- **hypervisor_present disables loader by default** — defense against hypervisor-microcode collision.
+
+Per-doc rationale: microcode-core is the kernel's primary channel for live CPU-firmware updates that change speculative-execution mitigations (Spectre, MDS, RetBleed, Downfall, SRSO); grsec/PaX hardening here enforces signature validation, capability-gated reload triggers, lockdown-aware late-load policy, and atomic stop_machine rendezvous so a malicious or buggy late-load cannot leave the system in a half-mitigated state.
+
 ## Open Questions
 
 (none at this Tier-3 level)

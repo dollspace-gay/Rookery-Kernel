@@ -460,6 +460,26 @@ Process-and-idle reinforcement:
 - **`set_cpuid_faulting` per-vendor (Intel MSR_MISC_FEATURES vs AMD MSR_K7_HWCR)** — defense against per-wrong-MSR-touched-on-wrong-CPU silent failure.
 - **AMD E400 broadcast-tick workaround (`amd_e400_c1e_apic_setup`)** — defense against per-AMD-C1E-APIC-stop missed-tick.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded `put_user` / `get_user` on `ARCH_GET/SET_CPUID`, `ARCH_GET/REQ_XCOMP_*` argument buffers; rejects sub-page-sized writes spanning kernel/user.
+- **PAX_KERNEXEC** — W^X on `ret_from_fork`, `__switch_to_xtra`, `default_idle`, `mwait_idle`, `tdx_halt`, `stop_this_cpu` text; idle-routine static-call patch sites read-only outside text-poke windows.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization applied before `sys_arch_prctl`; idle entry re-randomizes so HLT/MWAIT does not pin a predictable stack.
+- **PAX_REFCOUNT** — saturating refcount on `task_struct` (`usage`, `stack_refcount`) so `arch_dup_task_struct` and `exit_thread` cannot wrap under fork-bomb pressure.
+- **PAX_MEMORY_STACKLEAK** — kernel stack erased on every `__switch_to_xtra` exit; `flush_thread` clears HW breakpoints, TLS array, and PKRU bytes before reuse.
+- **PAX_MEMORY_SANITIZE** — `thread_struct` (including FPU dynamic XSAVE area) zeroed on `arch_release_task_struct`; I/O bitmap freed via `io_bitmap_exit` is poison-on-free.
+- **PAX_UDEREF** — SMAP/SMEP enforced around `arch_prctl` uaccess; `set_new_tls` validates user descriptors strictly.
+- **PAX_RAP / kCFI** — indirect-call signatures on `arch_cpu_idle` static-call slot, user-return notifier vtables, and `__speculation_ctrl_update` dispatch.
+- **GRKERNSEC_HIDESYM** — `/proc/<pid>/{stat,status,maps,syscall,wchan,stack}` redact kstack pointers, idle-routine identities, and per-task IBPB state for non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — `pr_*` traces around `select_idle_routine` / `mwait_idle` setup gated behind `dmesg_restrict`.
+- **GRKERNSEC_PROC** — `/proc/<pid>/arch_status` (XCOMP + CPUID-fault state) restricted to matching uid or CAP_SYS_PTRACE.
+- **GRKERNSEC_TIOCSTI / GRKERNSEC_SETXID** — task-side TIF flag changes (`TIF_NOTSC`, `TIF_NOCPUID`) audited; cannot be set via leaked descriptors.
+- **GRKERNSEC_PTRACE** — `ARCH_SET_CPUID` on remote `task` gated by ptrace-scope policy.
+
+Per-doc rationale: `process.c` owns the fork/exec/exit ABI surface plus the idle loop, both of which see every task and every wake; tightening REFCOUNT on `task_struct`, STACKLEAK on `__switch_to_xtra`, RAP on the idle static-call, and HIDESYM on `/proc/<pid>/*` closes the high-volume leakage paths an attacker can poll cheaply.
+
 ## Open Questions
 
 (none at this Tier-3 level)

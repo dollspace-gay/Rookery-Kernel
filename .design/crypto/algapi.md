@@ -674,6 +674,28 @@ algapi reinforcement:
 - **Per-`flush_work(&tmpl->free_work)` in `crypto_unregister_template`** — defense against per-template-module-unload while instance free still pending.
 - **Per-`crypto_enqueue_request` returns -ENOSPC unless `CRYPTO_TFM_REQ_MAY_BACKLOG`** — defense against per-unbounded queue growth.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded user-buffer copy on any algapi UAPI path (NETLINK_CRYPTO, AF_ALG-bound calls).
+- **PAX_KERNEXEC** — W^X enforcement across registration + template dispatch.
+- **PAX_RANDKSTACK** — kernel-stack randomization on `crypto_register_alg` / `crypto_register_instance` entry.
+- **PAX_REFCOUNT** — saturating `cra_refcnt`, `tmpl` refcount, `spawn` chains; `-1` sentinel still distinct under saturation.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `CryptoAlg`, `CryptoInstance`, `CryptoSpawn`, `CryptoLarval` slabs (may hold key-derivation context).
+- **PAX_UDEREF** — SMAP/SMEP enforcement on every UAPI entry into algapi (rare; mostly internal).
+- **PAX_RAP / kCFI** — `crypto_type` vtables (`init_tfm` / `exit_tfm` / `free` / `report`) and `cra_destroy` indirect-call hardening; `cra_type` tables `static const`.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in `/proc/crypto` + NETLINK_CRYPTO output (already partial in upstream).
+- **GRKERNSEC_DMESG** — syslog restriction on registration warnings (FIPS panic still surfaces).
+- **GRKERNSEC_KMOD** — `request_module("crypto-%s", name)` in `crypto_lookup_template` gated by per-subject GR-RBAC; denies opportunistic module-load.
+- **PAX_CONSTIFY_PLUGIN** — every static `crypto_alg` / `crypto_template` / `crypto_type` literal `static const`.
+- **module_sig_ok mandatory in FIPS** — `crypto_check_module_sig` panics on unsigned module; aligns with PaX RAP-relocation chain-of-trust.
+- **PAX_SIZE_OVERFLOW** — `cra_alignmask`, `cra_blocksize`, `cra_priority`, `qlen`, `max_qlen` arithmetic checked.
+- **GRKERNSEC_SYSCTL** — `crypto.fips_enabled` locked at boot.
+- **LSM `security_module_request`** — denies `request_module` invoked from template lookup per GR-RBAC policy.
+
+Per-doc rationale: algapi is the trust root for every kernel cipher; corrupting registration corrupts the whole crypto subsystem. PAX_RAP on `crypto_type` vtables prevents an attacker who landed a fake `crypto_alg` from hijacking control flow via `init_tfm` / `free`; module-sig-mandatory + GRKERNSEC_KMOD close the FIPS chain-of-trust and the auto-module-load attack surface; MEMORY_SANITIZE on instance slabs denies template-state residue (e.g., HMAC inner state) after unregister.
+
 ## Open Questions
 
 (none at this Tier-3 level)

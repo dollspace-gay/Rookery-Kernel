@@ -684,6 +684,26 @@ Verbs-API reinforcement:
 - **Per-counter auto-bind on RST→INIT only** — defense against per-mid-life rebinding causing counter delta jumps.
 - **Per-rdma_lag_get_ah_roce_slave bound to attr lifetime** — defense against per-slave-netdev-disappearing race.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — whitelisted slab caches for `ib_qp`, `ib_cq`, `ib_mr`, `ib_pd`, `ib_srq`, `ib_ah`; uverbs ABI-vN copy_from/to_user paths bounded against canonical `ib_uverbs_cmd_hdr.in_words`/`out_words` invariants.
+- **PAX_KERNEXEC** — verbs core in W^X kernel text; `ib_device_ops`, `uverbs_api_object`, and per-driver verb tables not patchable at runtime.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across every `ib_uverbs_*` entry, `ib_modify_qp`, `ib_post_send`, and CQ-polling kthread iteration.
+- **PAX_REFCOUNT** — saturating `refcount_t` on QP, CQ, MR, PD, SRQ, AH; overflow trap defeats classic uverbs handle-recycle UAFs (`IDR_REUSE` patterns).
+- **PAX_MEMORY_SANITIZE** — zero-on-free for verbs object slabs, completion-queue entries, and SGE arrays so stale DMA-mapped pointers and remote-key residue cannot leak across reuse.
+- **PAX_UDEREF** — SMAP/PAN enforced on every uverbs ioctl/write path; reject any direct user-pointer deref outside canonical helpers.
+- **PAX_RAP / kCFI** — `ib_device_ops` verbs vtable (`create_qp`, `modify_qp`, `post_send`, `poll_cq`, `reg_user_mr`, `dereg_mr`, etc.) `__ro_after_init` and kCFI-typed indirect calls; a corrupted driver verb pointer cannot redirect QP-state-machine transitions.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and verbs-object pointer disclosure behind CAP_SYSLOG; suppress `%p` in uverbs tracepoints.
+- **GRKERNSEC_DMESG** — restrict QP-error, CQ-overflow, and MR-pin-failure banners to CAP_SYSLOG so attackers cannot fingerprint kernel pinning behaviour via dmesg.
+- **ucontext CAP_NET_ADMIN gate** — `IB_UVERBS_GET_CONTEXT` requires CAP_NET_ADMIN in the owning net-ns plus file-mode policy on `/dev/infiniband/uverbsN`.
+- **kverbs allowlist** — kernel-only verbs entry points (`ib_post_send` kernel-issued path) reject `IB_QPT_UD`/`RAW` use from userverbs by default; userverbs allowlist enumerated explicitly.
+- **MR pinning rlimits** — `reg_user_mr` strictly bounded by `RLIMIT_MEMLOCK` and per-cgroup `rdma.max_handles`; refuse registration that would pin unmapped or DAX-incompatible ranges without explicit policy.
+- **QP state machine** — `ib_modify_qp` transitions LSM-checked via `ib_security_modify_qp`; refuse RST→ERR-while-counters-attached without counter detach.
+- **Counter-rebind invariant** — counter auto-bind permitted only on RST→INIT to prevent mid-life rebinding from masking traffic in audit logs.
+- **AH RoCE slave lifetime** — `rdma_lag_get_ah_roce_slave` bound to attr lifetime; slave netdev disappearance causes AH revoke before next post_send dispatch.
+
+Rationale: RDMA verbs hand userspace direct pinned-DMA access to host memory through MRs and QPs, with `post_send` cycles bypassing the CPU entirely. Without CAP_NET_ADMIN gating on ucontext, kverbs/userverbs disjointness, refcount-overflow trapping on every verbs object, RAP/kCFI on the verbs vtable, and strict `RLIMIT_MEMLOCK`/rdmacg enforcement, a single MR-refcount underflow or driver-vtable confusion becomes a wire-speed read of arbitrary host memory.
+
 ## Open Questions
 
 (none at this Tier-3 level)

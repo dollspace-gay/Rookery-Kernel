@@ -771,6 +771,27 @@ Input-core reinforcement:
 - **Per-set_keycode keymap mutation synthesizes key-up for displaced live keys** — defense against per-stuck-key on remap.
 - **Per-input_handler_for_each_handle RCU read-only** — defense against per-list-mutation in callback.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — whitelisted slab caches for `input_dev`, `input_handle`, `input_handler`, and the per-fd evdev client ring; `EVIOCGNAME`/`EVIOCGBIT`/`EVIOCGABS` and `read()` copy_to_user paths bounded against `input_event` ring sizes.
+- **PAX_KERNEXEC** — input core in W^X kernel text; `input_dev_type`, `input_handler` ops, and evdev fops tables not patchable at runtime.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across every `input_event`, `input_report`, and `evdev_read/write/ioctl` entry.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `input_dev` and `input_handle`; overflow trap defeats handle-recycle UAFs across `input_unregister_device`.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `input_event` rings, force-feedback effect slabs, and keymap arrays so prior keystroke/coordinate data never bleeds across `close()`/`open()`.
+- **PAX_UDEREF** — SMAP/PAN enforced on every `/dev/input/*` ioctl and write entry; uinput synthesis paths likewise.
+- **PAX_RAP / kCFI** — `input_handler` (`event`, `events`, `connect`, `disconnect`, `filter`), `input_dev` (`open`, `close`, `flush`, `event`), and evdev fops marked `__ro_after_init` with kCFI-typed indirect dispatch.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and `input_dev` pointer disclosure behind CAP_SYSLOG; suppress `%p` in input-debug tracepoints.
+- **GRKERNSEC_DMESG** — restrict input-handler-register / device-rename / inhibit-state banners to CAP_SYSLOG so attackers cannot track device-class topology via dmesg.
+- **GRKERNSEC_INPUT_DEVICE** — `/dev/input/event*` access restricted to the owning seat's uid (or `input` group); reject cross-uid open on devices marked keyboard-class to defeat console-keylogging.
+- **uinput CAP_SYS_ADMIN** — `/dev/uinput` requires CAP_SYS_ADMIN in the device's user namespace to defeat unprivileged synthesis of fake keyboards/HID-class devices.
+- **evdev grab gate** — `EVIOCGRAB` requires CAP_SYS_ADMIN (or explicit udev allowlist); prevents an unprivileged process from monopolising a keyboard before a privileged consumer.
+- **Force-feedback effect bound** — per-fd FF effect count bounded by `FF_MAX_EFFECTS`; per-uid rlimit on FF-effect upload to defeat memory-exhaustion DoS via `EVIOCSFF`.
+- **Inhibited-device short-circuit** — inhibited devices drop events at `get_disposition` so a paused-but-mapped device cannot leak events to listeners.
+- **set_keycode key-up synthesis** — keymap mutation synthesises a key-up for displaced live keycodes; defeats stuck-key state confusion during remap.
+- **`input_handler_for_each_handle`** — RCU read-only callback contract; list-mutation in callback lockdep-asserted.
+
+Rationale: `/dev/input/event*` is the canonical keylogging surface — any process that can `open()` an event node sees every keystroke and pointer event in real time, and uinput lets unprivileged code synthesise fake HID-class devices to drive the console. Without `GRKERNSEC_INPUT_DEVICE`-style uid gating, CAP_SYS_ADMIN on `/dev/uinput`, RAP/kCFI on `input_handler` ops, USERCOPY bounds on event rings, and refcount-overflow trapping on `input_dev`, the input core is a session-wide credential-harvest channel reachable from any logged-in user.
+
 ## Open Questions
 
 (none at this Tier-3 level)

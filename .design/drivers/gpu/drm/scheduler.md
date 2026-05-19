@@ -256,9 +256,23 @@ drm_sched specific reinforcement:
 - **Per-entity fence_context unique** — no two entities share fence_context (defense against cross-entity fence-confusion).
 - **Per-priority strict ordering** — KERNEL never starved by HIGH/NORMAL; defense against userspace DoS via low-prio flood blocking system processes.
 
-## Open Questions
+## Grsecurity/PaX-style Reinforcement
 
-(none at this Tier-3 level)
+- **PAX_USERCOPY** — strict slab whitelisting for `drm_sched_job` and `drm_sched_fence` allocations; userspace-supplied dependency fence-fd arrays bounded before copy-in.
+- **PAX_KERNEXEC** — scheduler hot path (`drm_sched_main`, `drm_sched_run_job_work`) runs in W^X kernel text; no live patching of `drm_sched_backend_ops` or fence ops at runtime.
+- **PAX_RANDKSTACK** — randomize kernel-stack offset across the scheduler kthread main loop and timeout handler to break stack-layout assumptions in race-window exploits.
+- **PAX_REFCOUNT** — saturating `refcount_t` on `drm_sched_fence`, `dma_fence`, `drm_sched_entity`, and per-rq job counts; overflow trap defeats fence-recycle UAFs.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `drm_sched_job` and scheduler-fence slabs; transient command-buffer pointers never linger across job destruction.
+- **PAX_UDEREF** — SMAP/PAN strictly enforced when copying job-submit dependency lists from userspace.
+- **PAX_RAP / kCFI** — kCFI-typed indirect dispatch on `drm_sched_backend_ops` (`run_job`, `timedout_job`, `free_job`, `prepare_job`) and on the `dma_fence_ops` vtable; tables marked `__ro_after_init`. A corrupted scheduler-fence vtable cannot redirect the kthread into attacker text.
+- **GRKERNSEC_HIDESYM** — gate kallsyms and per-driver scheduler tracepoint pointers behind CAP_SYSLOG; suppress raw fence/job kernel pointers in debug output.
+- **GRKERNSEC_DMESG** — hang/timeout diagnostics (`drm_sched_job_timedout`, GPU-reset banners) restricted to CAP_SYSLOG; attackers can otherwise correlate driver state via dmesg.
+- **Hang-detection PAX_KERNEXEC** — shader binaries and indirect command buffers referenced by jobs are treated as non-executable data from the CPU's view; CPU-side kernel never executes pages mapped for GPU consumption.
+- **Priority isolation** — `DRM_SCHED_PRIORITY_KERNEL` queues immune to userspace floods; per-uid rlimit on `drm_sched_entity` count to cap fork-bomb-style DoS.
+- **Fence-context uniqueness** — every `drm_sched_entity` allocates a fresh fence_context to prevent cross-entity fence-id confusion; verified at entity-init.
+- **Timeout-handler reentrancy** — `drm_sched_stop` / `drm_sched_start` paths guarded by a single workqueue with explicit ordering; lockdep-verified to prevent reset-vs-submit races.
+
+Rationale: the GPU scheduler is a long-running kernel kthread that dereferences attacker-controlled vtables (`run_job`, `timedout_job`, fence ops) on every submit. Without RAP/kCFI on those vtables, refcount-overflow trapping on fences and jobs, and KERNEXEC on the dispatch path, a single fence-refcount underflow or `__ro_after_init` violation in a driver backend escalates into a kernel-thread code-execution primitive reachable from any render-node client.
 
 ## Out of Scope
 

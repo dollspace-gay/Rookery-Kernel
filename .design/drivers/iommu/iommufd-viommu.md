@@ -188,6 +188,30 @@ iommufd-viommu specific reinforcement:
 - **Per-VIOMMU invalidate descriptor count cap** — bounded (default 256/batch); defense against invalidate-flood DoS.
 - **Cross-context VDEVICE attach refused** — VDEVICE bound to viommu inherits viommu's ictx; cross-ctx attempts rejected.
 
+## Grsecurity/PaX-style Reinforcement
+
+Hardened-policy supplement above baseline `## Hardening`. The VIOMMU/VDEVICE objects are the iommufd interface by which a guest VM directly drives a host IOMMU (via qemu) — they are the highest-privilege virtualization surface in the iommu subsystem and receive the strictest grsec/PaX layering.
+
+- **PAX_USERCOPY** on per-vendor invalidate-descriptor blobs and PRI-response copies from userspace.
+- **PAX_KERNEXEC** on VIOMMU/VDEVICE alloc/destroy/invalidate paths and per-vendor `ViommuOps` dispatch (RO post-init).
+- **PAX_RANDKSTACK** on `IOMMU_VIOMMU_*` and `IOMMU_VDEVICE_*` ioctl entry chains.
+- **PAX_REFCOUNT** on `Viommu`, `Vdevice`, attached HWPT-paging parent, and vdev-id xarray entries.
+- **PAX_MEMORY_SANITIZE** zeroes `Vdevice` and `Viommu` storage on destroy + clears vdev-id xarray slots.
+- **PAX_UDEREF** on per-vendor descriptor-array copy_from_user (one of the largest blob ingest paths in iommufd).
+- **PAX_RAP/kCFI** on `ViommuOps` vtable + per-vendor `viommu_alloc`/`viommu_destroy`/`cache_invalidate_user`/`page_response` indirect calls.
+- **GRKERNSEC_HIDESYM** hides `Viommu` pointers, vdev-id xarray base, and per-vendor backing state.
+- **GRKERNSEC_DMESG** restricts viommu-related decoded printouts to CAP_SYSLOG.
+- **CAP_SYS_ADMIN-in-init-userns strict** for nested-translation VIOMMU alloc — nested-userns categorically blocked from VIOMMU/VDEVICE creation.
+- **GRKERNSEC_DMA strict-mode** — VIOMMU vdev-id table starts empty; every entry requires explicit VDEVICE_ALLOC ioctl.
+- **ATS/PASID gating** — VDEVICE refused for backing real devices missing verified PCIe ATS+PASID caps.
+- **VT-d PRQ rate-limit** and per-VIOMMU invalidate-batch rate-limit layered to defang guest-driven QI saturation.
+- **DMAR/IVRS ACPI signature verify** required before honoring per-vendor nested capability for VIOMMU alloc.
+- **VFIO-compat path refused** for VIOMMU consumers under hardened policy.
+- **Cross-vendor VIOMMU type refused** at alloc + module init (no AMD VIOMMU on Intel host, etc.).
+- **Per-VIOMMU vdev-id cap** enforced per-userns (not just per-VIOMMU) to defang multi-guest exhaustion.
+
+Rationale: VIOMMU + VDEVICE expose direct guest control over real IOMMU invalidation and PRI response, mediated only by virt_id translation. A misvalidated descriptor lets a guest invalidate the host's TLB or spoof PRI for non-owned devices. Hardened Rookery enforces every cap-revalidation, namespace gate, and rate-limit independently.
+
 ## Open Questions
 
 (none at this Tier-3 level)

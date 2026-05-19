@@ -459,6 +459,28 @@ x86_64 entry reinforcement:
 - **Per-SWITCH_TO_USER_CR3 strictly before swapgs on exit** — defense against per-leak-via-wrong-CR3 with kernel-GS.
 - **Per-error_entry CS-gap detection** — defense against per-swapgs-skip when interrupted in SYSCALL gap.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization applied immediately after switching to the per-task kernel stack via `pcpu_hot.top_of_stack`; every entry point (SYSCALL_64, SYSENTER_compat, SYSCALL_compat, INT 0x80) gets a fresh offset.
+- **PAX_MEMORY_STACKLEAK** — on exit-to-user (`swapgs_restore_regs_and_return_to_usermode`), unused kernel-stack frames are scrubbed to prevent stack-data leak across syscall.
+- **PAX_KERNEXEC** — entry assembly is `.text` RX/RO; PUSH_AND_CLEAR_REGS pre-clears RAX = -ENOSYS so unknown syscall returns without leaking register state.
+- **PAX_USERCOPY** — `pt_regs` from userspace is treated as untrusted; all user-space register reads are bounded.
+- **PAX_UDEREF (SMAP/SMEP)** — `ASM_CLAC` issued at INT 0x80 and SYSCALL entry to clear stale AC flag; defense against SMAP-bypass.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `__switch_to_asm` → `__switch_to` C dispatch and on syscall-table indirect calls.
+- **KPTI CR3 swap with PCID flush mask** — `SAVE_AND_SWITCH_TO_KERNEL_CR3` on every entry, `SWITCH_TO_USER_CR3` strictly-before swapgs on every exit; Meltdown defense (CVE-2017-5754).
+- **paranoid_entry rdmsr GS check** — defense against NMI-in-swapgs-window (CVE-2014-9322 class); GS detected via `rdmsr MSR_GS_BASE`, never via blind swapgs.
+- **NMI nesting state machine** — first_nmi / repeat_nmi / end_repeat_nmi sentinel; defense against NMI loss under re-entry.
+- **IST stack per vector** — distinct per-CPU IST stacks for #DB / #NMI / #DF / #MC / #VC; defense against stack-overflow cascade.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding for `entry_SYSCALL_64_after_hwframe` etc. in /proc.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG.
+- **SYSRETQ canonical-RCX rejection** — fallthrough to IRET on non-canonical user RCX (CVE-2014-9322 escalation defense).
+- **PAX_REFCOUNT** — saturating refcount on per-CPU `cpu_entry_area` mapping references.
+- **cpu_entry_area read-only mapping in user CR3** — defense against user-page-tables-leak of kernel internals.
+
+Per-doc rationale: entry_64 is the single point at which user-mode and kernel-mode states meet on every syscall, IRQ, exception, and NMI; grsec/PaX hardening here is non-negotiable and overlapping (RANDKSTACK + STACKLEAK + KPTI + paranoid_entry + IST + RAP + KERNEXEC) because any failure in any of them is a complete privilege boundary collapse.
+
 ## Open Questions
 
 - (none at this Tier-3 level; FRED-path entry covered by `entry_fred.c` and a future sibling Tier-3 if FRED upstream lands)

@@ -528,6 +528,30 @@ x86 PMU reinforcement:
 - **Per-cpu_hw_events assigned-counter-unique invariant** — defense against per-double-mapped-counter silent overcount.
 - **Per-userpage update on every period set** — defense against per-rdpmc-userspace stale-counter race.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **GRKERNSEC_PERF_HARDEN** — `perf_event_open(2)` restricted to CAP_PERFMON (or CAP_SYS_ADMIN under legacy policy); `perf_event_paranoid` defaults to 3 (only privileged users can observe kernel events).
+- **CAP_PERFMON gating** — required for hardware counter access; CAP_SYS_ADMIN required for kernel-tracepoint and raw PMU MSR exposure.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in /proc/kallsyms; PMU MSR addresses, x86_pmu struct fields not exposed to unprivileged users.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG (including PMI overflow warnings and PEBS-broken model logs).
+- **PAX_KERNEXEC** — W^X enforcement for kernel-text mappings; PMI NMI handler `.text` is RX/RO.
+- **PAX_USERCOPY** — bounded copy_to_user on PEBS samples, LBR records, sysfs PMU attribute groups.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for per-CPU PEBS buffers, LBR ring slots on event destroy.
+- **PAX_REFCOUNT** — saturating refcount on `x86_reserve_hardware` / `x86_release_hardware` accounting; `x86_add_exclusive` / `_del_exclusive` ref counts for BTS/PT/LBR mutual exclusion.
+- **PAX_RANDKSTACK** — PMI NMI handler enters via paranoid_entry with per-syscall stack randomization preserved.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `x86_pmu` vtable (`handle_irq`, `add`, `del`, `start`, `stop`, `enable`, `disable`, `hw_config`, `schedule_events`), static_call slots (`x86_pmu_drain_pebs`, `_pebs_enable`, `_pebs_aliases`).
+- **MSR-write capability gate (CAP_SYS_RAWIO)** — direct MSR access via `/dev/cpu/N/msr` gated; perf PMU MSR writes go through vetted x86_pmu dispatch.
+- **perf_paranoid sysctl strict default** — value 3 by default: no hardware-event access without CAP_PERFMON, no kernel events without CAP_SYS_ADMIN, no tracepoint without CAP_SYS_ADMIN.
+- **PEBS buffer in per-CPU read-only mapping** — defense against userspace tampering with PEBS sample stream.
+- **LBR users refcount strict pairing** — defense against LBR leak across event lifetimes.
+- **x86_pmu_max_precise rejection** — defense against precise_ip overflow into invalid range.
+- **attr.config reserved-bits validation** — defense against future-bit poisoning.
+- **NMI watchdog event privileged** — kernel-internal NMI watchdog uses `perf_event_create_kernel_counter` directly; no userspace exposure.
+
+Per-doc rationale: perf PMU exposes Intel/AMD hardware performance counters which can leak microarchitectural state (cache lines, branch history, instruction retirement timing) and execute kernel-controlled MSR writes via vtable dispatch; grsec/PaX hardening here is centered on PERF_HARDEN + CAP_PERFMON gating, perf_paranoid=3 default, and kCFI on the vendor vtable so a hostile userspace cannot weaponize a side channel through `perf_event_open`.
+
 ## Open Questions
 
 - (none at this Tier-3 level; vendor-specific PEBS / LBR drain detail in `intel/ds.c` + `intel/lbr.c` deferred to future siblings)

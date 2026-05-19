@@ -439,6 +439,25 @@ x86_64 switch-and-prctl reinforcement:
 - **`switch_fpu` first in `__switch_to`** — defense against per-fault-during-switch leaving FPU state cross-contaminated.
 - **`WARN_ON_ONCE(hardirq_stack_inuse)` on switch entry** — defense against per-buggy IRQ-stack-unwind invoking schedule().
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — bounded `put_user` / `get_user` on `ARCH_GET_FS`, `ARCH_GET_GS`, `ARCH_GET_UNTAG_MASK`, `ARCH_GET_MAX_TAG_BITS`; rejects buffers crossing kernel/user boundary.
+- **PAX_KERNEXEC** — W^X on the `__switch_to_asm` / `__switch_to` text and FRED/SWAPGS trampolines; any write attempt via stray pointer faults.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack offset randomization applied before each `do_arch_prctl_64` entry; randomized top-of-stack stored back into `cpu_current_top_of_stack` and TSS.sp0.
+- **PAX_REFCOUNT** — saturating refcount on `task_struct` (`usage`, `stack_refcount`) to prevent UAF on `__switch_to(prev)` after a freed `task_struct`.
+- **PAX_MEMORY_STACKLEAK** — kernel stack erased on `__switch_to_asm` return path so leftover `thread.fsbase`/`gsbase` shadow stack residues never leak into the next task.
+- **PAX_MEMORY_SANITIZE** — `thread_struct` slab poisoned on `release_thread`; FS/GS base, PKRU, debug registers, and TLS array zeroed before slab reuse.
+- **PAX_UDEREF** — SMAP/SMEP strictly enforced when reading user pointers in `ARCH_GET_*` (uaccess windows bracketed by `stac`/`clac`).
+- **PAX_RAP / kCFI** — indirect-call signatures on paravirt callbacks (`arch_end_context_switch`, `xen_load_tls`) and on `shstk_prctl` dispatch from `do_arch_prctl_64`.
+- **GRKERNSEC_HIDESYM** — kernel pointers and FS_BASE / KERNEL_GS_BASE redacted in `__show_regs(USER)`; `/proc/<pid>/{stat,maps,syscall}` exposes no thread-side stack/base info to non-CAP_SYSLOG readers.
+- **GRKERNSEC_DMESG** — oops `__show_regs(ALL)` printk gated behind `dmesg_restrict`.
+- **GRKERNSEC_PROC** — `/proc/<pid>/arch_status` and per-thread FS/GS-base readout require matching uid or CAP_SYS_PTRACE.
+- **GRKERNSEC_PTRACE** — `do_arch_prctl_64(remote_task, ARCH_SET_FS/GS)` checked under ptrace-scope policy before mutating `thread.{fs,gs}base`.
+
+Per-doc rationale: `__switch_to` is the single point where every task's privileged state (FS/GS bases, KERNEL_GS_BASE, PKRU, TSS.sp0, debug registers, speculation MSRs) is mutated; a single missed sanitization or pointer-leak here turns into a kernel-wide info leak or privilege confusion, so the PaX surface is concentrated on USERCOPY-bounded prctl get-paths, RAP-protected paravirt vtables, and STACKLEAK on the post-switch return path.
+
 ## Open Questions
 
 (none at this Tier-3 level)

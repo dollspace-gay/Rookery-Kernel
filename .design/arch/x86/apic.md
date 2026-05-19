@@ -554,6 +554,27 @@ LAPIC reinforcement:
 - **Per-spurious-handler ISR-verify before EOI** — defense against per-spurious-EOI of pending real interrupts.
 - **Per-`acpi_mps_check`-gate at setup_arch** — defense against per-broken-firmware APIC misroute.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for executable kernel mappings (APIC MMIO/MSR ops are RO+NX).
+- **PAX_USERCOPY** — bounded copy_to/from_user when MSR snapshots or IRQ-stat counters surface to userspace.
+- **PAX_REFCOUNT** — saturating refcount on per-CPU `lapic_events` clockevent and `apic_pm_state` references.
+- **PAX_MEMORY_SANITIZE** — zero-on-free for `apic_pm_state` snapshots on hotunplug to prevent register-leak.
+- **PAX_UDEREF** — strict user-pointer access via SMAP/SMEP across LAPIC handlers.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `lapic_timer` ops, `apic.driver` hooks, and clockevent vtables.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding for `mp_lapic_addr` / `apic_mmio_base` in /proc and dmesg.
+- **GRKERNSEC_DMESG** — restrict APIC-error / spurious-vector / FW_BUG syslog output to CAP_SYSLOG.
+- **MSR-write capability gate** — APIC MSR writes (`MSR_IA32_APICBASE`, `MSR_IA32_TSC_DEADLINE`, `MSR_IA32_XAPIC_DISABLE_STATUS`) gated by CAP_SYS_RAWIO surface.
+- **PAX_LATENT_ENTROPY** — every interrupt vector stamps latent-entropy pool on IRQ entry path through the APIC.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization on the LAPIC timer-interrupt path that returns through `set_irq_regs`.
+- **GRKERNSEC_KMEM** — block userspace `/dev/mem` mappings overlapping the LAPIC fixmap (`FIX_APIC_BASE`).
+- **EILVT cmpxchg-reservation strict-bounds** — `offset < APIC_EILVT_NR_MAX = 4` enforced under PAX_USERCOPY-style index validation.
+- **GRKERNSEC_PROC_ADD** — `/proc/interrupts` and per-CPU IRQ stats restricted to CAP_SYS_ADMIN.
+
+Per-doc rationale: the LAPIC is the per-CPU interrupt + IPI + timer gatekeeper, so grsec/PaX hardening here protects every other subsystem's interrupt entry from being subverted via MSR write, stale-ISR leak across kexec, EILVT slot collision, or fixmap aliasing by userspace.
+
 ## Open Questions
 
 (none at this Tier-3 level)

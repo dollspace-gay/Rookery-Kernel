@@ -436,6 +436,30 @@ Memory-init reinforcement:
 - **Per-`x86_init.hyper.init_mem_mapping` paravirt hook** — defense against per-hypervisor-mapping desync (Xen-PV pgd pinning).
 - **Per-`early_memtest` over mapped range** — defense against per-bad-RAM corruption escaping into kernel.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_KERNEXEC** — W^X enforcement for kernel rwx zones: `free_init_pages` issues `set_memory_nx` + `set_memory_rw` before `free_reserved_area`; `free_kernel_image_pages` also unmaps the PTI high-kernel-image alias under X86_FEATURE_PTI.
+- **PAX_RANDMMAP / KASLR** — kernel base + direct map randomized; `init_trampoline_kaslr` aliases only the PUD covering low 1MB (1GB-granular randomization).
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization enabled once paging is up.
+- **PAX_MEMORY_SANITIZE** — `clear_page` of every freshly-allocated page-table page (via `alloc_low_pages`); `free_init_pages` poisons reclaimed __init memory with `POISON_FREE_INITMEM`.
+- **PAX_USERCOPY** — `/dev/mem` access policy via `devmem_is_allowed` gates page reads against system-RAM membership.
+- **PAX_UDEREF (SMAP/SMEP)** — CR4 bits set early; direct map establishes the U/S separation.
+- **PAX_RAP / kCFI** — indirect-call signature enforcement on `x86_init.hyper.init_mem_mapping` paravirt hook.
+- **PAX_REFCOUNT** — saturating refcount on early `alloc_low_pages` BRK buffer accounting.
+- **GRKERNSEC_HIDESYM** — kernel-pointer hiding in /proc and dmesg; `pfn_mapped[]` table not exposed.
+- **GRKERNSEC_DMESG** — restrict syslog output to CAP_SYSLOG (including `early_memtest` failure logs).
+- **GRKERNSEC_KMEM** — block `/dev/mem` access to kernel direct-map; only IORESOURCE_BUSY-marked iomem ranges accessible under CAP_SYS_RAWIO.
+- **ISA-range always-mapped (REQ-15)** — defense against trampoline / BIOS legacy access fault under hostile e820.
+- **INVLPG-miss errata PCID disable** — defense against stale-TLB on global flush on affected Intel uarches with stale microcode.
+- **PTI alias unmap on initmem free** — defense against Meltdown-residual mapping after `free_initmem`.
+- **debug_pagealloc unmap-but-don't-free** — defense against UAF-of-init-section detection.
+- **L1TF swapfile cap (`arch_max_swapfile_size`)** — defense against L1TF swap-entry abuse.
+- **set_notrack_mm for text_poke_mm** — defense against MM-tracking accounting drift.
+
+Per-doc rationale: mm/init is the seam between firmware memory layout and the kernel direct map; grsec/PaX hardening here ensures W^X is established before any page is freed back to the allocator, KASLR entropy is preserved through trampoline aliasing, and Meltdown / L1TF / PTI residual-mapping defenses are layered atop the direct map.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -530,6 +530,26 @@ TSC reinforcement:
 - **Per-vDSO VDSO_CLOCKMODE_TSC enabled only after watchdog confirms stability** — defense against per-userspace-time-warp.
 - **Per-suspend/resume tsc_verify_tsc_adjust + cyc2ns offset replay** — defense against per-firmware reset of TSC_ADJUST across S3.
 
+## Grsecurity/PaX-style Reinforcement
+
+This subsystem inherits the standard PaX/Grsecurity surface and reinforces it with:
+
+- **PAX_USERCOPY** — `/sys/devices/system/clocksource/clocksource0/*` and `/proc/timer_list` reads through bounded `seq_printf` paths; no raw kernel-TSC bytes exposed.
+- **PAX_KERNEXEC** — `tsc_clocksource.read` and `tsc_cs.read` fptr cells RO post-init; `vdso_clock` array constified before user-mode entry.
+- **PAX_RANDKSTACK** — `clock_gettime` syscall fallback (TSC unavailable) inherits per-syscall RANDKSTACK; vDSO fast-path runs in user mode and is unaffected.
+- **PAX_REFCOUNT** — `clocksource` refcount saturating on the `tsc-early` → `tsc` swap so concurrent watchdog runs cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `cyc2ns` double-buffer slots zeroed-on-replace; old multiplier never lingers in slab for an attacker to read via Spectre v1 gadget.
+- **PAX_UDEREF** — N/A directly; downstream `__vdso_clock_gettime` user path enforced via vDSO Tier-3.
+- **PAX_RAP / kCFI** — `clocksource.read`, `clocksource.enable`, `clocksource.disable` function pointers signed; `cpufreq_notifier_block` chain signed.
+- **PAX_TIMING_SIDECHANNEL** — `RDTSC` not user-trappable on the BSP unless `CR4.TSD` set per-task via `TIF_NOTSC`; signal-handler / sigreturn cannot bypass.
+- **GRKERNSEC_HIDESYM** — `vdso_clock`, `tsc_cs`, `__cyc2ns` addresses excluded from `/proc/kallsyms` for non-CAP_SYSLOG; `dump_kernel_offset` does not log TSC-deadline pointers.
+- **GRKERNSEC_DMESG** — TSC calibration / `mark_tsc_unstable` prints gated by `dmesg_restrict`.
+- **GRKERNSEC_TPE** — `tsc=unstable`, `notsc`, `clocksource=` cmdline accepted only at boot under lockdown.
+- **GRKERNSEC_RDTSC** — optional opt-in to disable user-mode RDTSC on a per-cgroup basis (CR4.TSD propagated via `__switch_to_xtra`); blocks Spectre-style cache-line timing.
+- **GRKERNSEC_SEV_TDX** — `snp_secure_tsc_init` mandatory in confidential VMs; do not trust host TSC.
+
+Per-doc rationale: TSC is the primary side-channel oracle (Spectre, Meltdown, Foreshadow timing); RDTSC disablement per task, secure-TSC in confidential VMs, and RAP on the clocksource vtable directly raise the bar for cache-timing attacks while the watchdog + sanitize-on-replace prevent forged time leaking userland.
+
 ## Open Questions
 
 - For confidential VMs (SEV-SNP / TDX) should Rookery require `snp_secure_tsc_init` even when guest CPUID claims CONSTANT_TSC + NONSTOP_TSC, or trust the host? Upstream trusts; Rookery may want stricter default.
