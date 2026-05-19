@@ -1,0 +1,10 @@
+{
+  "uuid": "e08bfc03-2f72-4ccf-96d6-a2144729e41b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 177 (477 docs, +10 via wave-22): fs/ext4/extents+mballoc, fs/btrfs/free-space-cache+relocation, arch/x86/smpboot+tsc, drivers/net/intel-ice, io_uring/sync+fs+splice. 22 waves, 220 new docs. ~96%.",
+  "created_at": "2026-05-19T15:12:25.873051726Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABACPaMbRSmzMJtUDvPiVG2l4MXIjalhvLyrzlepCppkd2eozoFeyxivu9lEgVm8sks+T0YFjBy+gX5ew2CnE2HAA=="
+}
