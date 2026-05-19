@@ -581,6 +581,29 @@ RxRPC call-object reinforcement:
 - **Per-EXCLUSIVE flag enforces once-only conn** — defense against per-channel-sharing for security-sensitive calls.
 - **Per-error_attached_to_socket path preserves call** — defense against per-leaked-userid (recvmsg surfaces error cleanly).
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `rxrpc_call`:
+
+- **PAX_USERCOPY** — `rxrpc_call`, `rxrpc_txbuf`, and `rxrpc_skb_priv` allocations sit in slab caches with PAX_USERCOPY-whitelisted copy windows; `recvmsg` cannot bleed adjacent slab via oversized rx buffer.
+- **PAX_KERNEXEC** — `rxrpc_kernel_ops`, `rxrpc_local_processor`, and the `notify_rx`/`notify_end_tx` function pointers on each call live in `__ro_after_init` (kernel-service registrations) or are validated at registration time.
+- **PAX_RANDKSTACK** — `rxrpc_alloc_call`, `rxrpc_input_packet`, and `rxrpc_send_data` stack frames randomized on each entry to deny layout to AFS-side spray.
+- **PAX_REFCOUNT** — `call->ref`, `conn->active`, `bundle->active`, `peer->active`, `local->active`, `key->serial` all saturating `refcount_t`; rapid call setup/teardown cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `rxrpc_call` slab zero-on-free and per-call key material poisoned at destroy so kAFS auth tokens cannot be replayed from freed slab.
+- **PAX_UDEREF** — sendmsg/recvmsg control-message parsing operates on kernel-side copies; no user-pointer deref in IO-thread context.
+- **PAX_RAP/kCFI** — `notify_rx`/`notify_end_tx` dispatch is forward-edge-checked against the registered kernel-service signature.
+- **GRKERNSEC_HIDESYM** — `/proc/net/rxrpc/calls`, `connections`, `peers`, `locals` strip kernel pointers.
+- **GRKERNSEC_DMESG** — `rxrpc_proto_abort` and packet-malformed `printk` rate-limited.
+
+RxRPC-call-specific reinforcement:
+
+- **kAFS call lifecycle gates** — `rxrpc_call->ref` saturates on the per-channel poke path; per-conn EXCLUSIVE flag is sticky.
+- **`rxrpc_key` payload (Kerberos token) wiped with PAX_MEMORY_SANITIZE** on key destroy; freed slab cannot leak ticket material.
+- **`call_rcu`-deferred free** plus `rxrpc_destroy_all_calls` wait_var_event blocks rmmod-with-live-call slab UAF.
+- **`RXRPC_CALL_DISCONNECTED` gate on poke** — IO-thread cannot be spammed after disconnect.
+
+Rationale: kAFS is the highest-privilege RxRPC consumer in tree; saturating call-lifetime refs, key-material sanitize on free, and HIDESYM on the per-call slab pointer close the realistic exploit path against the file-system credential cache.
+
 ## Open Questions
 
 (none at this Tier-3 level)

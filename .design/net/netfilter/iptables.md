@@ -237,6 +237,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `IPT_SO_SET_REPLACE` / `IPT_SO_GET_ENTRIES` / `IPT_SO_GET_REVISION_TARGET` copy paths bounds-checked against `ipt_replace.size`, `num_entries`, `num_counters`; oversized blobs rejected before vmalloc.
+- **PAX_KERNEXEC** — `xt_match`, `xt_target`, `xt_table` op tables live in R-X kernel text; module register pins R-X.
+- **PAX_RANDKSTACK** — `ipt_do_table` / `ip6t_do_table` stacks re-randomised per skb so verdict + jump-stack locals unpredictable.
+- **PAX_REFCOUNT** — `xt_table_info` use_count + match/target module refs saturate-trap under setsockopt churn.
+- **PAX_MEMORY_SANITIZE** — old `xt_table_info` freed via vfree zeroed; stale rule blobs cannot leak across swaps.
+- **PAX_UDEREF** — `xt_entry_match` / `xt_entry_target` offset walks validate `next_offset`, `target_offset`, alignment before pointer arithmetic.
+- **PAX_RAP/kCFI** — `match->match`, `target->target`, `xt_check_match`, `xt_check_target` indirect dispatch enforced with xtables-specific CFI signatures.
+- **GRKERNSEC_HIDESYM** — match/target function addresses never exposed via `IPT_SO_GET_ENTRIES` counters or revisions.
+- **GRKERNSEC_DMESG** — invalid-rule-blob / unsupported-revision messages rate-limited + dmesg-restricted.
+- **Per-CAP_NET_ADMIN strict on `IPT_SO_SET_REPLACE` / `IP6T_SO_SET_REPLACE`** — defense against per-unprivileged firewall mutation in any netns.
+- **Per-`ipt_replace` size+num_entries cross-validation** — defense against per-integer-overflow into the entry walk.
+- **Per-COMPAT translation off by default** — defense against per-32-on-64 state confusion in `compat_xt_table_info`.
+- **Per-table-swap RCU + sync grace** — defense against per-stale-table deref racing replace commit.
+- **Per-rule `xt_check_match`/`xt_check_target` revision pinning** — defense against per-cross-revision vtable confusion.
+- **Per-`ipt_get_target` jump-target bounds-check** — defense against per-out-of-bounds GOTO into arbitrary memory.
+
+Rationale: legacy iptables/ip6tables is the highest-volume x_tables ABI consumer and the historical source of integer-overflow CVEs in `xt_table_info` walks; PAX_USERCOPY + cross-validated size fields + CAP_NET_ADMIN + RCU table swap are load-bearing, and PAX_RAP closes the match/target indirect-call surface.
+
 ## Open Questions
 
 (none — iptables/ip6tables ABI exhaustively specified by upstream + decades of iptables regression test corpus)

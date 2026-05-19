@@ -431,6 +431,26 @@ Conntrack-proto reinforcement:
 - **Per-sysctl-gated `nf_l4proto_log_invalid`** — defense against per-log-flood DoS.
 - **Per-`nf_ct_bridge_info` single-slot WARN on register-while-occupied** — defense against per-stale-bridge-ops.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — l4proto sysctl + nlattr ingress (CTA_PROTOINFO_TCP/SCTP/DCCP) bounded; CTA_TUPLE_PROTO `nla_len` validated.
+- **PAX_KERNEXEC** — `nf_conntrack_l4proto` static vtables (`tcp`, `udp`, `sctp`, `dccp`, `icmp`, `icmpv6`, `gre`, `generic`) resident in R-X text.
+- **PAX_RANDKSTACK** — per-proto `packet()` + `new()` + `error()` stacks re-randomised; window-tracking + sequence locals unpredictable.
+- **PAX_REFCOUNT** — l4proto module ref + per-proto state-machine counters saturate-trap.
+- **PAX_MEMORY_SANITIZE** — per-proto state union (ct->proto.{tcp,udp,sctp,dccp,gre,icmp}) zeroed on destroy.
+- **PAX_UDEREF** — every CTA_PROTOINFO_* sub-walk bounds-checks NLA before deref.
+- **PAX_RAP/kCFI** — `l4proto->packet/->new/->error/->nlattr_to_tuple/->tuple_to_nlattr` indirect dispatch signed with l4proto CFI signature.
+- **GRKERNSEC_HIDESYM** — l4proto symbol pointers never leak via ctnetlink or /proc/net.
+- **GRKERNSEC_DMESG** — invalid-state / out-of-window / chunk-flag warnings rate-limited via `nf_l4proto_log_invalid` (sysctl-gated, already noted).
+- **Per-l4proto registry kCFI guard on register/unregister** — defense against per-unsigned-module slot hijack.
+- **Per-`nf_ct_l4proto_find_get` symbol pin** — defense against per-stale-lookup hand-off.
+- **Per-`tcp_in_window` strict default** — defense against per-out-of-window seqno injection desyncing NAT.
+- **Per-SCTP verification-tag enforcement** — defense against per-blind-INIT injection.
+- **Per-DCCP service-code validation** — defense against per-unsolicited service-code switch.
+- **Per-GRE keymap CAP_NET_ADMIN** — defense against per-unprivileged PPTP-keymap install.
+
+Rationale: per-protocol conntrack handlers parse attacker-controlled L4 headers and gate state transitions for NAT; PAX_RAP on the l4proto vtable + strict in-window TCP + tag-validated SCTP are the load-bearing defenses for the protocol-confusion + state-machine relaxation classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

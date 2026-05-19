@@ -245,6 +245,31 @@ NETEM-specific reinforcement:
 - **Per-ECN-mark requires CAP_ECN** — defense against per-config breaching ECN protocol.
 - **Per-tc UAPI nl_capable check at change** — defense against unprivileged setting netem.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_netem (network emulator) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_NETEM_* attributes (`tc_netem_qopt`, `tc_netem_corr`, `tc_netem_reorder`, `tc_netem_corrupt`, `tc_netem_slot`, `TCA_NETEM_LOSS`, `TCA_NETEM_DELAY_DIST`) parsed via `nla_*` whitelisted accessors with strict policy.
+- **PAX_KERNEXEC**: `netem_qdisc_ops` is `__ro_after_init`; W^X enforced.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + per-packet enqueue/dequeue (softirq) protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, drop/dup/corrupt counters use checked `refcount_t` / `u64_stats_*`.
+- **PAX_MEMORY_SANITIZE**: freed `netem_sched_data`, distribution table, and per-skb `netem_skb_cb` zeroed.
+- **PAX_UDEREF**: rtnetlink + skb walkers fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` callbacks + the `loss_4state` / `loss_gilb_ell` function-pointer dispatch type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: netem internal symbols (random PRNG state, delay-distribution table base) hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: parse-failure printks rate-limited.
+
+Component-specific reinforcement:
+
+- **Default-deny in hardened mode**: sch_netem is treated as a no-op in production hardened builds (`CONFIG_NET_SCH_NETEM` either compiled out or sysctl `net.sched.netem.disabled = 1`). It exists for testing/lab use; production paths refuse attach with `-EPERM` and an audit record.
+- When permitted, RTM_NEWQDISC attaching netem requires **CAP_NET_ADMIN** in the netns owner.
+- `latency`, `jitter`, `gap` clamped to `[0, NSEC_PER_SEC]`; `loss`, `duplicate`, `reorder`, `corrupt` probabilities clamped to `[0, NETEM_DIST_MAX_P]` (uint32 fixed-point).
+- Delay distribution table size clamped to `[1, NETEM_DIST_MAX]` (`= 65536`); copied through a USERCOPY-bounded `nla_memdup` — prevents unbounded kmalloc on attach.
+- Per-packet rate / packet-rate limits use saturating `s64` arithmetic; cannot wrap to deliver bursts above the configured ceiling.
+- PRNG uses the kernel's `prandom_*` per-cpu state; netem does not expose its seed to userspace.
+
+Rationale: netem is a test tool that, by design, mutates every packet; in a hardened production kernel it is either compiled out or refused at attach. When enabled for lab use it is still gated by CAP_NET_ADMIN with all delay / probability / rate / table-size knobs bounded, plus the standard PaX + RAP/kCFI envelope.
+
 ## Open Questions
 
 (none at this Tier-3 level)

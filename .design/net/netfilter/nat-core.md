@@ -252,6 +252,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — NAT-related netlink (CTA_NAT_*, CTA_NAT_SRC, CTA_NAT_DST) ingress bounded; oversized blobs rejected pre-alloc.
+- **PAX_KERNEXEC** — `nf_nat_l4proto` (manip_pkt, in_range, unique_tuple) op tables resident in R-X text.
+- **PAX_RANDKSTACK** — `nf_nat_setup_info`, `get_unique_tuple`, `nf_nat_packet` stacks re-randomised so port-allocation + tuple-build locals are unpredictable.
+- **PAX_REFCOUNT** — `nf_conn` ref + `bysource` table hlist nodes saturate-trap; port-exhaustion storms cannot wrap.
+- **PAX_MEMORY_SANITIZE** — NAT extension (`nf_conn_nat`) freed zeroed; stale 5-tuple cannot leak to recycled ct.
+- **PAX_UDEREF** — every CTA_NAT_*_PROTO walk validates `nla_len`.
+- **PAX_RAP/kCFI** — `l4proto->manip_pkt`, `->in_range`, `->unique_tuple` indirect dispatch signed with NAT-l4 CFI signature.
+- **GRKERNSEC_HIDESYM** — bysource hash addresses + l4proto op-pointers never leak via ctnetlink dumps.
+- **GRKERNSEC_DMESG** — port-exhaustion + range-empty warnings rate-limited + dmesg-restricted.
+- **Per-`bysource` hash PAX_REFCOUNT** — defense against per-table-link wrap on heavy SNAT churn.
+- **Per-`get_unique_tuple` bounded-attempt cap** — defense against per-CPU-soft-lockup when range is exhausted.
+- **Per-port-range clamp (1024..65535 default)** — defense against per-privileged-port hijack via SNAT.
+- **Per-`NF_NAT_RANGE_*` flag validation** — defense against per-unknown-flag passthrough.
+- **Per-CAP_NET_ADMIN gate on nf_nat_register_l3l4 + module register** — defense against per-unprivileged l4-NAT helper injection.
+- **Per-`nf_nat_setup_info` RCU consistency** — defense against per-stale-bysource-deref racing setup commit.
+
+Rationale: NAT mutation rewrites tuples atomically while ct is in flight; PAX_REFCOUNT on bysource + bounded `get_unique_tuple` retry + PAX_RAP on `manip_pkt` close the historic UAF + soft-lockup + tuple-confusion classes.
+
 ## Open Questions
 
 (none — NAT semantics exhaustively specified by RFC 3022 + RFC 7857 + upstream)

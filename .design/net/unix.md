@@ -213,6 +213,30 @@ None beyond upstream defaults (GR-RBAC's default empty policy permits all UNIX s
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to the PF_UNIX subsystem:
+
+- **PAX_USERCOPY** — `sendmsg`/`recvmsg` payload moves and cmsg parsing under whitelist.
+- **PAX_KERNEXEC** — UNIX TX/RX paths and GC walker run from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates inference of socket-layout / GC state.
+- **PAX_REFCOUNT** — `unix_sock.refcnt`, per-skbuff embedded-FD refcounts saturating under SCM-storm.
+- **PAX_MEMORY_SANITIZE** — `unix_sock` slab and per-skbuff embedded-FD arrays sanitized on free.
+- **PAX_UDEREF** — cmsg / `sun_path` user-pointer access under UDEREF.
+- **PAX_RAP / kCFI** — `unix_dgram_ops`, `unix_stream_ops`, `unix_seqpacket_ops` `static const`; dispatch CFI-checked.
+- **GRKERNSEC_HIDESYM** — `unix_gc`, `unix_attach_fds` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — SCM-rights / GC anomaly warnings CAP_SYSLOG-gated.
+
+PF_UNIX subsystem-level reinforcement:
+
+- **PF_UNIX `SCM_RIGHTS` recursion bound** — defense against unbounded fd-passing recursion exhausting GC walker; cmsg-length capped under PAX_USERCOPY validation.
+- **Cross-uid fd-passing CAP_SYS_PTRACE-gated** — defense against SCM_RIGHTS-driven cap escalation across uid boundary; GR-RBAC fragment denies by default.
+- **Abstract-socket per-netns containment** — defense against cross-namespace abstract-name collision; bind-path hash netns-scoped.
+- **`unix_*_ops` PAX_RAP-typed** — proto-ops dispatch CFI-checked across stream/dgram/seqpacket.
+- **GRKERNSEC_HIDESYM on `unix_gc`** — GC walker hidden, frustrating SCM-cycle exploitation.
+
+Rationale: PF_UNIX is the dominant local IPC; grsec's bounded SCM_RIGHTS recursion, sanitized embedded-FD arrays, per-netns abstract containment, and CFI on the three proto-ops vtables close the AF_UNIX-specific privilege-transition and GC-race classes.
+
 ## Open Questions
 
 (none — AF_UNIX semantics are exhaustively specified by upstream + glibc + systemd integration tests)

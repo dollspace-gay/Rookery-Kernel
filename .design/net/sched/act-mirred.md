@@ -221,6 +221,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `act_mirred`:
+
+- **PAX_USERCOPY** — `tcf_mirred` and per-action stats live in PAX_USERCOPY-whitelisted slab caches; netlink dump cannot bleed adjacent slab.
+- **PAX_KERNEXEC** — `act_mirred_ops` vtable lives in `__ro_after_init`; corrupted action cannot pivot through forged `act`/`dump`/`cleanup`.
+- **PAX_RANDKSTACK** — `tcf_mirred_act`, `tcf_mirred_init` stack frames randomized; per-CPU recursion-counter path layout hidden.
+- **PAX_REFCOUNT** — `m->common.tcfa_refcnt`/`tcfa_bindcnt` and bound-`net_device` ref use saturating `refcount_t`.
+- **PAX_MEMORY_SANITIZE** — `tcf_mirred_release` zeroes per-action state on RCU free.
+- **PAX_UDEREF** — netlink-attr parse operates on kernel-side copies; bound `ifindex` resolved via `dev_get_by_index_rcu`.
+- **PAX_RAP/kCFI** — `act_mirred_ops.act`/`dump`/`cleanup` dispatch forward-edge-checked.
+- **GRKERNSEC_HIDESYM** — `RTM_GETACTION` strips per-mirred and bound-dev pointers.
+- **GRKERNSEC_DMESG** — `mirred_egress_redir`/`ingress` loop-detect and dev-down `printk_ratelimited` capped.
+
+act_mirred-specific reinforcement:
+
+- **CAP_NET_ADMIN required** for `RTM_NEWACTION` with `TCA_ID_MIRRED`; strictly enforced.
+- **PAX_REFCOUNT on `tcfa_bindcnt`** — bind from many cls_* filters cannot wrap.
+- **Recursion limit `MIRRED_NEST_LIMIT`** with PAX_REFCOUNT-saturating per-CPU counter — loop-amplification DoS denied.
+- **`tcf_mirred_dev_dereference` under RCU** — dev-deref UAF blocked even if userspace deletes bound dev mid-classify.
+- **PAX_RAP on `act_mirred_ops`** — softirq dispatch type-checked.
+
+Rationale: `act_mirred` is the historical redirect primitive (cross-namespace data exfil); CAP_NET_ADMIN + saturating bindcnt + PAX_REFCOUNT-bounded recursion close the loop-amplify/UAF class.
+
 ## Open Questions
 
 (none — mirred semantics exhaustively specified by upstream + extensive Cilium / OvS / port-mirror test coverage)

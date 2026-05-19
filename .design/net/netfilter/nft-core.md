@@ -276,6 +276,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: nft core register file (`struct nft_regs`) and packet payload copies sized against `NFT_REG_SIZE`/`NFT_REG32_COUNT`; whitelisted slabs for `nft_pktinfo` derived buffers.
+- PAX_KERNEXEC: `nft_do_chain()` interpreter and verdict dispatch reside in .text; no W+X; any JIT enforces RO+X.
+- PAX_RANDKSTACK: stack-base randomization per packet entry to chain-evaluation avoids stable layouts for evicted-cache attacks.
+- PAX_REFCOUNT: `nft_chain->use`, `nft_rule->handle` consumer counts, and `nft_set->use` saturating across evaluator paths.
+- PAX_MEMORY_SANITIZE: rule destruction zeroes bytecode and per-expr private data before kfree.
+- PAX_UDEREF: control-path NLA pointers checked before deref; data-path packet pointers bounded by `skb->len` and `nft_pktinfo->thoff`.
+- PAX_RAP / kCFI: `nft_expr_ops->eval`, `nft_set_ops->lookup`, and chain hookfn dispatch kCFI-typed; mis-typed ops aborts.
+- GRKERNSEC_HIDESYM: chain/rule/handle dumps redact kernel pointers; `nft monitor` output sanitized.
+- GRKERNSEC_DMESG: interpreter assertion failures (BUG_ON path replacement, malformed register access) rate-limited.
+- nftables CAP_NET_ADMIN: control-plane mutation gated; data path runs without capability checks but bounded by validated bytecode.
+- Transaction commit-abort: chain replacement is atomic per generation; readers see either the old or new chain, never a torn intermediate.
+- nft_chain PAX_REFCOUNT: chain `use` saturating; cannot underflow on concurrent rule delete.
+- JIT W^X (PAX_KERNEXEC): when set-lookup JIT compiles, output pages flipped to RO+X via `set_memory_ro()` + `set_memory_x()` before patching.
+
+Rationale: the core evaluator runs in hot packet paths and historically harbored OOB-register reads (CVE-2023-0179) and chain-UAF; bounded register access plus kCFI on expr/set ops eliminates the documented exploitation surface.
+
 ## Open Questions
 
 (none — nft VM eval semantics exhaustively specified by upstream + nft regression-test suite)

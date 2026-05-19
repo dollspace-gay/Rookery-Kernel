@@ -625,6 +625,31 @@ cls-api reinforcement:
 - **Per-tcf_chain_held_by_acts_only gate on RTM_GETCHAIN** — defense against per-action-only-chain leak to user.
 - **Per-flow_block_cb registration confined to block.cb_lock writer** — defense against per-callback-list torn-write.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `cls-api`:
+
+- **PAX_USERCOPY** — `tcf_proto`, `tcf_chain`, `tcf_block`, and `tcf_exts` allocations live in PAX_USERCOPY-whitelisted slab caches; `RTM_GETTFILTER`/`RTM_GETCHAIN` dump cannot bleed adjacent kernel state.
+- **PAX_KERNEXEC** — `tcf_proto_ops`, `tcf_chain_ops`, and the `flow_block_cb` ops vtables live in `__ro_after_init`; corrupted classifier cannot pivot via forged ops.
+- **PAX_RANDKSTACK** — `tc_new_tfilter`, `tcf_classify`, `tc_get_chain` stack frames randomized on each netlink/softirq entry.
+- **PAX_REFCOUNT** — `chain->refcnt`/`action_refcnt`, `block->refcnt`, `tp->refcnt`, and `tcf_exts->actions[]` refs use saturating `refcount_t`; replay/add-del churn cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `tcf_block_release`, `tcf_chain_destroy`, and `tcf_proto_destroy` zero per-block/chain/tp state on RCU free.
+- **PAX_UDEREF** — netlink attr parsing operates on kernel-side copies; no user-pointer deref in fast path.
+- **PAX_RAP/kCFI** — `tcf_proto_ops.classify`/`init`/`destroy`/`change`/`get`/`walk` and `flow_block_cb` dispatch forward-edge-checked.
+- **GRKERNSEC_HIDESYM** — `RTM_GETTFILTER`/`RTM_GETCHAIN` strip kernel pointers (`tp`, `block`, `chain`).
+- **GRKERNSEC_DMESG** — proto_destroy_ht collision and chain-template parse-fail `printk_ratelimited` capped.
+
+cls-api-specific reinforcement:
+
+- **CAP_NET_ADMIN required** for `RTM_NEWTFILTER`/`DELTFILTER`/`NEWCHAIN`/`DELCHAIN`; enforced by rtnetlink core for non-RTM_GET*.
+- **PAX_REFCOUNT on `chain->refcnt`/`action_refcnt`** — rapid chain-template add/del cannot wrap.
+- **Shared-block xarray-keyed lookup** under PAX_USERCOPY whitelist — cross-net block-index collision blocked.
+- **`flow_block_cb` registration confined to `block.cb_lock` writer** under PAX_KERNEXEC `__ro_after_init` for ops — callback-list torn-write blocked.
+- **`tcf_chain_held_by_acts_only` gate on `RTM_GETCHAIN`** — action-only chain not leaked to userspace.
+- **PAX_RAP on `tcf_proto_ops.classify`** — softirq classify dispatch type-checked, blocks type-confusion across cls kinds.
+
+Rationale: cls-api is the netlink front door to every TC classifier; CAP_NET_ADMIN + PAX_REFCOUNT on chain/block/tp refs + PAX_RAP on the classify vtable closes the cross-classifier UAF and type-confusion classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

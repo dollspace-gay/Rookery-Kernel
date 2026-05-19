@@ -231,6 +231,30 @@ CBS-specific reinforcement:
 - **Per-init validates sendslope = idleslope - port_rate** — defense against per-config inconsistent.
 - **Per-AVB-class delay-budget enforced via locredit** — defense against per-pkt deferral exceeding budget.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_cbs (IEEE 802.1Qav Credit-Based Shaper, TSN) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_CBS_PARMS / TCA_CBS_OFFLOAD attributes parsed via `nla_*` whitelisted accessors.
+- **PAX_KERNEXEC**: `cbs_qdisc_ops` is `__ro_after_init`; W^X enforced.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + per-packet enqueue/dequeue (softirq) protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, `q->credits`, per-class qstats use checked `refcount_t` / `u64_stats_*`.
+- **PAX_MEMORY_SANITIZE**: freed `cbs_sched_data` zeroed.
+- **PAX_UDEREF**: rtnetlink + skb walkers fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` callbacks type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: CBS internal symbols hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: CBS parse-failure printks rate-limited, CAPSYSLOG-gated.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC attaching CBS requires **CAP_NET_ADMIN** in the netns owner.
+- `idleSlope`, `sendSlope`, `hiCredit`, `loCredit` are `s32` and clamped: `idleSlope ∈ [0, port_transmit_rate]`, slopes satisfy `sendSlope = idleSlope - port_transmit_rate`; out-of-range fails `-EINVAL`.
+- Hardware offload (`TCA_CBS_OFFLOAD`) gated through the standard `tc_setup_cb_call` path which RAP/kCFI-checks the driver's `ndo_setup_tc` callback.
+- Credit accounting uses signed saturating arithmetic; overflow cannot wrap a credit window into the past.
+- CBS is a single-class shaper; no unbounded class hierarchy or flow-table allocation on attach.
+
+Rationale: CBS is a deterministic-latency shaper used for TSN AVB/TSN class A/B traffic; an attacker who can poison the credit math turns a latency guarantee into a denial-of-real-time. Bounding the slope/credit attributes plus RAP/kCFI on the offload-call path keeps the shaper deterministic and the hardware offload surface fail-closed.
+
 ## Open Questions
 
 (none at this Tier-3 level)

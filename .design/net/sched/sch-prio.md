@@ -219,6 +219,30 @@ PRIO-specific reinforcement:
 - **Per-qstats backlog updated atomically** — defense against per-stats race.
 - **Per-class walk validates band index** — defense against per-walk crashing on stale state.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to the PRIO qdisc:
+
+- **PAX_USERCOPY** — `TCA_PRIO_*` netlink payload moves use whitelisted `copy_{to,from}_user`; the 16-entry priomap blob is size-checked under USERCOPY.
+- **PAX_KERNEXEC** — `prio_enqueue` / `prio_dequeue` execute from immutable .text; no patchable trampolines on the per-band dispatch.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates priomap-index inference via timing.
+- **PAX_REFCOUNT** — outer PRIO `Qdisc` and each per-band inner `Qdisc` use saturating refcounts; rapid `tc qdisc change ... bands N` storms cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `prio_sched_data`, `prio2band[16]`, and freed per-band inner qdiscs sanitized on detach.
+- **PAX_UDEREF** — `prio_tune` traverses `TCA_PRIO_MQ` user pointers only under UDEREF.
+- **PAX_RAP / kCFI** — `prio_class_ops` and `prio_qdisc_ops` are `static const`; the per-band-graft callback is CFI-checked.
+- **GRKERNSEC_HIDESYM** — `prio_classify` and per-band lookup symbols hidden from unprivileged kallsyms readers.
+- **GRKERNSEC_DMESG** — PRIO band-graft/leaf-walk warnings rate-limited and CAP_SYSLOG-gated.
+
+PRIO-specific reinforcement:
+
+- **TC qdisc CAP_NET_ADMIN** — PRIO create/change/del requires CAP_NET_ADMIN over the netdev's netns.
+- **`prio_qdisc_ops` PAX_RAP-typed** — vtable dispatch type-checked on every enqueue/dequeue/peek/dump.
+- **Priomap bounded write under PAX_USERCOPY** — `priomap[i]` ≤ bands enforced before any classify can use it.
+- **Per-band inner qdisc refcount saturating** — `qdisc_put` on band decrease cannot underflow.
+- **GRKERNSEC_HIDESYM on `prio_classify`** — fast-path classifier not exposed for offset inference attacks.
+
+Rationale: PRIO is a strict-priority dispatcher whose security envelope is the priomap and the per-band Qdisc pointer array; sanitizing freed inner qdiscs, saturating refcounts on rapid graft churn, and CFI-protecting the band-dispatch table closes the residual UAF / type-confusion surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

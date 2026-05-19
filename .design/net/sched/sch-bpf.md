@@ -203,6 +203,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, bpf_qdisc inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: bpf_attr / struct_ops upload buffers traverse whitelisted slab caches via `bpf_check_uarg_tail_zero` and `copy_from_bpfptr`; no raw `copy_from_user` against the BPF program blob.
+- **PAX_KERNEXEC**: JITed BPF qdisc programs are mapped W^X — pages are RW during patching then `set_memory_ro` + `set_memory_x` before dispatch; `bpf_struct_ops_map_value` is `__ro_after_init` once registered.
+- **PAX_RANDKSTACK**: every BPF prog entry from the qdisc enqueue/dequeue hot path participates in kstack randomization.
+- **PAX_REFCOUNT**: `bpf_prog->aux->refcnt`, `bpf_map->refcnt`, and the `Qdisc.refcnt` of the bpf qdisc use checked `refcount_t`.
+- **PAX_MEMORY_SANITIZE**: freed JIT image pages and freed BPF maps are zeroed before release.
+- **PAX_UDEREF**: BPF helpers may not deref attacker-supplied pointers; enforced by the verifier + sparse + objtool.
+- **PAX_RAP / kCFI**: `bpf_struct_ops`-attached qdisc ops (`enqueue`, `dequeue`, `init`, `reset`) are invoked via CFI-checked indirects against the registered ops type.
+- **GRKERNSEC_HIDESYM**: BPF JIT addresses and helper symbols hidden from `/proc/kallsyms` for unprivileged readers (`bpf_jit_kallsyms=0`).
+- **GRKERNSEC_DMESG**: BPF verifier-reject and JIT-failure printks rate-limited and gated to CAP_SYSLOG.
+
+Component-specific reinforcement:
+
+- Loading a bpf_qdisc struct_ops program requires **CAP_BPF** AND **CAP_NET_ADMIN** in the netns owner; default GR-RBAC denies both for unprivileged roles.
+- BPF JIT for qdisc programs is hardened (`bpf_jit_harden=2`): constant blinding, no spectre v1/v2 gadgets, integer-overflow checked.
+- Program runtime is bounded per packet (`BPF_COMPLEXITY_LIMIT_INSNS`) and the verifier rejects unbounded loops; ensures `enqueue`/`dequeue` cannot wedge the softirq.
+- `Qdisc_ops` registered through struct_ops is type-tagged with the same RAP signature as native ops; a tampered struct_ops table is rejected at attach.
+- Per-program stats (`run_time_ns`, `run_cnt`) use `u64_stats_*` saturating counters.
+
+Rationale: bpf_qdisc lets attacker-controlled code run in the network softirq; without W^X, kCFI, and CAP_BPF gating it would be a one-step kernel-RCE primitive. The PaX layer plus verifier + JIT-harden + struct_ops type tagging keeps the dispatch surface fail-closed.
+
 ## Open Questions
 
 (none — bpf_qdisc semantics are exhaustively specified by upstream + BPF struct_ops contract + Cilium qdisc test coverage)

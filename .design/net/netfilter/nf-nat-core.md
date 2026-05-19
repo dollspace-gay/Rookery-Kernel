@@ -603,6 +603,26 @@ NAT-core reinforcement:
 - **Per-`nf_nat_proto_clean` at module exit iterates every ct + detaches bysource before kvfree** — defense against per-UAF when ct destroy callback fires post-table-free.
 - **Per-`register_nf_nat_bpf` full rollback on failure** — defense against per-partially-initialised module exposing dangling `nf_nat_hook`.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — NAT control plane (ctnetlink CTA_NAT_*, BPF_PROG_TYPE_NAT prog-load) bounds-checks every user-derived blob.
+- **PAX_KERNEXEC** — `nf_nat_hook` indirect vtable + per-l4 manip op tables resident in R-X kernel text.
+- **PAX_RANDKSTACK** — `nf_nat_setup_info`, `nf_nat_packet`, `__nf_nat_alloc_null_binding`, `get_unique_tuple` stacks re-randomised per call.
+- **PAX_REFCOUNT** — `nf_conn_nat` extension ref + `bysource` hlist link + l4proto module ref saturate-trap.
+- **PAX_MEMORY_SANITIZE** — `nf_conn_nat` ext zeroed on free; `bysource` table entries zeroed on `nf_nat_proto_clean`.
+- **PAX_UDEREF** — CTA_NAT_* nested NLAs validated before deref.
+- **PAX_RAP/kCFI** — `nf_nat_hook->{decode_session, manip_pkt, remove_nat_bysource}` indirect dispatch signed with NAT CFI signature.
+- **GRKERNSEC_HIDESYM** — bysource bucket pointers + l4 manip-op pointers never leak via ctnetlink dumps.
+- **GRKERNSEC_DMESG** — port-exhaustion + range-empty + invalid-mode warnings rate-limited + dmesg-restricted.
+- **Per-`nf_nat_bysource` PAX_REFCOUNT (already noted)** — defense against per-bysource-link wrap on heavy SNAT churn.
+- **Per-`get_unique_tuple` bounded retries** — defense against per-CPU-soft-lockup when port range is exhausted.
+- **Per-`nf_nat_proto_clean` module-exit full iterate + detach (already noted)** — defense against per-UAF on table-free racing ct destroy.
+- **Per-`register_nf_nat_bpf` full rollback (already noted)** — defense against per-partial-init dangling `nf_nat_hook`.
+- **Per-CAP_NET_ADMIN gate on `nf_nat_register_fn` + helper register** — defense against per-unprivileged NAT-helper injection.
+- **Per-`NF_NAT_RANGE_*` flag whitelist** — defense against per-unknown-flag silent passthrough.
+
+Rationale: nf_nat_core arbitrates mutation of in-flight conntracks via `nf_nat_hook` indirect vtable + bysource hash; PAX_REFCOUNT on bysource, bounded `get_unique_tuple`, full rollback on bpf-register, and CAP_NET_ADMIN on every register entrypoint are the load-bearing defenses against table-free UAF, soft-lockup, and unprivileged-NAT injection.
+
 ## Open Questions
 
 (none at this Tier-3 level)

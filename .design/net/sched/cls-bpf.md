@@ -221,6 +221,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `cls_bpf`:
+
+- **PAX_USERCOPY** — `cls_bpf_head`, `cls_bpf_prog`, and `bpf_prog_aux` slab allocations are PAX_USERCOPY-whitelisted; netlink dump cannot bleed adjacent slab.
+- **PAX_KERNEXEC** — `cls_bpf_ops` vtable lives in `__ro_after_init`; corrupted classifier cannot pivot via forged ops. The JIT page is mapped W^X by PAX_KERNEXEC.
+- **PAX_RANDKSTACK** — `cls_bpf_classify`, `cls_bpf_init`, `cls_bpf_change` stack frames randomized.
+- **PAX_REFCOUNT** — `head->refcnt`, `prog->bpf_prog`/`aux->refcnt` use saturating `refcount_t`.
+- **PAX_MEMORY_SANITIZE** — `cls_bpf_destroy_prog` zeroes per-prog state and JIT image on free.
+- **PAX_UDEREF** — netlink-attr parsing copies prog bytes via `bpf_prog_create_from_user` into kernel image.
+- **PAX_RAP/kCFI** — `cls_bpf_ops.classify`/`init`/`destroy`/`change` and `bpf_dispatcher` are forward-edge-checked; cBPF/eBPF entry is dispatcher-thunked.
+- **GRKERNSEC_HIDESYM** — `RTM_GETTFILTER` and `/proc/net/*` strip `cls_bpf_prog` and JIT-image kernel pointers.
+- **GRKERNSEC_DMESG** — BPF verifier reject `printk` rate-limited.
+
+cls_bpf-specific reinforcement:
+
+- **CAP_NET_ADMIN required** for `RTM_NEWTFILTER` with `kind=bpf`; strictly enforced.
+- **W^X enforced on JIT page via PAX_KERNEXEC** — `set_memory_ro`/`set_memory_x` paired; JIT image never simultaneously writable and executable.
+- **`bpf_prog_aux->refcnt` saturates** — rapid attach/detach cannot wrap to UAF.
+- **PAX_RAP on `cls_bpf_ops.classify`** — dispatcher invocation forward-edge-checked, blocks type-confusion across cls kinds.
+- **Verifier runs under user-ns capability check** — unprivileged eBPF requires `bpf_capable()` per net-ns; PAX_USERCOPY whitelist on prog-load buf.
+
+Rationale: cls_bpf is the highest-risk classifier (it executes user-supplied bytecode in softirq); W^X via PAX_KERNEXEC plus PAX_RAP on the dispatcher plus saturating aux refcount close the classic JIT-spray / detach-race exploit classes.
+
 ## Open Questions
 
 (none — cls_bpf semantics exhaustively specified by upstream + Cilium dataplane test coverage)

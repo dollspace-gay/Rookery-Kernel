@@ -222,6 +222,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_fq_codel (RFC 8290) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_FQ_CODEL_* netlink attributes parsed via `nla_*` whitelisted accessors.
+- **PAX_KERNEXEC**: `fq_codel_qdisc_ops` is `__ro_after_init`; W^X enforced.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + per-packet enqueue/dequeue (softirq) protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, per-flow `backlog`, drop counters use checked `refcount_t` / `u64_stats_*`.
+- **PAX_MEMORY_SANITIZE**: freed flow array (`flows[1024]` default) and per-flow `skb_head` zeroed on `fq_codel_destroy`.
+- **PAX_UDEREF**: rtnetlink + skb walkers fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` callbacks type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: FQ-CoDel flow-hash secret and internal symbols hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: parse-failure printks rate-limited.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC attaching FQ-CoDel requires **CAP_NET_ADMIN** in the netns owner.
+- `flows` (hash bucket count) clamped to `[1, 65536]`, must be power-of-2; default 1024. Bounded `kmalloc_array` on attach prevents unbounded allocation.
+- `limit` clamped to `[1, 1<<20]` packets; `quantum` clamped to `[256, 1<<20]` bytes; `target`/`interval`/`ce_threshold` use the same bounds as `sch_codel`.
+- Per-flow hashing uses SipHash with a per-Qdisc random secret (`get_random_bytes`) to prevent flow-collision DoS.
+- Per-flow `deficit` accounting uses signed saturating arithmetic; cannot wrap to grant an attacker-flow unbounded service.
+
+Rationale: FQ-CoDel adds a per-flow hash table to CoDel; an unbounded `flows` count is OOM, and a non-secret hash is a collision-DoS that lets one flow knock out fair-share for all others. SipHash + a power-of-2 bound + saturating per-flow accounting keep fairness honest, and the PaX + RAP/kCFI envelope keeps the dispatch fail-closed.
+
 ## Open Questions
 
 (none — FQ-CoDel semantics are exhaustively specified by RFC 8290 + RFC 8289 + upstream)

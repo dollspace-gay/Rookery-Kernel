@@ -298,6 +298,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — ip_set nfnetlink message ingress (IPSET_CMD_*) bounds-validated against NLA policies; oversized blobs rejected before slab alloc.
+- **PAX_KERNEXEC** — `ip_set_type_variant` op tables (kadt, uadt, list, head, destroy) live in R-X kernel text.
+- **PAX_RANDKSTACK** — `ip_set_test` + `ip_set_add` + `ip_set_del` stacks re-randomised per call so timing+local-spill is unpredictable.
+- **PAX_REFCOUNT** — `ip_set.ref` + per-set type module refcount saturate-trap on storms; cannot wrap under churn.
+- **PAX_MEMORY_SANITIZE** — set-instance + per-element slab freed via RCU/kvfree zeroed; stale IP / port / netmask cannot leak via subsequent IPSET_CMD_LIST.
+- **PAX_UDEREF** — every IPSET_ATTR_* deref bounded; nested NLA walks validate `nla_len`.
+- **PAX_RAP/kCFI** — `type->variant->kadt/uadt/destroy` indirect dispatch signed with type-specific CFI; cross-type vtable trap.
+- **GRKERNSEC_HIDESYM** — set + type pointers never leak via /proc/net/ip_set or netlink dumps.
+- **GRKERNSEC_DMESG** — invalid-message + parse-error log lines rate-limited and dmesg-restricted.
+- **Per-CAP_NET_ADMIN strict on IPSET_CMD_{CREATE,DESTROY,FLUSH,SWAP,RENAME,ADD,DEL}** — defense against per-unprivileged set mutation across netns.
+- **Per-`ip_set_create` `maxelem` clamp** — defense against per-oversized set OOM.
+- **Per-type `memsize_max` clamp** — defense against per-hash-bucket-overflow allocation.
+- **Per-`ip_set_swap` RCU sync** — defense against per-stale-set deref racing swap commit.
+- **Per-IPSET_FLAG_EXIST idempotency check** — defense against per-conflicting-create-races.
+- **Per-`ip_set_get_byname` namespace scope** — defense against per-cross-netns enumeration leak.
+
+Rationale: ipset is a high-velocity lookup table used directly by the packet fast-path; CAP_NET_ADMIN on mutation + PAX_REFCOUNT on the set/type refs + PAX_RAP on the variant vtable form the load-bearing defense against table-swap UAF and unprivileged set hijack.
+
 ## Open Questions
 
 (none — ipset core ABI exhaustively specified by upstream + libipset regression-test corpus)

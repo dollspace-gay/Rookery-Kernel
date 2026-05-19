@@ -213,6 +213,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `act_ct`:
+
+- **PAX_USERCOPY** — `tcf_ct`, `tcf_ct_params`, and `nf_conntrack_zone` entries sit in PAX_USERCOPY-whitelisted slab caches; netlink dump cannot bleed adjacent kernel state.
+- **PAX_KERNEXEC** — `act_ct_ops` and conntrack hook trampolines live in `__ro_after_init`; corrupted action cannot pivot via forged ops.
+- **PAX_RANDKSTACK** — `tcf_ct_act`, `tcf_ct_init`, `tcf_ct_flow_table_lookup` stack frames randomized on netlink/softirq entry.
+- **PAX_REFCOUNT** — `params->refcnt`, `ft->ref`, and `nft_flow_offload` per-entry refs use saturating `refcount_t`.
+- **PAX_MEMORY_SANITIZE** — `tcf_ct_params_free` zeroes NAT mappings and zone-id residue.
+- **PAX_UDEREF** — netlink attr parsing operates on kernel-side copies; conntrack tuple comes from skb header decode.
+- **PAX_RAP/kCFI** — `tcf_action_ops`/`flow_table_ops` dispatch forward-edge-checked.
+- **GRKERNSEC_HIDESYM** — `RTM_GETACTION` strips per-action and `nf_flow_table` pointers.
+- **GRKERNSEC_DMESG** — `tcf_ct_init` parse-fail and conntrack-fail `printk` rate-limited.
+
+act_ct-specific reinforcement:
+
+- **CAP_NET_ADMIN required** for `RTM_NEWACTION` with `TCA_ID_CT`; strictly enforced.
+- **PAX_REFCOUNT on `tcf_ct_params`** — RCU-protected param swap cannot UAF on rapid replace.
+- **PAX_RAP on `act_ct_ops.act`** — softirq dispatch type-checked.
+- **Flow-table offload-cb registration confined to writer side** under PAX_KERNEXEC `__ro_after_init` block.
+- **NAT range bounded** with PAX_USERCOPY whitelist on `nf_nat_range2` copy.
+
+Rationale: `act_ct` joins TC and netfilter conntrack — the riskiest cross-subsystem join in the stack; CAP_NET_ADMIN gating combined with saturating param/flow-table refs blocks the offload-race UAF class.
+
 ## Open Questions
 
 (none — act_ct semantics exhaustively specified by upstream + netfilter conntrack contract + Cilium dataplane test coverage)

@@ -213,6 +213,28 @@ None beyond upstream defaults. CAP_NET_RAW gate identical.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `net/packet` overview:
+
+- **PAX_USERCOPY** — ring frame headers (`tpacket_hdr`, `tpacket2_hdr`, `tpacket3_hdr`) and `packet_mclist` entries copied via whitelisted slab windows; oversized `getsockopt(PACKET_STATISTICS)` truncated server-side.
+- **PAX_KERNEXEC** — `packet_proto_ops`, `packet_mmap_ops`, and `pf_packet_protocol` vtables sit in `__ro_after_init`; a corrupted `packet_sock` cannot pivot through forged dispatch.
+- **PAX_RANDKSTACK** — `packet_create`, `packet_do_bind`, and `packet_sendmsg` stack frames randomized on each entry.
+- **PAX_REFCOUNT** — `po->sk_refcnt`, `fanout->sk_ref`, and `packet_mclist->count` use saturating `refcount_t`; bind/unbind churn cannot wrap.
+- **PAX_MEMORY_SANITIZE** — ring tear-down zeroes `pg_vec` pages and `tpacket_kbdq_core` blocks so prior capture residue cannot be re-mmaped.
+- **PAX_UDEREF** — sockopt parsing (`packet_setsockopt`) and `mr` userspace struct copies use `copy_from_sockptr` then operate only on kernel-side copies.
+- **PAX_RAP/kCFI** — `packet_rcv`, `tpacket_rcv`, `packet_rcv_spkt` dispatched via forward-edge-checked function tables.
+- **GRKERNSEC_HIDESYM** — `/proc/net/packet` strips socket and fanout-list pointers.
+- **GRKERNSEC_DMESG** — sockopt-parse `printk` paths rate-limited.
+
+PF_PACKET-overview-specific reinforcement:
+
+- **CAP_NET_RAW required in user-ns** — strict, no LSM bypass, no fallback unprivileged path.
+- **mmap-ring length bounded** by `tp_block_nr * tp_block_size`; integer-overflow detection at `packet_set_ring`.
+- **TX-ring frame headers PAX_USERCOPY-whitelisted** — TX-side OOB read blocked.
+
+Rationale: PF_PACKET is a recurring sandbox-escape primitive; the overview-level reinforcement sets the contract enforced by `af_packet.md`'s per-syscall doc.
+
 ## Open Questions
 
 (none — AF_PACKET ABI is exhaustively specified by upstream + libpcap + tcpdump test corpus)

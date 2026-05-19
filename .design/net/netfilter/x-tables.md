@@ -291,6 +291,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: `xt_get_info`/`do_replace`/`do_add_counters` copies bound by `xt_table_info->size` and per-entry `ipt_entry->next_offset` validation; whitelisted slabs for table blobs.
+- PAX_KERNEXEC: per-cpu jump tables and entry traversal run from .text; tables themselves are data; W^X enforced; no executable emit.
+- PAX_RANDKSTACK: stack-base randomization on `setsockopt(IPT_SO_SET_REPLACE)` and related sockopts.
+- PAX_REFCOUNT: `xt_table->me` and `xt_table_info` ref counts saturating refcount_t; counters use percpu with saturating fallback under contention.
+- PAX_MEMORY_SANITIZE: table blob freed via `xt_free_table_info()` is zeroed before kvfree; cipher/match private regions scrubbed.
+- PAX_UDEREF: `compat_xt_*` translation layer validates user pointers under uderef before any deref or size calculation.
+- PAX_RAP / kCFI: `xt_match->match`, `xt_target->target`, `xt_table->table_init` indirect calls kCFI-typed across iptables/ip6tables/arptables/ebtables.
+- GRKERNSEC_HIDESYM: `/proc/net/ip_tables_*`, `/proc/net/ip6_tables_*`, `/proc/net/arp_tables_*`, `/proc/net/ebtables` redact pointers; counter addresses hidden.
+- GRKERNSEC_DMESG: oversized-table / invalid-entry warnings rate-limited; CAP_SYSLOG gates verbose error paths.
+- Shared iptables/ip6tables/arptables/ebtables framework: every front-end shares `xt_table_info` and `xt_recseq` discipline; per-table mutex enforces single-writer semantics.
+- xt_table_info PAX_REFCOUNT: `private->refcnt` (effective via RCU + assign) replaced with saturating refcount_t in modernized path; cannot wrap on rapid replace storms.
+- CAP_NET_ADMIN per-net: setsockopt entrypoints gated by `ns_capable(net->user_ns, CAP_NET_ADMIN)`; userns confinement enforced.
+- Per-cpu counter clamping: counter add bounded; saturating to U64_MAX rather than wrap on attacker-driven traffic loops.
+
+Rationale: x-tables (CVE-2016-3134, CVE-2021-22555-class heap OOB) historically suffered from offset-validation bugs in the entry walker; bounded `next_offset` plus kCFI-typed match/target dispatch under saturating refcounts closes the documented exploit surface.
+
 ## Open Questions
 
 (none — x_tables ABI exhaustively specified by upstream + iptables-legacy regression-test suite)

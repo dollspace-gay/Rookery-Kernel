@@ -564,6 +564,30 @@ AF_SMC reinforcement:
 - **Per-CDC cursor monotonic checks** — defense against per-cursor-replay (in `smc_cdc.c`, referenced here).
 - **Per-`smc_close_active_abort` on connect-race** — defense against per-`connect_work` finishing after `release` started.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to PF_SMC (SMC-R / SMC-D):
+
+- **PAX_USERCOPY** — SMC sockopts (`SMC_*`) and CLC-handshake user buffers traverse whitelisted `copy_{to,from}_user`.
+- **PAX_KERNEXEC** — `smc_rx` / `smc_tx` and CLC negotiation execute from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates inference of RMB / DMB offset state.
+- **PAX_REFCOUNT** — `smc_sock`, `smc_link_group`, `smc_link` refcounts saturating; LGR-create storms cannot wrap.
+- **PAX_MEMORY_SANITIZE** — RMB / DMB-mapped buffers, freed `smc_connection`, and CLC handshake payload sanitized on release.
+- **PAX_UDEREF** — `setsockopt(SOL_SMC, ...)` arg parsing traverses user pointers under UDEREF.
+- **PAX_RAP / kCFI** — `smc_proto`, `smc_proto_ops` `static const`; CDC / LLC fn-ptr dispatch CFI-checked.
+- **GRKERNSEC_HIDESYM** — `smc_listen_decline`, `smcr_lgr_reg_rmbs`, `smc_clc_send_decline` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — CLC-DECLINE / handshake-failure warnings CAP_SYSLOG-gated.
+
+AF_SMC-specific reinforcement:
+
+- **PF_SMC CAP_NET_ADMIN for ULP install** — defense against unprivileged installation of SMC ULP on TCP sockets (parallels kTLS `TCP_ULP` gating).
+- **RoCE/ISM hardware-attach CAP_SYS_ADMIN** — defense against unprivileged manipulation of RDMA/ISM device-link in the LGR; raw RoCE QP/MR programming requires elevated privilege.
+- **RMB / DMB PAX_MEMORY_SANITIZE on detach** — defense against shared-memory residue between tenants on RMB release.
+- **`smc_proto` PAX_RAP-typed** — protocol-ops dispatch CFI-checked across CLC fallback transitions.
+- **GRKERNSEC_HIDESYM on `smcr_lgr_reg_rmbs`** — RDMA MR-registration symbol hidden from unprivileged probing.
+
+Rationale: SMC's threat model is multi-tenant RDMA / shared-memory leakage and CLC-handshake DoS; MEMORY_SANITIZE on RMB/DMB on release, CAP_SYS_ADMIN gating on hardware-link operations, and CFI on the protocol-ops vtable bound the cross-tenant data-leak and unauthorized-fallback surfaces.
+
 ## Open Questions
 
 - Whether SMC-D's Emulated-ISM (`__smc_ism_is_emulated`) on non-s390 hosts (KVM/virt) shares the same Tier-3 or merits a separate one — orthogonal to af_smc.c.

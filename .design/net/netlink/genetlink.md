@@ -258,6 +258,24 @@ Genetlink-specific reinforcement:
 - **Per-CTRL_CMD_NEWFAMILY broadcast scoped to per-net** — defense against subscription-scope bypass.
 - **Per-cmd version checked** — defense against userspace mismatched-protocol.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: `genlmsg_put()` / `genlmsg_unicast()` payloads use whitelisted slabs; family-specific reply blobs sized against declared `maxattr` before copy.
+- PAX_KERNEXEC: genl dispatch (`genl_rcv_msg`, `genl_family_rcv_msg_doit`/`_dumpit`) resides in .text; family ops tables in .rodata.
+- PAX_RANDKSTACK: per-syscall stack-base randomization on `sendmsg()` carrying NETLINK_GENERIC.
+- PAX_REFCOUNT: `genl_family->id` registration count and dump-state refs use saturating refcount_t.
+- PAX_MEMORY_SANITIZE: dump cursors and per-callback state zeroed on `done()`; reply skb private scrubbed.
+- PAX_UDEREF: `info->attrs[]` pointers validated before deref; `nla_data(info->attrs[X])` under uderef.
+- PAX_RAP / kCFI: `genl_ops->doit`, `genl_ops->dumpit`, `genl_ops->start`, `genl_ops->done` indirect calls kCFI-typed.
+- GRKERNSEC_HIDESYM: genl family registration and dump-state addresses redacted from any introspection surface.
+- GRKERNSEC_DMESG: family-registration conflicts and dumpit errors rate-limited; CAP_SYSLOG gates verbose context.
+- GenetLink family registration kCFI: `genl_register_family()` requires each `genl_ops` entry to carry kCFI-typed function pointers; runtime substitution of ops table is trapped.
+- doit/dumpit PAX_RAP: dispatch from `genl_family_rcv_msg_doit()`/`_dumpit()` via RAP-protected indirect call; mis-typed ops aborts before entry.
+- CAP_NET_ADMIN per-op: `GENL_ADMIN_PERM` ops require `ns_capable(net->user_ns, CAP_NET_ADMIN)`; `GENL_UNS_ADMIN_PERM` requires CAP_NET_ADMIN over net_ns owner.
+- Strict NLA validation: `genl_ops->policy` enforced in strict mode; unknown attrs rejected.
+
+Rationale: genetlink is the modern multiplexing layer used by taskstats, devlink, ethtool, nl80211, etc.; kCFI on `doit`/`dumpit` plus per-op capability and strict policy eliminate the documented OOB-attr and type-confusion vectors.
+
 ## Open Questions
 
 (none at this Tier-3 level)

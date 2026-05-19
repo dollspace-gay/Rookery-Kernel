@@ -213,6 +213,30 @@ ETF-specific reinforcement:
 - **Per-etf_change atomic-swap** — defense against per-config torn read.
 - **Per-leaf integration with mqprio** — defense against per-traffic-class isolation breach.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_etf (Earliest TxTime First, TSN) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_ETF_PARMS / `SO_TXTIME` cmsg parsed via `nla_*` and `cmsg_*` whitelisted accessors; no raw `copy_from_user` against the per-skb txtime.
+- **PAX_KERNEXEC**: `etf_qdisc_ops` is `__ro_after_init`; W^X enforced.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + per-packet enqueue (sets `skb->tstamp` ordering) protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, ETF rbtree node count, drop counters use checked `refcount_t` / `u64_stats_*`.
+- **PAX_MEMORY_SANITIZE**: freed `etf_sched_data` zeroed; per-skb scratch cleared.
+- **PAX_UDEREF**: rtnetlink + cmsg walkers fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` callbacks type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: ETF internal symbols hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: ETF parse-failure / late-skb printks rate-limited.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC attaching ETF requires **CAP_NET_ADMIN** in the netns owner.
+- `delta` (lookahead) clamped to `[0, NSEC_PER_SEC]`; `clockid` restricted to `CLOCK_TAI` / `CLOCK_REALTIME` (DDoS-able `CLOCK_MONOTONIC_RAW` refused).
+- Per-skb `skb->tstamp` (txtime) is bounded against `ktime_get_*` + `delta`; skbs with txtime > `now + max_horizon` are dropped at enqueue (`q->stats.txtime_invalid`).
+- `SO_TXTIME` socket option requires `CAP_NET_ADMIN` (drop privilege) or PaX socket-cookie binding; unprivileged sockets get `SO_TXTIME = NULL`.
+- Skipping the rbtree (`deadline_mode`) is gated; a corrupted rbtree node count cannot extend the queue past `sch->limit`.
+
+Rationale: ETF places attacker-influenced timestamps directly into the dequeue ordering of a real-time TSN egress; an unchecked `delta` or unprivileged `SO_TXTIME` lets a process pin the rbtree head into the future and starve the TSN window. Bounding the time-horizon plus CAP gating plus RAP/kCFI keeps the TSN scheduler deterministic.
+
 ## Open Questions
 
 (none at this Tier-3 level)

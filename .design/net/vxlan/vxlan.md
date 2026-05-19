@@ -284,6 +284,30 @@ VXLAN-specific reinforcement:
 - **Per-checksum-offload validated by NIC cap** — defense against per-config invalid.
 - **Per-source-IP anti-spoof** — defense against per-rx with mismatched src.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to the VXLAN driver (`drivers/net/vxlan/`):
+
+- **PAX_USERCOPY** — VXLAN netlink (`IFLA_VXLAN_*`), FDB dump/add payloads traverse whitelisted `copy_{to,from}_user`.
+- **PAX_KERNEXEC** — `vxlan_xmit`, `vxlan_rcv`, FDB ageing worker execute from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates VNI / FDB state inference.
+- **PAX_REFCOUNT** — `vxlan_dev`, `vxlan_fdb`, `vxlan_rdst` saturating refcounts under FDB-churn storms.
+- **PAX_MEMORY_SANITIZE** — FDB entries, `vxlan_rdst` remote destinations, and freed `vxlan_dev` priv area sanitized on free.
+- **PAX_UDEREF** — netlink VXLAN attribute parsing under UDEREF.
+- **PAX_RAP / kCFI** — `vxlan_netdev_ether_ops`, `vxlan_netdev_raw_ops` `static const`; encap/decap dispatch CFI-checked.
+- **GRKERNSEC_HIDESYM** — `vxlan_fdb_find`, `vxlan_xmit_one` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — VNI-filter / FDB-overflow warnings CAP_SYSLOG-gated.
+
+VXLAN-specific reinforcement:
+
+- **VXLAN tunnel create/delete CAP_NET_ADMIN** — defense against unprivileged tenant tunnel-spoof; enforced in netns owning the netdev.
+- **VNI 24-bit validation under PAX_USERCOPY** — defense against VNI overflow on `IFLA_VXLAN_ID`.
+- **VNIFILTER per-VNI ACL CAP_NET_ADMIN-gated** — defense against cross-tenant FDB leak.
+- **`vxlan_netdev_*_ops` PAX_RAP-typed** — netdev-ops dispatch CFI-checked across ether/raw modes.
+- **GRKERNSEC_HIDESYM on `vxlan_fdb_find`** — FDB-lookup symbol hidden, frustrating cross-tenant FDB inference.
+
+Rationale: VXLAN is a multi-tenant L2-over-L3 overlay; CAP_NET_ADMIN gating on tunnel/VNIFILTER admin, VNI validation under USERCOPY, sanitize-on-free of FDB entries, and CFI on the netdev-ops vtable bound the cross-tenant VNI-spoof, FDB-leak, and stale-FDB classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

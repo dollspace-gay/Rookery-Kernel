@@ -241,6 +241,26 @@ None beyond upstream defaults (helpers default-off per upstream 4.7+).
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — helper-driven payload-rewrite paths copy bounded segments from skb; no userspace buffer touched.
+- **PAX_KERNEXEC** — `nf_conntrack_helper` + per-helper `nf_nat_helper_*` op pointers reside in R-X kernel text.
+- **PAX_RANDKSTACK** — FTP/SIP/IRC/H.323/TFTP/PPTP rewrite stacks re-randomised; per-packet rewrite locals unpredictable.
+- **PAX_REFCOUNT** — `nf_conn_help` + expectation refs saturate-trap during burst-create from a single ALG flow.
+- **PAX_MEMORY_SANITIZE** — `nf_conntrack_expect` slabs freed zeroed so stale ALG-derived tuple cannot leak.
+- **PAX_UDEREF** — payload parsing validates skb offsets via `skb_header_pointer` before rewrite.
+- **PAX_RAP/kCFI** — `nf_nat_helper->{seq_adjust, mangle_packet}` indirect dispatch signed with helper CFI signature.
+- **GRKERNSEC_HIDESYM** — helper symbol pointers never leak via ctnetlink dumps.
+- **GRKERNSEC_DMESG** — malformed-payload / mangle-fail warnings rate-limited.
+- **Per-`nf_ct_helper_ext_add` PAX_REFCOUNT** — defense against per-helper-extension link wrap.
+- **Per-CAP_NET_ADMIN gate on `nf_nat_helper_register`** — defense against per-unprivileged ALG injection.
+- **Per-`expect_class_max` clamp** — defense against per-ALG-storm expectation table OOM.
+- **Per-`nf_nat_mangle_tcp_packet` seq_adjust transactional** — defense against per-partial-rewrite leaving TCP seq desync.
+- **Per-NAT-helper ALG opt-in sysctl** — defense against per-default-enable ALG surface (FTP PORT, SIP, etc.).
+- **Per-`nf_ct_seq_adjust` rollback on failure** — defense against per-orphaned seq-offset persisting across rewrites.
+
+Rationale: ALG helpers parse attacker-controlled payloads and rewrite skb data in flight; PAX_USERCOPY (skb_header_pointer bounds) + PAX_REFCOUNT on expectations + opt-in sysctl per ALG contain the historic FTP/SIP CVE classes (CVE-2017-7895, CVE-2014-3144, etc.).
+
 ## Open Questions
 
 (none — per-helper NAT semantics exhaustively specified by upstream + iptables-test-suite NAT-helper coverage)

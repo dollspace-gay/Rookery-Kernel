@@ -183,6 +183,30 @@ FIFO-specific reinforcement:
 - **Per-overflow drop reason logged** — defense against per-debug-loss.
 - **Per-NETIF_F_LLTX safe** — defense against LLTX-NIC bypass leaving qdisc starved.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_fifo (pfifo / bfifo / pfifo_head_drop) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_FIFO_PARMS netlink attributes parsed via `nla_get_*` whitelisted accessors.
+- **PAX_KERNEXEC**: `pfifo_qdisc_ops`, `bfifo_qdisc_ops`, `pfifo_head_drop_qdisc_ops` all live in `.rodata`, `__ro_after_init`.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + per-packet enqueue/dequeue protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, `sch->qstats.drops`, `sch->qstats.overlimits` use checked `refcount_t` / `u64_stats_*`; saturating.
+- **PAX_MEMORY_SANITIZE**: freed `sk_buff_head` and qdisc private storage zeroed on `fifo_destroy`.
+- **PAX_UDEREF**: rtnetlink walkers fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` callbacks type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: FIFO symbols (used as the default leaf qdisc almost everywhere) hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: FIFO `limit` parse-failure printks rate-limited.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC attaching pfifo / bfifo requires **CAP_NET_ADMIN** in the netns owner; default-qdisc auto-attach in the kernel runs from `__init` and is not gated by CAP.
+- `limit` clamped: pfifo `[1, qdisc_dev(sch)->tx_queue_len * 2]` (or default `tx_queue_len`); bfifo `[ETH_HLEN, U32_MAX / 2]` bytes; out-of-range fails `-EINVAL`.
+- `pfifo_head_drop` drops the *oldest* packet on overflow — used as the default for `dev->qdisc`; with bounded `limit` it cannot grow unbounded under attacker load.
+- Single-class qdisc: no class hierarchy, no per-flow table, no kmalloc-per-packet beyond the skb itself.
+- `qstats.drops` / `qstats.overlimits` saturate; an attacker cannot wrap them to mask flooding.
+
+Rationale: FIFO is the default leaf qdisc on every TX queue in the kernel; it sits in the hottest softirq path. The hardening surface is small (just a `limit` integer), but unbounded `limit` is a trivial OOM and a wrapped drop counter is a trivial flood-mask. Clamping `limit` and saturating stats, plus the standard PaX + RAP/kCFI envelope, keep the default qdisc fail-closed.
+
 ## Open Questions
 
 (none at this Tier-3 level)

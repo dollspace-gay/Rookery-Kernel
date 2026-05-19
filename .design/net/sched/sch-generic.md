@@ -228,6 +228,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_generic (the dequeue / tx-softirq core for every qdisc) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: sch_generic itself takes no user input, but every skb it carries was constructed through a USERCOPY-checked allocator (`pskb_*`, `__alloc_skb`).
+- **PAX_KERNEXEC**: `noop_qdisc`, `pfifo_fast_ops`, `mq_qdisc_ops` all `__ro_after_init`; W^X enforced on the generic dequeue path.
+- **PAX_RANDKSTACK**: every entry into `__qdisc_run` from `NET_TX_SOFTIRQ` participates in kstack randomization.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, `Qdisc.q.qlen`, every `qstats` counter use checked `refcount_t` / `u64_stats_*`; saturating.
+- **PAX_MEMORY_SANITIZE**: `qdisc_alloc` + `qdisc_destroy` zero the private region.
+- **PAX_UDEREF**: dequeue path never dereferences a userspace pointer; enforced by sparse + objtool.
+- **PAX_RAP / kCFI**: every `Qdisc_ops` callback (`enqueue`, `dequeue`, `peek`, `reset`) is invoked via CFI-checked indirect; the per-cpu `pfifo_fast` and `noop` op tables are type-tagged.
+- **GRKERNSEC_HIDESYM**: dequeue-loop symbols hidden from `/proc/kallsyms` for unprivileged readers.
+- **GRKERNSEC_DMESG**: `Dead loop on netdevice ...` and watchdog printks rate-limited and gated to CAPSYSLOG.
+
+Component-specific reinforcement:
+
+- `__qdisc_run` bounds its loop by `quota = dev_tx_weight` and `time_after_eq(jiffies, ...)` to prevent a single qdisc dequeue from starving NET_TX_SOFTIRQ.
+- `NET_TX_SOFTIRQ` is scheduled with `raise_softirq_irqoff`; tx-watchdog (`dev_watchdog`) fires on stuck TX with PaX-bounded `tx_timeout` callback dispatch.
+- `noop_qdisc` is mapped into `dev->qdisc` for un-initialized devices — it is a literal `.rodata` constant; a corrupted `dev->qdisc` cannot point at attacker memory without tripping kCFI on the next dequeue.
+- `qdisc_lookup` and `qdisc_match_from_root` traverse a refcounted hash; orphan / dangling Qdiscs are released through RCU after their refcount drops, never freed under the dequeue.
+- Per-cpu `gnet_stats_basic_sync` for `pfifo_fast` uses `u64_stats_*` to remain SMP-safe under saturating arithmetic.
+
+Rationale: sch_generic is *the* per-packet kernel dispatch surface; any RAP/kCFI miss or refcount wrap here is a kernel-RCE primitive that fires on every NIC tx. The PaX layer plus saturating qstats plus the bounded dequeue loop keep this path fail-closed.
+
 ## Open Questions
 
 (none — sch_generic semantics are exhaustively specified by upstream)

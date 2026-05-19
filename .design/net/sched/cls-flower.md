@@ -247,6 +247,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `cls_flower`:
+
+- **PAX_USERCOPY** — `cls_fl_head`, `cls_fl_filter`, `fl_flow_key`, and `fl_flow_mask` allocations are PAX_USERCOPY-whitelisted; netlink dump cannot bleed adjacent slab.
+- **PAX_KERNEXEC** — `cls_fl_ops` vtable and rhashtable callback ops live in `__ro_after_init`; corrupted classifier cannot pivot.
+- **PAX_RANDKSTACK** — `fl_classify`, `fl_init`, `fl_change`, `fl_walk` stack frames randomized.
+- **PAX_REFCOUNT** — `head->refcnt`, `filter->refcnt`, `mask->refcnt` use saturating `refcount_t`.
+- **PAX_MEMORY_SANITIZE** — `fl_destroy_filter`/`fl_mask_free` zero per-filter/mask state on RCU free.
+- **PAX_UDEREF** — netlink-attr parsing operates on kernel-side copies; mask/key built kernel-side via `fl_set_key`.
+- **PAX_RAP/kCFI** — `cls_fl_ops.classify`/`init`/`destroy`/`change`/`walk` and flow-block-cb dispatch are forward-edge-checked.
+- **GRKERNSEC_HIDESYM** — `RTM_GETTFILTER` strips `cls_fl_filter`/`mask` kernel pointers.
+- **GRKERNSEC_DMESG** — mask-collision and HW-offload-fail `printk_ratelimited` capped.
+
+cls_flower-specific reinforcement:
+
+- **CAP_NET_ADMIN required** for `RTM_NEWTFILTER` with `kind=flower`; strictly enforced.
+- **PAX_REFCOUNT on `mask->refcnt`** — shared mask across many filters cannot wrap on rapid add/del.
+- **`fl_flow_key` PAX_USERCOPY-whitelisted** — partial-key dump to userspace cannot exfiltrate adjacent state.
+- **`flow_block_cb` registration** for HW-offload paired add/del under PAX_KERNEXEC `__ro_after_init` vtable — stale HW-filter cannot survive cls delete.
+- **PAX_RAP on `cls_fl_ops.classify`** — softirq classify dispatch forward-edge-checked.
+
+Rationale: flower is the modern hot-path classifier used by Cilium/OVS HW offload; combining USERCOPY whitelisting on the key, saturating mask refs, and PAX_RAP-checked HW-offload-cb dispatch closes the offload-race and partial-disclosure classes.
+
 ## Open Questions
 
 (none — flower semantics exhaustively specified by upstream + iproute2 wire-test corpus + extensive Cilium / OVS interop test coverage)

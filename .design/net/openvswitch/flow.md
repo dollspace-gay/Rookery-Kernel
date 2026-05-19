@@ -531,6 +531,28 @@ OVS-flow-extract reinforcement:
 - **Per-BUILD_BUG_ON tun_opts size** — defense against ABI drift in IP_TUNNEL_OPTS_MAX.
 - **Per-WARN_ON_ONCE on unknown skb.dev->type** — defense against silent acceptance of new dev types.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by OVS flow-extract:
+
+- **PAX_USERCOPY** — `sw_flow_key`, `sw_flow_actions`, and per-CPU `flow_stats` are pinned in dedicated slab caches (`flow_cache`, `flow_stats_cache`) with whitelisted copy windows; netlink-attr→key parse paths refuse copies that straddle key fields.
+- **PAX_KERNEXEC** — flow-action execute trampolines and per-action vtables (`ovs_execute_actions`) live in `__ro_after_init` so userspace cannot pivot through forged action ops.
+- **PAX_RANDKSTACK** — randomized stack base on every `ovs_flow_extract`/`ovs_flow_cmd_new` syscall entry hides key-parse stack layout from leak-then-overwrite attacks.
+- **PAX_REFCOUNT** — `flow->refcnt`, action-set refs, and per-mask refs use saturating `refcount_t`; overflow on rapid add/del cannot wrap to zero and trigger UAF.
+- **PAX_MEMORY_SANITIZE** — `kmem_cache_zalloc` on the flow path plus poison-on-free of `sw_flow_key` and per-CPU stats erases CT-tuple/keyid residue between flows.
+- **PAX_UDEREF** — netlink attribute parsers (`ovs_nla_get_match`, `ovs_nla_copy_actions`) cannot dereference user pointers; all attrs traverse `nla_data()` after kernel-side copy.
+- **PAX_RAP/kCFI** — `flow_extract` dispatch through `ovs_key_attr_to_pkt_metadata` and per-action callbacks is forward-edge-checked, blocking type-confused jumps from a corrupted action list.
+- **GRKERNSEC_HIDESYM** — `sw_flow` and `flow_table` kernel pointers stripped from `/proc/net/openvswitch/*` and `tc -s` output.
+- **GRKERNSEC_DMESG** — netlink-parse failures (`-EINVAL` paths in `ovs_nla_get_flow_metadata`) are rate-limited so an attacker cannot drain dmesg or fingerprint key-layout.
+
+OVS-flow-specific reinforcement:
+
+- `sw_flow_key` (584-byte fixed layout) marked PAX_USERCOPY-whitelist so partial copies to userspace via `OVS_FLOW_ATTR_KEY` cannot exfiltrate adjacent slab.
+- Flow `refcount_t` saturates on the mask-array hot path; rapid `OVS_FLOW_CMD_NEW`/`DEL` cannot wrap.
+- Mask array bounded by `MAX_MASK_COUNT` with `WARN_ON_ONCE`; PAX_USERCOPY prevents oversized mask import.
+
+Rationale: OVS flow parsing is the canonical "userland-controlled struct → kernel matching state" surface in the kernel; combining USERCOPY whitelisting, refcount saturation, and bounded mask arrays makes both the parse-time and lookup-time attack surfaces non-exploitable.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -299,6 +299,26 @@ IPVS reinforcement:
 - **Per-conn-rate-limit per service** — defense against per-service flood.
 - **Per-MH Maglev seed per-svc** — defense against per-deterministic spread.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — IPVS sockopt (IP_VS_SO_SET_*, IP_VS_SO_GET_*) ingress bounded; `ip_vs_service_user_kern` + `ip_vs_dest_user_kern` size-validated; oversized blobs rejected.
+- **PAX_KERNEXEC** — `ip_vs_scheduler` + `ip_vs_app` + per-protocol `ip_vs_proto_data` op tables live in R-X kernel text.
+- **PAX_RANDKSTACK** — `ip_vs_in` / `ip_vs_out` / scheduler `schedule()` stacks re-randomised per packet.
+- **PAX_REFCOUNT** — `ip_vs_dest.refcnt`, `ip_vs_service.refcnt`, `ip_vs_conn.refcnt` saturate-trap under sync-flood + add storm.
+- **PAX_MEMORY_SANITIZE** — `ip_vs_conn` + `ip_vs_dest` slab freed zeroed; stale director state cannot leak.
+- **PAX_UDEREF** — every netlink attribute walk under IPVS_CMD_* validates `nla_len` before deref.
+- **PAX_RAP/kCFI** — `scheduler->schedule`, `app->pkt_in/pkt_out`, `proto_data->register_app` indirect dispatch signed with IPVS-specific CFI; cross-scheduler vtable trap.
+- **GRKERNSEC_HIDESYM** — scheduler + app function pointers never leak via generic-netlink dumps or /proc/net/ip_vs.
+- **GRKERNSEC_DMESG** — sync-msg-invalid / scheduler-not-found messages rate-limited + dmesg-restricted.
+- **Per-CAP_NET_ADMIN strict on every IPVS_CMD_NEW_SERVICE / _NEW_DEST / _SET_CONFIG / _SET_INFO** — defense against per-unprivileged LVS director hijack.
+- **Per-`ip_vs_sync` mcast peer-list + AF_UNSPEC drop** — defense against per-rogue-sync injection from off-cluster source.
+- **Per-`sync_state` strict enforcement (MASTER/BACKUP exclusivity)** — defense against per-conflicting-state director split-brain.
+- **Per-`ip_vs_scheduler_register` symbol pin** — defense against per-unsigned-module hijacking a scheduler slot.
+- **Per-conn-rate-limit per service (already noted)** — defense against per-flood-of-new-connections OOM.
+- **Per-`ip_vs_app_inc_get` symbol pin** — defense against per-helper-app hijack.
+
+Rationale: IPVS is a Layer-4 load-balancer with multiple indirect-call surfaces (scheduler, app, proto_data) and an mcast sync protocol that crosses cluster boundaries; PAX_RAP on each vtable + CAP_NET_ADMIN on all mutations + strict sync_state are the load-bearing defenses against scheduler hijack and rogue-director injection.
+
 ## Open Questions
 
 (none at this Tier-3 level)

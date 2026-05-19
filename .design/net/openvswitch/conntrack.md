@@ -259,6 +259,24 @@ OVS-conntrack-specific reinforcement:
 - **Per-CAP_NET_ADMIN for nf_conntrack module-load** — defense against unprivileged helper-injection.
 - **Per-namespace per-net conntrack scoped** — defense against cross-ns leak.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: OVS_CT_ATTR_* attribute payload (mark, label, helper, nat) copied via whitelisted slabs sized against NLA policy max.
+- PAX_KERNEXEC: `ovs_ct_execute()`, `__ovs_ct_lookup()`, and nf_conntrack glue reside in .text; helper tables in .rodata.
+- PAX_RANDKSTACK: stack-base randomization on action paths invoking `ovs_ct_execute()`.
+- PAX_REFCOUNT: `nf_conn` reference counts via `nf_conntrack_get()`/`nf_conntrack_put()` use saturating refcount_t; cannot wrap on rapid CT churn.
+- PAX_MEMORY_SANITIZE: CT zone / label storage scrubbed on `nf_conntrack_destroy()` callback before kfree.
+- PAX_UDEREF: every CT attribute pointer validated before deref; `nla_get_*()` bounded by `nla_len()`.
+- PAX_RAP / kCFI: `nf_conntrack_helper->help`, `nf_nat_ops`, and `ovs_ct_action` dispatch kCFI-typed.
+- GRKERNSEC_HIDESYM: `/proc/net/nf_conntrack` and OVS CT dump redact kernel pointers; tuple hashes truncated where possible.
+- GRKERNSEC_DMESG: CT table-full, helper-mismatch, and NAT-collision messages rate-limited.
+- nf_conn PAX_REFCOUNT: `nf_conn->ct_general.use` saturating refcount_t; `nf_conntrack_confirm()` path cannot underflow on concurrent expiry.
+- OVS_CT_ATTR_* validation: NLA policy enforces mark/label/helper/nat ranges; unknown attrs rejected under strict-mode.
+- CAP_NET_ADMIN per-net: CT-attaching flow install gated by `ns_capable(net->user_ns, CAP_NET_ADMIN)`.
+- Zone isolation: per-zone CT lookup ensures userns cannot poison parent-net CT entries.
+
+Rationale: OVS conntrack ties nf_conn lifetime to flow lifetime, which is a recurring UAF surface (CVE-2022-4378-style refcount issues); saturating `nf_conn` refcounts plus strict OVS_CT_ATTR_* validation eliminate the documented vector.
+
 ## Open Questions
 
 (none at this Tier-3 level)

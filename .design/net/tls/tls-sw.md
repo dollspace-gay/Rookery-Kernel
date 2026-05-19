@@ -563,6 +563,30 @@ TLS-SW reinforcement:
 - **Per-async-disabled-for-TLS-1.3** — defense against per-1.3 in-band record-type recovery race.
 - **Per-`unsafe_memcpy` with explicit size assertion on rekey crypto_info** — defense against per-rekey type confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to kTLS-SW (`net/tls/tls_sw.c`):
+
+- **PAX_USERCOPY** — `sendmsg`/`recvmsg` payload copies and `setsockopt(SOL_TLS)` rekey blobs traverse whitelisted bounds.
+- **PAX_KERNEXEC** — `tls_sw_sendmsg`, `tls_sw_recvmsg`, and AEAD encrypt/decrypt glue execute from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates inference of IV / nonce state via syscall timing.
+- **PAX_REFCOUNT** — `tls_sw_context_{tx,rx}` saturating refcount under rapid setsockopt churn.
+- **PAX_MEMORY_SANITIZE** — `tls_rec`, per-record AAD/IV scratch, and `new_crypto_info` rekey buffer sanitized on free; strict zeroization for AEAD key material.
+- **PAX_UDEREF** — record-type / cmsg parsing under UDEREF.
+- **PAX_RAP / kCFI** — `tls_sw_proto_ops` `static const`; AEAD callback dispatch CFI-checked.
+- **GRKERNSEC_HIDESYM** — `tls_xor_iv_with_seq`, `tls_rx_reader_lock` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — decrypt-fail / strparser-abort warnings CAP_SYSLOG-gated.
+
+TLS-SW reinforcement:
+
+- **`setsockopt(SOL_TLS)` rekey CAP_NET_ADMIN** — defense against unprivileged rekey storms.
+- **Per-record key PAX_MEMORY_SANITIZE strict** — `memzero_explicit` already required on rekey path; PAX_MEMORY_SANITIZE provides defense-in-depth on every `kfree` of `tls_rec` / scratch buffer.
+- **AEAD nonce uniqueness enforced** — `rec_seq` u64 monotonic + `tls_xor_iv_with_seq` constant-time; saturating arithmetic refuses to wrap into reuse.
+- **`tls_sw_proto_ops` PAX_RAP-typed** — protocol-ops dispatch CFI-checked.
+- **GRKERNSEC_HIDESYM on `tls_xor_iv_with_seq`** — IV-construction symbol hidden, frustrating side-channel kernel-probing.
+
+Rationale: kTLS-SW is the AEAD hot path holding per-direction record keys; strict MEMORY_SANITIZE on every rec/scratch free, AEAD-nonce uniqueness via saturating rec_seq, and CFI on the proto-ops vtable directly answer the rekey-race, nonce-reuse, and stack-residue key-leak classes specific to software AEAD execution.
+
 ## Open Questions
 
 - Whether Rookery binds AEAD via Linux `crypto/aead` shim or via a Rust-native AEAD trait (RustCrypto `aead` crate) — needs decision before implementation.

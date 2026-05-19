@@ -162,6 +162,30 @@ Matchall-specific reinforcement:
 - **Per-TCA_CLS_FLAGS validated** — defense against per-config invalid combo.
 - **Per-tcf_exts validated** — defense against per-malformed action-list.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `cls_matchall`:
+
+- **PAX_USERCOPY** — `cls_mall_head` and embedded `tcf_exts` live in PAX_USERCOPY-whitelisted slab caches; netlink dump cannot bleed adjacent state.
+- **PAX_KERNEXEC** — `cls_mall_ops` vtable lives in `__ro_after_init`; corrupted classifier cannot pivot.
+- **PAX_RANDKSTACK** — `mall_classify`, `mall_init`, `mall_change` stack frames randomized.
+- **PAX_REFCOUNT** — `head->refcnt` and per-action refs via `tcf_exts` use saturating `refcount_t`.
+- **PAX_MEMORY_SANITIZE** — `mall_destroy` zeroes head and exts on RCU free.
+- **PAX_UDEREF** — netlink-attr parse via `nla_*`; no user-pointer deref in classify path.
+- **PAX_RAP/kCFI** — `cls_mall_ops.classify`/`init`/`destroy`/`change` and `flow_block_cb` dispatch forward-edge-checked.
+- **GRKERNSEC_HIDESYM** — `RTM_GETTFILTER` strips `cls_mall_head` and HW-offload pointers.
+- **GRKERNSEC_DMESG** — HW-offload-fail and add-fail `printk_ratelimited` capped.
+
+cls_matchall-specific reinforcement:
+
+- **CAP_NET_ADMIN required** for `RTM_NEWTFILTER` with `kind=matchall`; strictly enforced.
+- **Single-filter-per-instance** enforced under PAX_REFCOUNT saturation — filter-explosion DoS denied.
+- **HW-offload paired add/del** under PAX_KERNEXEC `__ro_after_init` flow-block-cb ops — stale HW-filter blocked.
+- **PAX_RAP on `cls_mall_ops.classify`** — softirq dispatch type-checked.
+- **`tcf_exts` action-list validated** with PAX_USERCOPY whitelist on copy-in.
+
+Rationale: matchall is the trivial-classify primitive (one filter, always matches) used by HW-offload control planes; saturating refcount + PAX_RAP-checked offload-cb dispatch close the residual offload-race surface.
+
 ## Open Questions
 
 (none at this Tier-3 level)

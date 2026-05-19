@@ -287,6 +287,28 @@ Flow-table-specific reinforcement:
 - **Per-init mask_cache_size power-of-2** — defense against per-cache-index UB.
 - **Per-lookup_exact distinct from lookup_stats** — defense against per-control-vs-data-plane confusion.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `flow_table`:
+
+- **PAX_USERCOPY** — `flow_table`, `table_instance`, and `mask_array` allocations sit in slab caches with explicit whitelist windows; netlink getters cannot copy out adjacent kernel state.
+- **PAX_KERNEXEC** — `ovs_rht_params.obj_hashfn`/`obj_cmpfn` function pointers stored in `.rodata`; table-rehash trampolines cannot be redirected via heap corruption.
+- **PAX_RANDKSTACK** — every `ovs_flow_tbl_lookup_stats`/`tbl_insert` entry randomizes the stack base, denying layout knowledge for mask-cache spraying.
+- **PAX_REFCOUNT** — `mask->ref_count` and per-instance refs use saturating `refcount_t`; mass `OVS_FLOW_CMD_NEW`/`DEL` cannot wrap to zero and trigger mask-array UAF.
+- **PAX_MEMORY_SANITIZE** — `table_instance_destroy` zeroes bucket pages and mask slots on free so stale flow pointers cannot be re-read across rehash.
+- **PAX_UDEREF** — table grow/rehash runs entirely on kernel pointers; user attrs are copied via `nla_*` before any table mutation.
+- **PAX_RAP/kCFI** — rhashtable callback dispatch (`obj_hashfn`, `obj_cmpfn`, `obj_extract_key`) forward-edge-checked against the `ovs_rht_params` signature.
+- **GRKERNSEC_HIDESYM** — `table_instance` and per-mask kernel pointers redacted in `/proc/net/openvswitch/datapaths/*/flows*` and tracepoint output.
+- **GRKERNSEC_DMESG** — `WARN_ON` on mask-cache-index UB and rehash-collision is rate-limited; cannot be weaponized to fingerprint hash seed.
+
+Flow-table-specific reinforcement:
+
+- `mask_array` capacity bounded by `MASK_ARRAY_SIZE_MIN`/`MAX`; PAX_USERCOPY whitelist prevents out-of-bounds copy on `OVS_FLOW_ATTR_MASK` get.
+- `table_instance` swap via `rcu_assign_pointer` under `ovs_lock`; PAX_REFCOUNT on table refs blocks UAF if userspace races grow vs. delete.
+- `mask_cache_size` enforced power-of-2 at init; PAX_USERCOPY blocks index UB if userspace forces `0`.
+
+Rationale: the flow table is OVS's hottest data-plane structure and the natural target for rehash-races and mask-spray. Saturating refcounts plus USERCOPY whitelisting on the mask array close both the lifetime and the disclosure attack surfaces.
+
 ## Open Questions
 
 (none at this Tier-3 level)

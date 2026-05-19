@@ -569,6 +569,29 @@ act-api reinforcement:
 - **Per-tcf_action_destroy unwind on partial init** — defense against per-init-error leak.
 - **Per-flush requires NLM_F_ROOT + kind lookup + module-get** — defense against per-flush-of-wrong-kind.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `tc_action` (act-api):
+
+- **PAX_USERCOPY** — `tc_action`, `tc_action_ops`, and per-action `tcf_idrinfo` arrays live in PAX_USERCOPY-whitelisted slab caches; `RTM_GETACTION` dump cannot bleed adjacent slab.
+- **PAX_KERNEXEC** — the global `act_base[]` and per-kind `tc_action_ops` vtables are stored in `__ro_after_init`; a corrupted action cannot pivot through forged ops.
+- **PAX_RANDKSTACK** — `tcf_action_init`, `tcf_action_exec`, and `tcf_action_dump` stack frames randomized on each netlink entry.
+- **PAX_REFCOUNT** — `a->tcfa_refcnt`, `a->tcfa_bindcnt`, and per-action `goto_chain` refs use saturating `refcount_t`; `RTM_NEWACTION`/`DELACTION` churn cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `tcf_action_destroy` zeroes per-action state; user_cookie material poisoned on free.
+- **PAX_UDEREF** — netlink-attr parsing (`tcf_action_init_1`, `nla_parse_nested_deprecated`) operates on kernel-side copies; no user-pointer deref in fast path.
+- **PAX_RAP/kCFI** — `act->act`/`stats_update`/`lookup`/`walk`/`init`/`cleanup`/`offload_act_setup` dispatch is forward-edge-checked against `tc_action_ops`.
+- **GRKERNSEC_HIDESYM** — `RTM_GETACTION` and `/sys/kernel/debug/tc/*` strip kernel pointers.
+- **GRKERNSEC_DMESG** — `tcf_register_action` collision and `tcf_action_init_1` parse-fail `printk` paths rate-limited.
+
+act-api-specific reinforcement:
+
+- **CAP_NET_ADMIN required in target net-ns** for `RTM_NEWACTION`/`DELACTION`/`GETACTION` (non-RTM_GET*); strictly enforced at rtnetlink dispatch.
+- **PAX_REFCOUNT saturates `tcfa_refcnt` / `tcfa_bindcnt`** — bind from many filters cannot overflow.
+- **PAX_RAP on `tc_action_ops`** — `act_base[]` indirect calls (init/cleanup/dump/act) cannot be type-confused into a different action kind.
+- **`user_cookie` ≤ `TC_COOKIE_MAX_SIZE`** with PAX_USERCOPY whitelist; oversized cookie rejected.
+
+Rationale: TC actions execute in softirq context on every classified skb; locking down the vtable with PAX_RAP and saturating bindcnt closes the historical drop-into-`act_mirred`-on-corrupt-action class of bugs.
+
 ## Open Questions
 
 (none at this Tier-3 level)

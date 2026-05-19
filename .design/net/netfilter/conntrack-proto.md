@@ -256,6 +256,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — per-proto sysctl read/write paths (TCP loose, UDP timeouts, SCTP states) are bounded; no oversized user→kernel sysctl buffers.
+- **PAX_KERNEXEC** — `nf_conntrack_l4proto` ops vtables (`packet`, `new`, `error`, `nlattr_to_tuple`, etc.) live in R-X text and cannot be patched at runtime.
+- **PAX_RANDKSTACK** — `nf_conntrack_in` + per-proto `packet()` stacks re-randomised per skb so window-tracking + sequence-validation locals are unpredictable.
+- **PAX_REFCOUNT** — `nf_conn` reference counts incremented by per-proto packet() saturate-trap; SCTP / DCCP retransmit storms cannot wrap.
+- **PAX_MEMORY_SANITIZE** — per-proto state struct (ct->proto.tcp / udp / sctp / dccp / gre) zeroed on entry destroy so stale window/seqno fields cannot reach a recycled tuple.
+- **PAX_UDEREF** — nlattr-driven proto state restore (CTA_PROTOINFO_TCP, _SCTP, _DCCP) bounds-checks every user-supplied attribute before deref.
+- **PAX_RAP/kCFI** — `l4proto->packet` / `->new` / `->nlattr_to_tuple` indirect dispatch enforced with type-signature CFI; cross-proto vtable confusion traps.
+- **GRKERNSEC_HIDESYM** — proto-op function pointers never exposed via /proc/net/nf_conntrack or sysctl logging.
+- **GRKERNSEC_DMESG** — `nf_l4proto_log_invalid` and per-proto invalid-packet warnings rate-limited + dmesg-restricted.
+- **Per-l4proto registry kCFI guard on `nf_ct_l4proto_register_one`** — defense against per-unsigned module hijacking a protocol slot.
+- **Per-sysctl gate (`nf_conntrack_tcp_loose`, `nf_conntrack_tcp_be_liberal`, `nf_conntrack_tcp_max_retrans`)** — defense against per-permissive-state-machine bypass; netns-scoped.
+- **Per-`tcp_in_window` strict mode** — defense against per-out-of-window seqno injection that confuses NAT bysource.
+- **Per-SCTP verification-tag mismatch hard-drop** — defense against per-blind-INIT injection.
+- **Per-DCCP service-code + role checks on NEW** — defense against per-unsolicited role swap.
+- **Per-GRE keymap CAP_NET_ADMIN on `nf_ct_gre_keymap_*`** — defense against per-unprivileged PPTP-tunnel hijack.
+
+Rationale: the l4proto registry is the protocol-dispatch surface for conntrack; kCFI on the vtable + sysctl gating per-proto liberalism + PAX_REFCOUNT on nf_conn together contain both protocol-confusion exploits and state-machine relaxations that would otherwise let attackers desynchronise NAT.
+
 ## Open Questions
 
 (none — per-proto state machines exhaustively specified by upstream + relevant RFCs)

@@ -225,6 +225,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `cls_u32`:
+
+- **PAX_USERCOPY** — `tc_u_common`, `tc_u_hnode`, and `tc_u_knode` allocations live in PAX_USERCOPY-whitelisted slab caches; netlink dump cannot bleed adjacent state.
+- **PAX_KERNEXEC** — `cls_u32_ops` vtable lives in `__ro_after_init`; corrupted classifier cannot pivot.
+- **PAX_RANDKSTACK** — `u32_classify`, `u32_init`, `u32_change` stack frames randomized.
+- **PAX_REFCOUNT** — `tp_c->refcnt`, `ht->refcnt`, `n->refcnt` use saturating `refcount_t`; rapid knode/hnode add/del cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `u32_destroy_key`/`u32_destroy_hnode` zero per-knode/hnode state on RCU free.
+- **PAX_UDEREF** — netlink-attr parse via `nla_*`; selector/`u32_sel` built kernel-side.
+- **PAX_RAP/kCFI** — `cls_u32_ops.classify`/`init`/`destroy`/`change`/`walk` and `flow_block_cb` dispatch forward-edge-checked.
+- **GRKERNSEC_HIDESYM** — `RTM_GETTFILTER` strips `tc_u_knode`/`hnode` and HW-offload pointers.
+- **GRKERNSEC_DMESG** — selector parse-fail and HW-offload-fail `printk_ratelimited` capped.
+
+cls_u32-specific reinforcement:
+
+- **CAP_NET_ADMIN required** for `RTM_NEWTFILTER` with `kind=u32`; strictly enforced.
+- **PAX_REFCOUNT on `tc_u_hnode->refcnt`** — link-target hash references cannot wrap on rapid `u32_destroy_hnode`.
+- **`u32_sel.nkeys` bounded by `TC_U32_MAXDEPTH`** under PAX_USERCOPY whitelist — oversized selector rejected.
+- **HW-offload paired add/del** under PAX_KERNEXEC `__ro_after_init` flow-block-cb vtable.
+- **PAX_RAP on `cls_u32_ops.classify`** — softirq u32-tree walk forward-edge-checked.
+
+Rationale: cls_u32 has been a recurring CVE source (CVE-2014-2523, CVE-2017-7541, and the 2023 hnode-UAF series); saturating hnode/knode refs combined with PAX_RAP on the classify dispatch close both the lifetime and type-confusion classes.
+
 ## Open Questions
 
 (none — u32 semantics exhaustively specified by upstream + decades-old iproute2 wire-test corpus)

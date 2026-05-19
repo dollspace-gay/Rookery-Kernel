@@ -566,6 +566,26 @@ Conntrack-core reinforcement:
 - **Per-`nf_ct_iterate_cleanup` flush on netns exit** — defense against per-netns-conn leak.
 - **Per-`nf_conntrack_hook` indirect vtable** — defense against per-symbol direct dependency outside CONFIG_NF_CONNTRACK.
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — sysctl ingress (nf_conntrack_max, nf_conntrack_buckets, generic-timeout, helper) bounds-validated; ctnetlink batch attribute payloads validated before slab alloc.
+- **PAX_KERNEXEC** — `nf_conntrack_hook`, `nf_ct_iterate_cleanup`, l4proto + helper vtables resident in R-X kernel text.
+- **PAX_RANDKSTACK** — `nf_conntrack_in`, `__nf_conntrack_confirm`, `__nf_conntrack_find_get` stacks re-randomised so per-packet locals, hash-seed locals, and lookup keys are unpredictable.
+- **PAX_REFCOUNT** — `nf_conn.ct_general.use` + `nf_conntrack_htable.hnnode` ref + per-net counter saturate-trap; conn-flood storms cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `nf_conn` slab + extensions (`nf_conn_help`, `nf_conn_nat`, `nf_conn_seqadj`, `nf_conn_labels`, `nf_conn_ecache`) freed via RCU + kmem_cache zeroed.
+- **PAX_UDEREF** — every nlattr-driven mutation (CTA_TUPLE_*, CTA_PROTOINFO_*, CTA_NAT_*) validates `nla_len` before deref.
+- **PAX_RAP/kCFI** — `nf_conntrack_hook` indirect-vtable, l4proto / l3proto / helper indirect calls all signed with conntrack CFI signature.
+- **GRKERNSEC_HIDESYM** — ct + extension pointers, hash addresses never leak via /proc/net/nf_conntrack, ctnetlink dump, sysfs.
+- **GRKERNSEC_DMESG** — table-full / invalid-state / helper-miss warnings rate-limited + dmesg-restricted.
+- **Per-`nf_conn` `use` PAX_REFCOUNT** — defense against per-conn refcount wrap → UAF on confirm/destroy race.
+- **Per-`__nf_conntrack_find_get` RCU read-lock + reference-pin** — defense against per-stale-tuple deref racing destroy.
+- **Per-`nf_conntrack_max` clamp + early-drop** — defense against per-conn-table OOM under flood.
+- **Per-`nf_ct_iterate_cleanup` netns-exit flush (already noted)** — defense against per-netns destroy leak.
+- **Per-hash seed (`nf_conntrack_hash_rnd`) randomised at boot** — defense against per-precomputed-collision DoS.
+- **Per-expectation (`nf_conntrack_expect`) ref + limit clamp** — defense against per-ALG-expectation table OOM.
+
+Rationale: `nf_conn` lifecycle + the global conntrack hash are the most-attacked surface in netfilter (flood DoS, refcount UAF, helper-driven expectation OOM); PAX_REFCOUNT on `ct_general.use`, RCU on find_get, the netns-exit flush, and the boot-randomised hash seed are the load-bearing measures.
+
 ## Open Questions
 
 (none at this Tier-3 level)

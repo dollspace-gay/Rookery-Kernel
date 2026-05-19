@@ -275,6 +275,25 @@ None beyond upstream defaults (acct + timestamp default off per upstream 4.7+).
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — bounded copy_to_user/copy_from_user on every nfnetlink message ingress + ctnetlink dump cursor; refuses size-mismatched attribute payloads (NLA_VALIDATE_*).
+- **PAX_KERNEXEC** — ctnetlink_dispatch + l4proto from_nlattr callback tables live in R-X kernel text; no rewritable trampolines.
+- **PAX_RANDKSTACK** — ctnetlink_dump_table + ctnetlink_create_conntrack stacks re-randomised per syscall so dump-cursor + tuple-build locals are unpredictable.
+- **PAX_REFCOUNT** — nf_conn refcount increments from ctnetlink lookups + expectation refs hard-fail on saturation; aborts before UAF window.
+- **PAX_MEMORY_SANITIZE** — nf_conn / nf_conntrack_expect / nlattr scratch buffers zeroed on free so stale tuples/marks/labels do not leak via subsequent NEW/DUMP responses.
+- **PAX_UDEREF** — every NLA_NESTED walk and NFNL_SUBSYS_CTNETLINK payload dereference is bounds-checked; no raw userspace pointer touches in batch_handler.
+- **PAX_RAP/kCFI** — nfnl_callback {.call, .attr_count, .policy} + l4proto from_nlattr / to_nlattr fanout enforced with type-signature CFI; cross-family casts trap.
+- **GRKERNSEC_HIDESYM** — ct address + extension pointers never leak via ctnetlink CTA_* attributes or netlink ack payloads.
+- **GRKERNSEC_DMESG** — invalid-tuple / policy-reject / mismatched-family messages rate-limited to dmesg with restricted read.
+- **Per-CAP_NET_ADMIN strict enforcement on NFNL_MSG_CT_{NEW,DEL,GET}** — defense against per-unprivileged conntrack table mutation across netns.
+- **Per-NFNL_SUBSYS_CTNETLINK message length + nfgenmsg.version validation** — defense against per-malformed-batch buffer over-read.
+- **Per-NLA_POLICY_MAX_LEN clamp on every CTA_*** — defense against per-oversized label/helper-info payload smashing the attribute stack.
+- **Per-NFNL_BATCH_BEGIN/END transaction abort on partial-validation fail** — defense against per-half-applied ct mutation reaching commit.
+- **Per-ctnetlink_dump_filter mark/zone scoping** — defense against per-cross-netns enumeration leak.
+
+Rationale: ctnetlink is the high-privilege control plane for the entire conntrack subsystem; locking it under CAP_NET_ADMIN + PAX_USERCOPY + PAX_REFCOUNT contains both malformed-message DoS and refcount-based UAF on `nf_conn` while RAP/CFI defends the l4proto from_nlattr fanout.
+
 ## Open Questions
 
 (none — ctnetlink + extensions exhaustively specified by upstream + libnetfilter_conntrack test corpus + conntrackd cluster-replication test coverage)

@@ -237,6 +237,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — NFLOG nfnetlink batch + `nf_log_syslog` printk paths copy bounded packet snapshots; per-rule `nf_loginfo` parameters validated.
+- **PAX_KERNEXEC** — `nf_logger` op tables (`logfn`) resident in R-X kernel text.
+- **PAX_RANDKSTACK** — `nfulnl_log_packet` + `nf_log_packet` stacks re-randomised per packet; per-call snapshot + group locals unpredictable.
+- **PAX_REFCOUNT** — `nfulnl_instance.use` + per-logger module refcount saturate-trap under group-create churn.
+- **PAX_MEMORY_SANITIZE** — `nfulnl_instance` queue buffers freed via kfree_skb + zeroed-on-close; stale headers cannot leak to a new group.
+- **PAX_UDEREF** — `NFULA_CFG_*`, `NFULA_VLAN`, `NFULA_CT` deref bounds-checked.
+- **PAX_RAP/kCFI** — `nf_logger->logfn` indirect dispatch signed with nf_log CFI signature; non-conforming logger trap.
+- **GRKERNSEC_HIDESYM** — logger function pointers never leak via netlink dumps.
+- **GRKERNSEC_DMESG** — `nf_log_syslog` output rate-limited + dmesg-restricted (GRKERNSEC_DMESG enforces unprivileged-read denial).
+- **Per-`nfulnl_instance` queue `qthreshold` + `nlbufsiz` clamp** — defense against per-group OOM via unbounded packet snapshots.
+- **Per-CAP_NET_ADMIN gate on `NFULNL_CFG_CMD_BIND`** — defense against per-unprivileged group-bind hijack.
+- **Per-`nf_log_register` symbol pin** — defense against per-unsigned-module logger-slot hijack.
+- **Per-`copy_range` clamp** — defense against per-oversized payload copy in dump.
+- **Per-`nf_log_syslog` rate-limit token bucket** — defense against per-log-flood DoS that fills dmesg.
+- **Per-flush-on-timeout boundary** — defense against per-stale-batch dispatch.
+
+Rationale: nf_log + NFLOG are dmesg + netlink sinks with attacker-controllable payload sizes; PAX_REFCOUNT on instance use + qthreshold/nlbufsiz clamps + GRKERNSEC_DMESG + CAP_NET_ADMIN on CFG_CMD_BIND form the load-bearing defenses against log-flood DoS and group-bind hijack.
+
 ## Open Questions
 
 (none — NFLOG + nf_log_syslog wire format exhaustively specified by upstream + ulogd test corpus + libnetfilter_log integration coverage)

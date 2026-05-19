@@ -265,6 +265,30 @@ AF_UNIX-specific reinforcement:
 - **Per-SCM_RIGHTS bounds checked (max 253 fds per msg)** — defense against per-cmsg-bomb.
 - **Per-OOB skb single-pending** — defense against per-OOB queue overflow.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to PF_UNIX (`net/unix/af_unix.c`):
+
+- **PAX_USERCOPY** — `sendmsg`/`recvmsg` payload copies and cmsg (`SCM_RIGHTS`, `SCM_CREDENTIALS`) traverse whitelisted `copy_{to,from}_user` boundaries.
+- **PAX_KERNEXEC** — `unix_stream_sendmsg`, `unix_dgram_sendmsg`, GC walker, and SCM-rights attach execute from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates inference of unix_sock layout / GC walker state.
+- **PAX_REFCOUNT** — `unix_sock.refcnt` and the per-skbuff embedded-FD array refcounts saturating; SCM-RIGHTS-flood cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `unix_sock` slab, freed skbuff embedded-FD arrays, and bind-path string sanitized on free.
+- **PAX_UDEREF** — `sun_path` / cmsg user-pointer access under UDEREF.
+- **PAX_RAP / kCFI** — `unix_dgram_ops`, `unix_stream_ops`, `unix_seqpacket_ops` `static const`; vtable dispatch CFI-checked.
+- **GRKERNSEC_HIDESYM** — `unix_gc`, `unix_attach_fds`, `unix_inq_len` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — GC / SCM-rights anomalies CAP_SYSLOG-gated.
+
+AF_UNIX reinforcement:
+
+- **PF_UNIX `SCM_RIGHTS` recursion bound** — defense against unbounded fd-passing recursion that exhausts the GC walker; per-msg max 253 fds enforced under PAX_USERCOPY-validated cmsg length.
+- **`SCM_RIGHTS` fd-passing across uid boundary CAP_SYS_PTRACE-gated** — defense against cap-escalation via SCM_RIGHTS to a higher-privileged peer (parallels grsec's `GRKERNSEC_HARDEN_PTRACE` reasoning); enforced via GR-RBAC policy fragment.
+- **Abstract-socket per-netns containment** — defense against cross-namespace abstract-name collision; bind-path hash strictly netns-scoped, with GR-RBAC fragment for in-container abstract-socket isolation.
+- **`unix_*_ops` PAX_RAP-typed** — proto-ops dispatch CFI-checked across stream/dgram/seqpacket.
+- **GRKERNSEC_HIDESYM on `unix_gc`** — GC walker symbol hidden, frustrating SCM-rights-cycle-construction exploitation.
+
+Rationale: AF_UNIX's adversarial surface is SCM_RIGHTS-driven privilege transitions and the GC walker holding socket cycles; bounding cross-uid fd passing, sanitizing freed embedded-FD arrays, per-netns abstract-socket containment, and CFI on the trio of proto-ops vtables directly answer the historical AF_UNIX CVE classes (CVE-2014-9529-style GC race, SCM_RIGHTS uid escalation).
+
 ## Open Questions
 
 (none at this Tier-3 level)

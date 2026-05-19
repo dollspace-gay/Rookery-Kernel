@@ -487,6 +487,29 @@ RDS-connection reinforcement:
 - **Per-RDS_MPATH_WORKERS bounded** — defense against per-fan-out-amplification DoS.
 - **Per-hlist_unhashed check before queue_reconnect** — defense against per-reconnect-after-destroy.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `rds_connection`:
+
+- **PAX_USERCOPY** — `rds_connection`, `rds_conn_path`, and `rds_message` allocations live in slab caches with PAX_USERCOPY-whitelisted copy windows; `getsockopt(RDS_INFO_CONNECTIONS)` cannot bleed adjacent kernel state.
+- **PAX_KERNEXEC** — `rds_transport`, `rds_conn_ops`, and per-transport callbacks (`conn_alloc`, `conn_path_connect`, `xmit`) live in `__ro_after_init`; a corrupted conn cannot pivot through forged transport ops.
+- **PAX_RANDKSTACK** — `rds_conn_create`, `rds_conn_path_connect_if_down`, and `rds_send_xmit` stack frames randomized on each entry.
+- **PAX_REFCOUNT** — `conn->c_refcount`, `cp->cp_refcount`, and per-message refs use saturating `refcount_t`; multipath fan-out cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `rds_conn_destroy` zeroes per-path state and message slots, erasing residual cp_xmit_rm / cp_next_rx_seq state.
+- **PAX_UDEREF** — sockopt parsing (`rds_setsockopt`) and `rds_info` getters operate only on kernel-side copies; no user-pointer deref in transport.
+- **PAX_RAP/kCFI** — `t_conn_path_connect`/`xmit`/`stats_info_copy` dispatch via forward-edge-checked transport vtables.
+- **GRKERNSEC_HIDESYM** — `/proc/net/rds/connections`, `/sys/kernel/debug/rds/*` strip `rds_connection` and per-cp kernel pointers.
+- **GRKERNSEC_DMESG** — RDS-IB / RDS-TCP connect-fail `printk` paths rate-limited; cannot flood dmesg to fingerprint hash seed.
+
+RDS-connection-specific reinforcement:
+
+- **RDS control-plane requires CAP_NET_ADMIN in user-ns** for socket-options that alter transport (bind to non-zero saddr, MPATH workers); strict.
+- **`rds_conn_create` runs under RCU + `rds_destroy_pending` guard** — netns teardown cannot race with conn alloc.
+- **MPATH path-array bounded by `RDS_MPATH_WORKERS`** — fan-out amplification capped, PAX_REFCOUNT saturates per-path ref.
+- **hash buckets seeded by `net_get_random_once`** — hash-flood DoS denied; seed not exposed via HIDESYM.
+
+Rationale: RDS has been a recurring CVE source (CVE-2010-3904, CVE-2018-5333, CVE-2019-16714); strict CAP_NET_ADMIN gating, saturating multipath refs, and bounded per-conn fan-out close the historical exploit primitives.
+
 ## Open Questions
 
 (none at this Tier-3 level)

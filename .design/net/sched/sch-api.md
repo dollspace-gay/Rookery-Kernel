@@ -237,6 +237,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, the qdisc API surface inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: RTM_NEWQDISC / RTM_DELQDISC / RTM_GETQDISC payloads pass through `nlmsg_parse` + per-attribute `nla_*` accessors with whitelisted slab caches; no raw `copy_from_user` against the qdisc TLV blob.
+- **PAX_KERNEXEC**: `Qdisc_ops` registry (`qdisc_base`) is mutated only under `qdisc_mod_lock` from `__init` / module-load context; per-kind `Qdisc_ops` structs live in `.rodata` and are `__ro_after_init`.
+- **PAX_RANDKSTACK**: every entry from `rtnetlink_rcv_msg` → `tc_modify_qdisc` re-randomizes the kernel stack.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, `Qdisc.q.qlen`, `qdisc->qstats` use checked `refcount_t` / `u64_stats_*`; saturating on overflow.
+- **PAX_MEMORY_SANITIZE**: freed `Qdisc` private state and per-class storage zeroed on `qdisc_destroy`.
+- **PAX_UDEREF**: rtnetlink handlers may not deref a userspace pointer; enforced by sparse + objtool.
+- **PAX_RAP / kCFI**: every `Qdisc_ops` callback (`enqueue`, `dequeue`, `peek`, `init`, `reset`, `destroy`, `change`, `dump`) is invoked via a CFI-checked indirect; `Qdisc_ops` is type-tagged.
+- **GRKERNSEC_HIDESYM**: qdisc kind names and per-kind ops symbols elided from `/proc/kallsyms` for unprivileged readers.
+- **GRKERNSEC_DMESG**: qdisc registration / parse-failure printks rate-limited and gated to CAP_SYSLOG.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC / RTM_DELQDISC / RTM_GETQDISC require **CAP_NET_ADMIN** in the netns owner; GR-RBAC may further restrict per-role.
+- `register_qdisc` / `unregister_qdisc` are gated to module init; runtime kind swap is refused.
+- Per-qdisc qstats (`bstats`, `qstats.drops`, `qstats.requeues`, `qstats.overlimits`) saturate rather than wrap.
+- `tcm_handle` / `tcm_parent` are validated against `TC_H_ROOT` / `TC_H_INGRESS` reserved space; invalid handles fail closed.
+- Netlink ACK / extack messages carry no kernel pointers (HIDESYM).
+
+Rationale: the qdisc API is the kernel-side root of every TC config change; corrupting `Qdisc_ops` or a refcount turns into a kernel-mode primitive reachable from CAP_NET_ADMIN. PaX + RAP/kCFI converts this dispatch surface into a type-checked, fail-closed API.
+
 ## Open Questions
 
 (none — qdisc API is exhaustively specified by upstream + iproute2 wire-test corpus)

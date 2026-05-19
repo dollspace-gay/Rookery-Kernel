@@ -230,6 +230,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by `act_police`:
+
+- **PAX_USERCOPY** — `tcf_police`, `tcf_police_params`, and `psched_ratecfg` live in PAX_USERCOPY-whitelisted slab caches; netlink dump cannot bleed adjacent state.
+- **PAX_KERNEXEC** — `act_police_ops` vtable lives in `__ro_after_init`; corrupted action cannot pivot through forged `act`/`dump`/`cleanup`.
+- **PAX_RANDKSTACK** — `tcf_police_act`, `tcf_police_init` stack frames randomized.
+- **PAX_REFCOUNT** — `p->common.tcfa_refcnt`/`tcfa_bindcnt` and `tcf_police_params` ref use saturating `refcount_t`.
+- **PAX_MEMORY_SANITIZE** — `tcf_police_cleanup` zeroes rate/burst params and `tcfp_t_c`/`tcfp_toks` token-bucket residue.
+- **PAX_UDEREF** — netlink-attr parse via `nla_*`; rate-est table built kernel-side.
+- **PAX_RAP/kCFI** — `act_police_ops.act`/`dump`/`cleanup` dispatch forward-edge-checked.
+- **GRKERNSEC_HIDESYM** — `RTM_GETACTION` strips per-police and rate-est pointers.
+- **GRKERNSEC_DMESG** — overflow / parse-fail `printk_ratelimited` capped.
+
+act_police-specific reinforcement:
+
+- **CAP_NET_ADMIN required** for `RTM_NEWACTION` with `TCA_ID_POLICE`; strictly enforced.
+- **PAX_REFCOUNT on `tcf_police_params`** — RCU-protected param swap blocks UAF on rapid rate-update.
+- **`psched_ratecfg` mul-overflow guard** under PAX_REFCOUNT saturating math — burst integer-overflow rejected.
+- **Token-bucket state under `tcf_police_lock`** with PAX_MEMORY_SANITIZE on tear-down — residual token state cannot influence freshly-allocated police.
+- **PAX_RAP on `act_police_ops`** — softirq dispatch type-checked.
+
+Rationale: `act_police` is the canonical rate-limit primitive; CAP_NET_ADMIN gating plus saturating refcounts on RCU-swapped params closes the rapid-update UAF class.
+
 ## Open Questions
 
 (none — police semantics exhaustively specified by RFC 2697 + RFC 2698 + upstream)

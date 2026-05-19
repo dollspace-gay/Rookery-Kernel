@@ -589,6 +589,24 @@ x_tables reinforcement:
 - **Per-audit_log_nfcfg on REGISTER/REPLACE/UNREGISTER** — defense against per-silent-ruleset-tamper.
 - **Per-netns unique table name** — defense against per-collision-overwrite.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: `xt_alloc_table_info()` allocations whitelisted; `do_replace`/`do_add_counters` copy bound by validated `size` and per-entry `next_offset`.
+- PAX_KERNEXEC: x_tables dispatch, `ipt_do_table()` and friends, in .text; entry blobs are data; W^X enforced.
+- PAX_RANDKSTACK: stack-base randomization on sockopt replace and counter dump.
+- PAX_REFCOUNT: `xt_table` and `xt_table_info` refcounts saturating; per-cpu counter aggregation guarded against wrap.
+- PAX_MEMORY_SANITIZE: `xt_free_table_info()` zeroes blob; match/target private data scrubbed on destroy.
+- PAX_UDEREF: compat path translations validate user pointers under uderef.
+- PAX_RAP / kCFI: `xt_match`, `xt_target`, `xt_table` indirect dispatch (match/target/checkentry/destroy/me) kCFI-typed.
+- GRKERNSEC_HIDESYM: `/proc/net/*_tables_*` files redact pointers under `kptr_restrict=2`.
+- GRKERNSEC_DMESG: validation-failure warnings rate-limited; CAP_SYSLOG gates verbose context.
+- Shared iptables/ip6tables/arptables/ebtables framework: `xt_register_match`/`xt_register_target` use kCFI-typed ops across all 4 front-ends; lookup table per address-family.
+- xt_table_info PAX_REFCOUNT: refcount on private replaced with saturating refcount_t; cannot wrap on concurrent replace.
+- CAP_NET_ADMIN per-net: `ns_capable(net->user_ns, CAP_NET_ADMIN)` gates all setsockopt entrypoints; userns scope enforced.
+- Per-cpu counter saturation: counter add saturates at U64_MAX to defeat induced-wrap policy bypass.
+
+Rationale: x_tables is the legacy yet still-deployed packet filter framework shared across four address families; bounded offset validation plus kCFI-typed match/target ops, with saturating `xt_table_info` refcounts, closes the documented heap-OOB / UAF surface (e.g., CVE-2021-22555).
+
 ## Open Questions
 
 (none at this Tier-3 level)

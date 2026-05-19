@@ -597,6 +597,23 @@ OVS-actions reinforcement:
 - **Per-pop_eth validator-rejection of VLAN-tagged ingress** — defense against malformed pop_eth on VLAN frame.
 - **Per-trace-point gated on `trace_ovs_do_execute_action_enabled`** — defense against trace-induced perf cliff.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: OVS_PACKET_ATTR_PACKET payload copies from user (execute action path) use whitelisted slabs bounded by `nla_len`.
+- PAX_KERNEXEC: `do_execute_actions()` and per-action handlers reside in .text; action lists are data blobs validated at install.
+- PAX_RANDKSTACK: stack-base randomization on `ovs_execute_actions()` ingress; recirc paths re-randomize on each level.
+- PAX_REFCOUNT: `sw_flow_actions->actions_len` and recirc-id refs use saturating accounting; deferred-action queue bounded.
+- PAX_MEMORY_SANITIZE: action blob freed via RCU callback is zeroed before kfree; per-cpu deferred-action storage scrubbed after drain.
+- PAX_UDEREF: action-attribute parsing validates pointers via uderef before deref.
+- PAX_RAP / kCFI: per-action dispatch (output, userspace, set, push_vlan, pop_vlan, sample, recirc, hash, ct, ct_clear, push_mpls, pop_mpls, push_eth, pop_eth, push_nsh, pop_nsh, meter, clone, check_pkt_len, add_mpls, dec_ttl, drop) reached via kCFI-typed table lookup; mis-typed dispatch trapped.
+- GRKERNSEC_HIDESYM: `ovs-dpctl dump-flows`/`OVS_FLOW_CMD_GET` redacts kernel pointers; action blob addresses hidden.
+- GRKERNSEC_DMESG: recirc-depth-exceeded, action-too-long, and CT-attach failures rate-limited.
+- OVS_ACTION_* dispatch PAX_RAP: action enum dispatched via RAP-protected table with kCFI on each handler; substituting handler pointers is trapped.
+- Recirc depth bound: `ovs_execute_actions()` enforces `MAX_RECIRC_DEPTH`/`MAX_DEFERRED_ACTIONS` to defeat loop amplification.
+- CAP_NET_ADMIN per-net: action installation gated via OVS_DP_CMD_*/OVS_FLOW_CMD_* with `ns_capable(net->user_ns, CAP_NET_ADMIN)`.
+
+Rationale: OVS action execution is hot, deeply nested, and historically suffered recursion / use-after-free bugs (CVE-2022-2639-class recirc); kCFI dispatch plus bounded recirc depth closes the documented amplification and ops-confusion classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

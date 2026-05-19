@@ -327,6 +327,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: NFTA_DATA payload for `nft_immediate`, `nft_cmp`, `nft_bitwise`, and `nft_payload` validated against `NFT_DATA_VALUE_MAXLEN` before any copy_from_user / nla_memcpy.
+- PAX_KERNEXEC: expression `eval` callbacks reside in .text; `nft_expr_type` table immutable post-init.
+- PAX_RANDKSTACK: chain evaluation entry randomizes stack base, defeating known offsets used by ROP into expression evaluators.
+- PAX_REFCOUNT: per-expression private-area references (`nft_object->use` for `nft_objref`, `nft_set->use` for `nft_lookup`) saturating refcount_t.
+- PAX_MEMORY_SANITIZE: per-expr private data zeroed on `expr->ops->destroy()`; freed register backing scrubbed.
+- PAX_UDEREF: control-path `nft_parse_register_load()`/`nft_parse_register_store()` validates register indices and source ranges under uderef.
+- PAX_RAP / kCFI: `nft_expr_ops` (eval/init/destroy/dump/clone/select_ops) kCFI-typed; substituting an ops vector with mismatched prototypes traps.
+- GRKERNSEC_HIDESYM: expression dumps redact kernel pointers; `nft_expr_type` addresses hidden.
+- GRKERNSEC_DMESG: expression init failures rate-limited; CAP_SYSLOG gates verbose error context.
+- nftables CAP_NET_ADMIN: expression registration via `NFT_MSG_NEWRULE` gated by CAP_NET_ADMIN in net_ns.
+- Transaction commit-abort: failed expression init in a rule rolls back the entire transaction; partial expressions are destroyed in reverse order.
+- nft_chain PAX_REFCOUNT: `nft_jump` / `nft_goto` chain target refs use `nft_use_inc()` saturating; cannot wrap to free a referenced chain.
+- JIT W^X (PAX_KERNEXEC): expressions that compile lookup tables (`nft_set_pipapo` AVX2) emit data-only pages; no executable codegen at expression level.
+
+Rationale: per-expression OOB-read/write (e.g., CVE-2022-2588 nft_object UAF, CVE-2023-3390 chain binding UAF) are recurring; register-index validation plus kCFI-typed ops dispatch contains the class.
+
 ## Open Questions
 
 (none — per-expression types exhaustively specified by upstream + nft regression-test suite + iproute2/iptables-nft compat coverage)

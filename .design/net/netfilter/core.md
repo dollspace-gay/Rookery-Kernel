@@ -239,6 +239,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `nf_register_net_hook` / `nf_unregister_net_hook` accept only kernel `nf_hook_ops`; no copy from user; nf_hook_entries layout bounded.
+- **PAX_KERNEXEC** — `struct nf_hook_entries` + per-hook `hook` function pointers live in R-X text; the array is alloc'd in kmalloc but the targets are KERNEXEC-resident.
+- **PAX_RANDKSTACK** — `nf_hook_slow` stack re-randomised per packet so the per-verdict locals (state, entry index) shift each pass.
+- **PAX_REFCOUNT** — `nf_hook_entries` static_key + module refcounts for registering modules saturate-trap; cannot wrap under churn.
+- **PAX_MEMORY_SANITIZE** — `nf_hook_entries` freed via RCU + kvfree zeroed; no stale `ops` pointer survives a re-register.
+- **PAX_UDEREF** — no userspace pointer path through `nf_hook_slow`; all skb fields validated.
+- **PAX_RAP/kCFI** — every `entry->hook(priv, skb, state)` indirect call signed with `nf_hookfn` CFI signature; non-conforming targets trap.
+- **GRKERNSEC_HIDESYM** — hook function addresses never exposed via /proc/net or netlink dumps.
+- **GRKERNSEC_DMESG** — register/unregister failure messages rate-limited + dmesg-restricted.
+- **Per-`nf_hook_entries` RCU-protected swap** — defense against per-packet stale-table deref during register/unregister race.
+- **Per-`nf_hook` indirect-call PAX_RAP signature** — defense against per-vtable confusion hijacking the chain.
+- **Per-`NF_DROP` fast-path verdict short-circuit** — defense against per-attacker forcing chain to walk further for side-channel timing.
+- **Per-`nf_hook_drop` netns scoping** — defense against per-cross-netns hook leak on netns destruction.
+- **Per-`static_key_slow_inc/dec` saturation guard on `nf_hooks_needed`** — defense against per-overflow on register/unregister storms.
+- **Per-`nf_register_net_hooks` array CAP_NET_ADMIN gate** — defense against per-unprivileged hook injection.
+
+Rationale: `nf_hook_slow` is the universal packet ingress for the entire filter/nat/conntrack stack; PAX_RAP on the indirect call + RCU-protected entry table + CAP_NET_ADMIN on registration form the load-bearing trio that prevents arbitrary code execution at every packet boundary.
+
 ## Open Questions
 
 (none — netfilter hook framework exhaustively specified by upstream)

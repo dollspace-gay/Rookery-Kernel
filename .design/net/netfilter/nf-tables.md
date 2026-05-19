@@ -543,6 +543,24 @@ nftables core reinforcement:
 - **Per-trans destroy via `trans_destroy_work` (schedule_work)** — defense against per-commit-path RCU stall.
 - **Per-`nft_trans_gc_alloc` async GC** — defense against per-commit_mutex held during free of expired set elements.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: nft userdata blobs, NFTA_USERDATA, and NFTA_SET_ELEM_USERDATA copies use whitelisted slabs; size bounded by `nft_userdata->len` before `copy_to_user()`/`copy_from_user()`.
+- PAX_KERNEXEC: nft VM bytecode interpreter and any JIT pages enforce strict W^X; `set_memory_ro()` + `set_memory_x()` applied to JIT pages immediately after emit; no rwx window.
+- PAX_RANDKSTACK: per-syscall randomization on `sendmsg(NFNL_SUBSYS_NFTABLES)` so attacker-controlled netlink batches cannot pivot via known stack layouts.
+- PAX_REFCOUNT: `nft_chain->use`, `nft_table->use`, `nft_object->use`, and `nft_set->use` use saturating refcount_t; transaction abort decrements are bounded.
+- PAX_MEMORY_SANITIZE: rule and expression allocations scrubbed on `nft_rule_destroy()` so freed bytecode cannot be re-read via slab reuse.
+- PAX_UDEREF: NLA attribute pointers from `nft_parse_register_*`/`nft_parse_u32_check` validated under uderef before any deref.
+- PAX_RAP / kCFI: `struct nft_expr_ops` (eval/init/destroy/dump) and `struct nft_set_ops` indirect dispatch are kCFI-typed; rewriting an ops table to point at a non-matching prototype is trapped on call.
+- GRKERNSEC_HIDESYM: `/proc/net/netfilter/nf_tables/*` and `nft list ruleset` redact kernel pointers under `kptr_restrict=2`.
+- GRKERNSEC_DMESG: nft transaction-abort, ruleset-overflow, and JIT-disable messages rate-limited; CAP_SYSLOG gates verbose error paths.
+- nftables CAP_NET_ADMIN: every `NFT_MSG_*` (newtable/newchain/newrule/newset/newsetelem/newobj/newflowtable) gated by `ns_capable(net->user_ns, CAP_NET_ADMIN)`; userns confinement enforced.
+- Transaction commit-abort: `nft_trans_*` log is all-or-nothing; partial commit on OOM or RAP trap rolls back atomically; `nft_validate_register_*` runs under `nft_use_inc()` saturating guard.
+- nft_chain PAX_REFCOUNT: hook chain `use` saturates; cannot wrap to free a chain still bound to a base hook.
+- JIT W^X (PAX_KERNEXEC): nft JIT (when enabled) emits to a separate executable mapping under `bpf_jit_binary_alloc()` semantics with hardened locking.
+
+Rationale: nf-tables is the modern netfilter administrative surface and a recurring CVE source (CVE-2022-32250, CVE-2023-31248, CVE-2024-1086); transaction atomicity, kCFI-typed ops, and saturating chain/set refcounts close the documented UAF/double-free classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

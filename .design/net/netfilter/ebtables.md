@@ -233,6 +233,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `EBT_SO_SET_ENTRIES` / `EBT_SO_GET_INFO` / `EBT_SO_GET_ENTRIES` copy paths bounds-checked against `ebt_replace.entries_size`; oversized blobs rejected.
+- **PAX_KERNEXEC** — `ebt_match` / `ebt_watcher` / `ebt_target` op tables live in R-X text; module register pins R-X only.
+- **PAX_RANDKSTACK** — `ebt_do_table` stack re-randomised per frame; loop counters + per-rule locals unpredictable.
+- **PAX_REFCOUNT** — `ebt_table.private` use_count + module ref hard-fail on wrap when many concurrent setsockopt waves churn.
+- **PAX_MEMORY_SANITIZE** — old `ebt_table_info` freed via vfree zeroed before release so stale rule blobs do not leak into next swap.
+- **PAX_UDEREF** — `ebt_entry` walk validates `next_offset`, `target_offset`, `watchers_offset` before pointer arithmetic; no raw user-derived offsets dereffed.
+- **PAX_RAP/kCFI** — `match->match`, `watcher->watcher`, `target->target` indirect dispatch signed with ebtables-specific CFI signatures; cross-family targets trap.
+- **GRKERNSEC_HIDESYM** — match/watcher/target function addresses never exposed via `EBT_SO_GET_*`.
+- **GRKERNSEC_DMESG** — invalid-blob / unknown-match log messages rate-limited + restricted.
+- **Per-CAP_NET_ADMIN strict on `EBT_SO_SET_ENTRIES`** — defense against per-unprivileged bridge-filter mutation in init or sub netns.
+- **Per-`ebt_replace.nentries` * `sizeof(struct ebt_entry)` overflow-check** — defense against per-integer-overflow into vmalloc allocation.
+- **Per-`xt_compat` 32-on-64 translation off by default** — defense against per-COMPAT_EBT_REPLACE state confusion.
+- **Per-table-swap RCU sync + grace** — defense against per-stale-rule deref racing setsockopt commit.
+- **Per-frame `BR_INPUT_SKB_CB` zone scoping** — defense against per-bridge-namespace leak on bridge-port move.
+- **Per-`EBT_NOPROTO` short-circuit** — defense against per-protocol misdispatch.
+
+Rationale: ebtables shares the x_tables ABI surface with iptables and so inherits the same blob-copy and table-swap hazards; CAP_NET_ADMIN + PAX_USERCOPY + RCU-sync on the per-net table form the core defense, and PAX_RAP closes the indirect-call path through match/watcher/target.
+
 ## Open Questions
 
 (none — ebtables ABI exhaustively specified by upstream + ebtables regression-test suite)

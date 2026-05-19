@@ -277,6 +277,23 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: NFQNL_COPY_PACKET payload copy to userspace must use a whitelisted slab; size bounded by `queue->copy_range` before `copy_to_user()` so an oversized verdict cannot bleed adjacent skb pages.
+- PAX_KERNEXEC: nf-queue verdict handlers and netlink dispatch run from .text only; no W^X violation; W+X mappings under nfnetlink are denied.
+- PAX_RANDKSTACK: per-syscall stack base offset randomized for `setsockopt(NETLINK_LISTEN_ALL_NSID)` and verdict ioctl paths to defeat stack pivots from a malicious userspace verdict producer.
+- PAX_REFCOUNT: `instance->use`, `nfnl_callback` and per-queue refcounts use saturating refcount_t; overflow on rapid NFQA_VERDICT_HDR replay aborts and SIGKILLs the producer.
+- PAX_MEMORY_SANITIZE: skb clones queued to userspace are zeroed on free; `nfqnl_zcopy()` buffers scrubbed after `nfqnl_recv_verdict()` to prevent payload re-read via slab reuse.
+- PAX_UDEREF: NFQA_PAYLOAD and NFQA_CT attribute pointers from `nlmsg_data()` validated under uderef before deref; no implicit kernel/user alias.
+- PAX_RAP / kCFI: `struct nfqnl_msg_verdict_hdr` and `queue_handler` indirect calls (`outfn`) are kCFI-typed; an attacker substituting outfn with a non-matching prototype is trapped on call.
+- GRKERNSEC_HIDESYM: `/proc/net/netfilter/nfnetlink_queue` hides kernel pointers; `instance` addresses redacted under `kptr_restrict=2`.
+- GRKERNSEC_DMESG: nf_queue overflow / verdict-timeout messages rate-limited and gated behind CAP_SYSLOG so a flooder cannot probe drop policy from dmesg.
+- Queue-handler PAX_RAP: `nf_register_queue_handler()` requires `const struct nf_queue_handler *` with kCFI-typed `outfn`/`nf_hook_drop`; runtime swap to a forged ops table is rejected.
+- NFQNL_COPY_PACKET PAX_USERCOPY: skb linear+frag copy to nlmsg uses explicit usercopy whitelisted allocations; `nla_put()` boundary enforced against `queue->copy_range`.
+- Per-net `nfnl_queue_net` and instance hash isolated per netns so a low-privileged userns producer cannot affect host queues.
+
+Rationale: nf-queue exports raw network payloads to userspace and accepts authoritative verdicts back; combined PAX_USERCOPY, kCFI-typed `queue_handler` ops, and saturating refcounts close the canonical UAF/typo-confusion vectors documented across CVE-2017-7184-class bugs.
+
 ## Open Questions
 
 (none — NFQUEUE wire format exhaustively specified by upstream + libnetfilter_queue regression-test corpus + Suricata interop coverage)

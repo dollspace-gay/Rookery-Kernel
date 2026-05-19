@@ -234,6 +234,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, em_meta inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_EM_META_HDR / TCA_EM_META_LVALUE / TCA_EM_META_RVALUE copies from netlink use bounded `nla_memcpy` / `nla_strscpy`; no raw `copy_from_user` against the meta blob.
+- **PAX_KERNEXEC**: `meta_ops[]` per-id table is `__ro_after_init`; W^X enforced on the ematch dispatch path.
+- **PAX_RANDKSTACK**: RTM_NEWTFILTER → ematch parse path participates in per-syscall kstack randomization.
+- **PAX_REFCOUNT**: `Qdisc` and `tcf_proto` qstats and per-rule refcount use checked `refcount_t`; saturating on overflow.
+- **PAX_MEMORY_SANITIZE**: freed `tcf_ematch` and `meta_value` storage is zeroed (these carry attacker-controlled match data).
+- **PAX_UDEREF**: netlink attribute walkers may not deref a userspace pointer; enforced by sparse + objtool.
+- **PAX_RAP / kCFI**: every `meta_id`-keyed dispatch (`meta_ops[id].get`) goes through a CFI-checked indirect call; `tcf_ematch_ops` is type-tagged.
+- **GRKERNSEC_HIDESYM**: ematch / meta-id symbol addresses elided from `/proc/kallsyms` for unprivileged readers.
+- **GRKERNSEC_DMESG**: ematch parse-failure printks rate-limited and gated to CAP_SYSLOG.
+
+Component-specific reinforcement:
+
+- Qdisc / classifier mutation requires **CAP_NET_ADMIN** in the netns owner; ematch attach inherits this gate from `cls-api`.
+- `tcf_ematch_ops` registration table is RAP/kCFI-tagged so `change`/`destroy`/`match` cannot be swapped by a corrupted ops pointer.
+- Per-`tcf_proto` qstats (`bstats`, `qstats.drops`, `qstats.overlimits`) use `refcount_t` / `u64_stats_*`; saturation rather than wrap.
+- meta-id dispatch table is bounds-checked against `TCF_META_ID_MAX`; out-of-range ids fail closed (`-EINVAL`) and emit a rate-limited audit record.
+- Variable-length string meta keys are capped at `TCF_META_MAX_VALUE` to prevent unbounded kmalloc.
+
+Rationale: em_meta is reachable from any process that can craft RTM_NEWTFILTER (CAP_NET_ADMIN in its netns); a corrupted ops table or unchecked refcount becomes a kernel-mode primitive. The PaX layer plus RAP/kCFI converts the ematch path from a flexible dispatch table into a fail-closed, type-checked surface.
+
 ## Open Questions
 
 (none — ematch + em_meta semantics exhaustively specified by upstream + iproute2 wire-test corpus)

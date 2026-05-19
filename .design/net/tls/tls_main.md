@@ -241,6 +241,30 @@ KTLS reinforcement:
 - **Per-namespace tls-ULP scoped** — defense against cross-ns leak.
 - **Per-CAP_NET_ADMIN for ULP TCP_ULP set** — defense against unprivileged ULP-install.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to kTLS (`net/tls/tls_main.c`):
+
+- **PAX_USERCOPY** — `setsockopt(SOL_TLS, TLS_TX|TLS_RX, ...)` key/iv/salt payload moves under whitelist.
+- **PAX_KERNEXEC** — TLS-ULP install (`tls_init`) and `tls_sk_proto_close` execute from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates inference of crypto-context fields via timing.
+- **PAX_REFCOUNT** — `tls_context` and `tls_offload_context_{tx,rx}` saturating refcounts; setsockopt-storm cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `tls_context`, crypto-info union (`union tls_crypto_context`), and rekey scratch buffers sanitized on free; strict policy for key material.
+- **PAX_UDEREF** — TLS sockopt arg parsing under UDEREF.
+- **PAX_RAP / kCFI** — `tls_prots[][][]` `static const`; per-version per-direction proto-ops dispatch CFI-checked.
+- **GRKERNSEC_HIDESYM** — `tls_set_sw_offload`, `tls_setsockopt_conf` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — TLS handshake / auth-fail warnings CAP_SYSLOG-gated.
+
+KTLS reinforcement:
+
+- **`setsockopt(SOL_TLS)` CAP_NET_ADMIN** — defense against unprivileged kTLS ULP install on adversarial sockets.
+- **Key material PAX_MEMORY_SANITIZE (strict)** — `crypto_info` and derived per-record key state always zeroed on free / rekey, not merely best-effort.
+- **AEAD nonce uniqueness enforced via monotonic `rec_seq`** — defense against nonce-reuse catastrophic AEAD failure; `rec_seq` u64 + saturating arithmetic refuses to wrap.
+- **`tls_prot` PAX_RAP-typed** — per-version proto-ops dispatch CFI-checked across TLS 1.2 / 1.3 transitions.
+- **GRKERNSEC_HIDESYM on `tls_setsockopt_conf`** — key-install fast path hidden.
+
+Rationale: kTLS holds long-lived per-socket AEAD keys; strict MEMORY_SANITIZE on the crypto-info union, CAP_NET_ADMIN gating on ULP install, AEAD nonce-uniqueness via saturating `rec_seq`, and CFI on the per-version proto-ops vtable bound the key-leak and nonce-reuse classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

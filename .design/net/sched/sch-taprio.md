@@ -210,6 +210,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to taprio (time-aware shaper, IEEE 802.1Qbv):
+
+- **PAX_USERCOPY** — `TCA_TAPRIO_ATTR_*` netlink schedule blobs (entries, base_time, cycle_time) traverse whitelisted `copy_{to,from}_user`.
+- **PAX_KERNEXEC** — `taprio_enqueue`, `advance_sched`, and `find_entry_to_transmit` execute from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates inference of gate-state timing.
+- **PAX_REFCOUNT** — taprio `Qdisc`, child queue Qdiscs, and `taprio_sched` reference counts saturate on adversarial reschedule churn.
+- **PAX_MEMORY_SANITIZE** — `sched_entry[]`, the swap-out admin schedule, and freed oper schedule sanitized on `taprio_destroy`.
+- **PAX_UDEREF** — netlink schedule attribute walking under UDEREF.
+- **PAX_RAP / kCFI** — `taprio_qdisc_ops` `static const`; `advance_sched` hrtimer callback CFI-checked.
+- **GRKERNSEC_HIDESYM** — `taprio_get_time`, `find_entry_to_transmit` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — schedule-mismatch / TXTIME-assist warnings CAP_SYSLOG-gated.
+
+taprio-specific reinforcement:
+
+- **TC qdisc CAP_NET_ADMIN** — `tc qdisc {add,replace,change} ... taprio` gated by CAP_NET_ADMIN in netdev's netns.
+- **`taprio_qdisc_ops` PAX_RAP-typed** — vtable dispatch CFI-verified.
+- **SIZE_OVERFLOW on `cycle_time + base_time` arithmetic** — checked operators prevent 64-bit time wrap that would invert gate decisions.
+- **`hrtimer` advance-sched rate-limited via min cycle_time** — userspace cannot supply a near-zero cycle to flood softirq.
+- **GRKERNSEC_HIDESYM on `taprio_get_time`** — clock-source inference restricted.
+
+Rationale: taprio's correctness hinges on `cycle_time`/`base_time` arithmetic and the admin-vs-oper schedule swap; SIZE_OVERFLOW on the time math, sanitize-on-free of the admin schedule, and CFI on the hrtimer callback close the time-overflow and stale-schedule classes.
+
 ## Open Questions
 
 (none — taprio semantics exhaustively specified by IEEE 802.1Qbv + upstream)

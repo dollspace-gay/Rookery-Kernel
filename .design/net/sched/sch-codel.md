@@ -255,6 +255,30 @@ CoDel-specific reinforcement:
 - **Per-Newton inv_sqrt precomputed table fallback** — defense against per-init Newton not yet converged.
 - **Per-AQM sojourn-based** — defense against per-burst-spike that traditional RED would over-drop.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_codel (RFC 8289) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_CODEL_* attributes parsed via `nla_*` whitelisted accessors.
+- **PAX_KERNEXEC**: `codel_qdisc_ops` is `__ro_after_init`; W^X enforced on the AQM dispatch path.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + per-packet enqueue/dequeue (softirq) protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, `q->stats.drops`, `q->stats.ecn_mark` use checked `refcount_t` / `u64_stats_*`.
+- **PAX_MEMORY_SANITIZE**: freed `codel_sched_data` and per-packet timestamp scratch zeroed.
+- **PAX_UDEREF**: rtnetlink + skb walkers fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` callbacks type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: CoDel internal symbols hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: CoDel parse-failure printks rate-limited, CAPSYSLOG-gated.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC attaching CoDel requires **CAP_NET_ADMIN** in the netns owner.
+- `target`, `interval`, `ce_threshold` clamped: `target ∈ [1us, 1s]`, `interval ∈ [1us, 1s]`; out-of-range fails `-EINVAL`.
+- `limit` (packets) clamped to `[1, 1<<20]`; prevents unbounded `qlen` and the associated `kmalloc` pressure on attach.
+- Drop / ECN-mark policy: when `qdelay > target` for `> interval`, drop or mark deterministically; no attacker-controllable branch into the dropper from a non-`ECN_TX_OK` path.
+- Per-Qdisc drop counter uses `u64_stats_*` saturating; no wrap-on-overflow gives a false low-drop signal.
+
+Rationale: CoDel is the canonical AQM applied to bufferbloat-prone egress queues; an unchecked `limit` or wrap on the drop counter would either OOM the box or hide a flood. Bounding the four config knobs plus saturating stats keeps the AQM honest, and PaX + RAP/kCFI keep its dispatch fail-closed.
+
 ## Open Questions
 
 (none at this Tier-3 level)

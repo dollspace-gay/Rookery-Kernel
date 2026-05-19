@@ -654,6 +654,24 @@ Pipapo reinforcement:
 - **Per-pipapo_drop best-effort resize (`pipapo_resize` failure ignored)** — defense against per-OOM mid-remove; tables remain valid, just slack.
 - **Per-WARN_ON_ONCE in nft_pipapo_remove** — defense against per-silent-not-found which would corrupt counts.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: pipapo field/element copy paths bound by `set->klen` and `set->dlen`; whitelisted slabs for `nft_pipapo_field`/`nft_pipapo_match`.
+- PAX_KERNEXEC: pipapo AVX2 lookup runs in .text under kernel_fpu_begin/end; no JIT codegen at this layer; lookup tables are data-only RO pages where possible.
+- PAX_RANDKSTACK: stack-base randomization on `setsockopt`/netlink ingress that triggers pipapo set rebuild.
+- PAX_REFCOUNT: `nft_pipapo_match->use` and parent `nft_set->use` saturating refcount_t across RCU swap of match tables.
+- PAX_MEMORY_SANITIZE: old `nft_pipapo_match` zeroed in `pipapo_reclaim_match()` before kvfree; bitmap pages scrubbed.
+- PAX_UDEREF: NFTA_SET_ELEM_KEY / NFTA_SET_ELEM_KEY_END pointers validated against `set->klen` before deref.
+- PAX_RAP / kCFI: pipapo `nft_set_ops` (insert/remove/lookup/walk/gc) kCFI-typed.
+- GRKERNSEC_HIDESYM: `nft list set` output redacts kernel pointers; match-table addresses hidden.
+- GRKERNSEC_DMESG: pipapo rebuild OOM / size-overflow warnings rate-limited; CAP_SYSLOG gates detail.
+- nftables CAP_NET_ADMIN: NFT_MSG_NEWSET/NEWSETELEM with `NFT_SET_OBJECT|NFT_SET_INTERVAL|NFT_SET_CONCAT` gated by CAP_NET_ADMIN.
+- Transaction commit-abort: pipapo match-table swap is RCU-published only on commit; abort kvfrees the staged table without ever exposing it to lookup.
+- nft_chain PAX_REFCOUNT: chains bound via `nft_lookup` to a pipapo set use `nft_use_inc()` saturating.
+- JIT W^X (PAX_KERNEXEC): no executable JIT in pipapo; SIMD lookup uses signed kernel-mode AVX2 with `irq_fpu_usable()` checks.
+
+Rationale: pipapo is a high-fanout match engine that handled CVE-2023-0179-style OOB-read regressions; bounded field copies and RCU-published table swaps under saturating refcount prevent the documented torn-update class.
+
 ## Open Questions
 
 (none at this Tier-3 level)

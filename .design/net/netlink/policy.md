@@ -257,6 +257,24 @@ NLA-policy-specific reinforcement:
 - **Per-emit nla_put alignment enforced** — defense against unaligned-attr causing parser-skew downstream.
 - **Per-msg attr-count limit** — defense against attr-bomb DoS.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: policy-driven NLA parsing copies attribute payload into whitelisted slabs sized by `nla_policy.len`/`max` before any deref.
+- PAX_KERNEXEC: policy validation functions (`__nla_validate_parse`, type-specific validators) reside in .text; policy tables in .rodata.
+- PAX_RANDKSTACK: stack-base randomization on `nlmsg_parse()` / `nla_parse()` callers across syscalls.
+- PAX_REFCOUNT: nested-policy traversal depth bounded; recursion guard counter saturating to defeat amplification.
+- PAX_MEMORY_SANITIZE: rejected attribute buffers scrubbed before drop; partial-parse state cleared on error return.
+- PAX_UDEREF: every `nla_data()` deref bounded by `nla_len()` ≤ parent payload remaining; uderef-checked.
+- PAX_RAP / kCFI: `nla_policy.validate` callbacks (NLA_POLICY_VALIDATE_FN) kCFI-typed; policy validator function pointers trapped on type mismatch.
+- GRKERNSEC_HIDESYM: validation-failure logs do not leak kernel pointers or attribute offsets that could aid heap-shaping.
+- GRKERNSEC_DMESG: `nla_validate` failure messages rate-limited; CAP_SYSLOG gates `pr_warn_ratelimited()` detail.
+- NLA_POLICY strict-mode validation: hardened default is `NL_VALIDATE_STRICT` (unknown attrs and trailing bytes rejected); `NL_VALIDATE_LIBERAL` paths flagged.
+- Range-check on every attr: NLA_U8/U16/U32/U64/S8..S64 with `NLA_POLICY_RANGE`, `NLA_POLICY_MIN`, `NLA_POLICY_MAX` enforced at parse; out-of-range attrs rejected before reaching subsystem.
+- Nested policy depth cap: nested `NLA_POLICY_NESTED` traversal depth bounded by `NLA_MAX_DEPTH` to prevent stack exhaustion.
+- Bitfield32/Bitfield64: mask validation enforced at parse to prevent set-bit injection beyond declared mask.
+
+Rationale: NLA policy is the universal validation kernel for every netlink-based control plane; strict-mode default plus per-attr range/mask enforcement under kCFI-typed validate callbacks closes the OOB-read / type-confusion class repeatedly reported across subsystems.
+
 ## Open Questions
 
 (none at this Tier-3 level)

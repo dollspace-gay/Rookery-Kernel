@@ -797,6 +797,31 @@ Association-specific reinforcement:
 - **Per-allow_infinite_fallback not applicable to SCTP** (distinct from MPTCP, but `peer.auth_capable` similarly gates AUTH-required chunks).
 - **Per-flowlabel inheritance from v6 sin6_flowinfo** — defense against per-flow-tracking-bypass on multihomed v6.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to `sctp_association`:
+
+- **PAX_USERCOPY** — `getsockopt(SCTP_GET_PEER_ADDRS)` / `setsockopt(SCTP_AUTH_KEY)` payloads under whitelist copy.
+- **PAX_KERNEXEC** — assoc state-machine and transport-selection paths execute from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates inference of TSN / verification-tag entropy.
+- **PAX_REFCOUNT** — `sctp_association.base.refcnt`, `sctp_transport.refcnt`, and `sctp_chunk.refcnt` use saturating refcounts; INIT/COOKIE-ECHO storms cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `sctp_association`, `sctp_transport`, `sctp_chunk`, and the AUTH_RANDOM / COOKIE secret-key buffers sanitized on free.
+- **PAX_UDEREF** — cmsg / sndinfo / rcvinfo parsing traverses user pointers under UDEREF.
+- **PAX_RAP / kCFI** — `sctp_sm_table[][]` state-function pointers `static const`; dispatch CFI-checked.
+- **GRKERNSEC_HIDESYM** — `sctp_endpoint_lookup_assoc`, `sctp_unpack_cookie` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — INIT/COOKIE/AUTH failure warnings CAP_SYSLOG-gated.
+
+Association-specific reinforcement:
+
+- **`sctp_association.base.refcnt` PAX_REFCOUNT saturating** — defense against rapid create/abort wrap UAF.
+- **COOKIE-ECHO HMAC key MEMORY_SANITIZE on rekey** — defense against stale-key residue leak after cookie-secret rotation.
+- **GRKERNSEC_RANDNET TSN seeding** — `sctp_association.next_tsn` and `my_vtag` seeded from the hardened RNG pool, defending against TSN-prediction blind injection (RFC 4960 § 5.3).
+- **AUTH_RANDOM 32-byte buffer MEMORY_SANITIZE on free** — defense against residual AUTH key disclosure after assoc release.
+- **`sctp_endpoint_lookup_assoc` PAX_RAP-typed** — assoc-lookup dispatch CFI-verified to prevent fn-ptr confusion across SCTP state machine.
+- **GRKERNSEC_HIDESYM on `sctp_unpack_cookie`** — cookie-validation symbol hidden from probing.
+
+Rationale: SCTP's association is the canonical attacker target (verification tag, AUTH key, COOKIE secret); GRKERNSEC_RANDNET seeding plus MEMORY_SANITIZE on the secret-bearing fields and saturating refcounts on rapid assoc churn directly answer the historical SCTP CVE classes (UAF on shutdown, TSN-prediction, cookie-key reuse).
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -252,6 +252,31 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_htb (Hierarchical Token Bucket) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_HTB_PARMS / TCA_HTB_INIT / TCA_HTB_CTAB / TCA_HTB_RTAB attributes parsed via `nla_*` whitelisted accessors.
+- **PAX_KERNEXEC**: `htb_qdisc_ops` and `htb_class_ops` are `__ro_after_init`; W^X enforced.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + RTM_NEWTCLASS + per-packet enqueue/dequeue (softirq) protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, every `htb_class.refcnt`, per-class `bstats` / `qstats` use checked `refcount_t` / `u64_stats_*`.
+- **PAX_MEMORY_SANITIZE**: freed `htb_class` slab entries zeroed on `htb_destroy_class`.
+- **PAX_UDEREF**: rtnetlink + class-walker fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` and `Qdisc_class_ops` callbacks type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: HTB internal symbols hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: parse-failure / hierarchy-loop printks rate-limited and CAPSYSLOG-gated.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC / RTM_NEWTCLASS for HTB require **CAP_NET_ADMIN** in the netns owner; HTB hierarchy mutation through `htb_change_class` re-checks CAP on every call.
+- `htb_class.refcnt` (the children + filter refcount) uses checked `refcount_t`; destroying a class with non-zero refcount is refused (`-EBUSY`).
+- Hierarchy depth is bounded by `TC_HTB_MAXDEPTH = 8`; class-id graph is validated for loops at `htb_change_class` time before insertion.
+- `rate64` / `ceil64` clamped to `[0, U64_MAX / 8]` bps; `burst` / `cburst` clamped to `[mtu, 1<<28]`. Out-of-range fails `-EINVAL`.
+- Per-class `tokens` / `ctokens` accounting uses signed saturating arithmetic; cannot wrap to grant a class unbounded service.
+- `quantum` clamped per upstream `[mtu, 1<<20]`; default-quantum fallback is computed from `rate` with bounded arithmetic.
+
+Rationale: HTB is the most complex classful shaper in mainline; its hierarchy + per-class refcount + per-class rate table are all attacker-reachable from `tc class add`. Bounding depth + rate + tokens, plus refusing destruction of a refcounted class, plus the PaX + RAP/kCFI envelope, keeps the hierarchy from being weaponized into an OOM or a token-overflow service-bypass.
+
 ## Open Questions
 
 (none — HTB semantics exhaustively specified by upstream + the original "HTB classfull qdisc" paper)

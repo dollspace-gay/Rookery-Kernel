@@ -224,6 +224,30 @@ TIPC-specific reinforcement:
 - **Per-socket cleanup withdraws publications** — defense against per-stale name-table entry.
 - **Per-cmsg validated** — defense against per-malformed-cmsg crash.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to TIPC (PF_TIPC):
+
+- **PAX_USERCOPY** — TIPC sockopts and name-publish/withdraw payloads traverse whitelisted `copy_{to,from}_user`.
+- **PAX_KERNEXEC** — TIPC RX (`tipc_rcv`), name-table lookup, and link state-machine execute from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates name-table inference via timing.
+- **PAX_REFCOUNT** — `tipc_sock`, `tipc_node`, `tipc_link` saturating refcounts on adversarial publish/withdraw churn.
+- **PAX_MEMORY_SANITIZE** — name-table publication entries, cluster-auth secret buffers, and freed `tipc_node` sanitized on release.
+- **PAX_UDEREF** — TIPC cmsg / TIPC_PUBLISH attribute parsing under UDEREF.
+- **PAX_RAP / kCFI** — `tipc_proto`, `tipc_proto_ops` `static const`; bearer / link callbacks CFI-checked.
+- **GRKERNSEC_HIDESYM** — `tipc_publ_lookup`, `tipc_node_find` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — bearer-up/down / link-failover warnings CAP_SYSLOG-gated.
+
+TIPC-specific reinforcement:
+
+- **PF_TIPC bearer/node admin CAP_NET_ADMIN** — defense against unprivileged cluster reconfiguration (bearer enable/disable, node creation).
+- **Cluster auth secret PAX_MEMORY_SANITIZE on rekey** — defense against stale cluster-auth-key residue after `TIPC_NL_NET_SET` rekey.
+- **`tipc_proto` PAX_RAP-typed** — protocol-ops dispatch CFI-checked.
+- **Name-table RB-tree write CAP_NET_ADMIN-gated** — defense against unprivileged name-spoof at `TIPC_PUBLISH`.
+- **GRKERNSEC_HIDESYM on `tipc_node_find`** — node-lookup symbol hidden from probing.
+
+Rationale: TIPC is cluster-wide naming + transparent failover; cluster-auth-key sanitize-on-rekey, CAP_NET_ADMIN on bearer/node admin, and CFI on the protocol-ops vtable bound the cross-cluster impersonation and stale-key residue surfaces.
+
 ## Open Questions
 
 (none at this Tier-3 level)

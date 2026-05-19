@@ -239,6 +239,30 @@ SFQ-specific reinforcement:
 - **Per-slot init zeroes** — defense against per-stale state from freed slot.
 - **Per-bucket RED gating** — defense against per-bucket overflow not signaling congestion.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to the SFQ qdisc:
+
+- **PAX_USERCOPY** — `TCA_SFQ_PARAMS` netlink blob copy-in / stat copy-out under whitelist.
+- **PAX_KERNEXEC** — `sfq_enqueue` / `sfq_dequeue` execute from immutable .text; rehash periodic callback shares the W^X regime.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates hash-bucket inference via syscall timing.
+- **PAX_REFCOUNT** — SFQ `Qdisc` saturating refcount on rapid attach/detach storms.
+- **PAX_MEMORY_SANITIZE** — `sfq_sched_data`, `sfq_slot[]`, and the divisor-sized hash table sanitized on free.
+- **PAX_UDEREF** — netlink param parsing traverses user pointers only under UDEREF.
+- **PAX_RAP / kCFI** — `sfq_qdisc_ops` `static const`; per-slot drop and rehash callbacks CFI-checked.
+- **GRKERNSEC_HIDESYM** — `sfq_hash`, `sfq_perturbation` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — bucket-overflow / divisor-clamp warnings CAP_SYSLOG-gated.
+
+SFQ-specific reinforcement:
+
+- **TC qdisc CAP_NET_ADMIN** — SFQ create/change requires CAP_NET_ADMIN in netdev's netns.
+- **`sfq_qdisc_ops` PAX_RAP-typed** — vtable dispatch validated on every enqueue/dequeue.
+- **Perturbation timer rate-limited** — userspace cannot trigger rehash storms below the configured floor.
+- **Per-slot `sfq_init_one` zero-init under PAX_MEMORY_SANITIZE** — no UAF via re-allocated slot.
+- **Divisor capped at SFQ_MAX_DIVISOR via PAX_USERCOPY-validated input** — adversarial tc cannot OOM via huge hash table.
+
+Rationale: SFQ's adversarial surface is hash-flooding and rehash-storms; combining periodic perturbation rate-limit, divisor cap under USERCOPY, and slot sanitization on free contains the known DoS classes seen in tc-sfq CVEs (`sfq_drop` / `sfq_perturbation` race history).
+
 ## Open Questions
 
 (none at this Tier-3 level)

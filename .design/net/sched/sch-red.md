@@ -247,6 +247,30 @@ RED-specific reinforcement:
 - **Per-change atomic-swap parms+vars** — defense against per-change torn read.
 - **Per-RED ECN flag CAP_NET_ADMIN-checked** — defense against per-unprivileged ECN-marking.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to the RED qdisc:
+
+- **PAX_USERCOPY** — `TCA_RED_PARMS` / `TCA_RED_STAB` netlink blobs traverse whitelisted `copy_{to,from}_user` boundaries.
+- **PAX_KERNEXEC** — `red_enqueue` and `red_action` execute from W^X .text with no live-patch trampolines on the AQM hot path.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates inference of `red_random()` / Floyd-rng state via timing side channels.
+- **PAX_REFCOUNT** — RED `Qdisc` and the chained inner qdisc use saturating refcounts on `tc qdisc change` storms.
+- **PAX_MEMORY_SANITIZE** — `red_sched_data`, `red_parms`, `red_vars`, and the `stab[]` lookup table are sanitized on free.
+- **PAX_UDEREF** — RED tune attribute parsing traverses user pointers only under UDEREF.
+- **PAX_RAP / kCFI** — `red_qdisc_ops` is `static const`; ECN-mark and drop callbacks dispatched via CFI-checked indirect calls.
+- **GRKERNSEC_HIDESYM** — `red_random`, `red_calc_qavg` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — RED early-drop / ECN-mark warnings rate-limited via CAP_SYSLOG gating.
+
+RED-specific reinforcement:
+
+- **TC qdisc CAP_NET_ADMIN** — RED create/change/destroy requires CAP_NET_ADMIN in the owning netns.
+- **`red_qdisc_ops` PAX_RAP-typed** — dispatch type-checked on every enqueue/dequeue path.
+- **Adaptive `max_P` timer rate-limited** — userspace cannot drive the auto-tuning callback faster than its bounded period.
+- **Stab table read-only after change** — atomic-swap pattern prevents torn read during decay computation.
+- **GRKERNSEC_HIDESYM on Floyd anti-burst counter** — internal counter exposure restricted.
+
+Rationale: RED's security envelope is the qavg accumulator, the Stab lookup, and the ECN-mark gate; under grsec the stab[] read-only-after-publish and bounded adaptive timer remove the two main classes of AQM-tampering vectors.
+
 ## Open Questions
 
 (none at this Tier-3 level)

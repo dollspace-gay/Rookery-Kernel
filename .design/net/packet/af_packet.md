@@ -252,6 +252,30 @@ AF_PACKET-specific reinforcement:
 - **Per-RX zero-copy bounded by snaplen** — defense against per-frame OOB write.
 - **Per-fanout member add validates BPF prog** — defense against per-bpf-injection.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline kernel-wide hardening leveraged by AF_PACKET:
+
+- **PAX_USERCOPY** — `tpacket_hdr`/`tpacket2_hdr`/`tpacket3_hdr` ring frames live in a dedicated slab/`vmalloc` region with PAX_USERCOPY-whitelisted copy windows; oversized snaplen cannot bleed adjacent kernel pages into mmap.
+- **PAX_KERNEXEC** — `packet_ops`, `packet_ops_spkt`, and `packet_mmap_ops` function tables live in `__ro_after_init`; a corrupted `packet_sock` cannot redirect `recvmsg`/`sendmsg` through attacker-controlled code.
+- **PAX_RANDKSTACK** — `packet_rcv`, `tpacket_rcv`, and `tpacket_snd` stack frames are randomized on each entry, defeating layout-based ROP through the deep RX path.
+- **PAX_REFCOUNT** — `po->mapped`, `po->tp_status`, `pkt_sk(sk)->run_filter`, and fanout-member refs use saturating `refcount_t`; rapid bind/unbind cannot wrap.
+- **PAX_MEMORY_SANITIZE** — ring buffer pages zeroed on `packet_set_ring(0)` teardown and on socket close, erasing prior-capture residue across mmap reuse.
+- **PAX_UDEREF** — `tpacket_get_status` and friends never deref userspace; mmap pages are kernel-resident, status flags read via `READ_ONCE` on the kernel mapping.
+- **PAX_RAP/kCFI** — fanout dispatch (`fanout_demux_hash`, `_lb`, `_cpu`, `_rollover`, `_bpf`) forward-edge-checked; `dispatch_hook[]` is `const`.
+- **GRKERNSEC_HIDESYM** — `packet_sock` and fanout-list pointers stripped from `/proc/net/packet`.
+- **GRKERNSEC_DMESG** — malformed-bind / oversized-frame `printk_ratelimited` paths capped; cannot be flooded.
+
+AF_PACKET-specific reinforcement:
+
+- **PF_PACKET socket-create requires CAP_NET_RAW in the user-ns** — enforced strictly; no fallback path to unprivileged raw capture.
+- **TX_RING frame copy uses PAX_USERCOPY-whitelisted `tp_net`/`tp_mac` offsets** — defense against TX-side OOB read into adjacent slab.
+- **mmap'd ring length bounded by `tp_block_nr * tp_block_size`** with PAX_USERCOPY enforcement; integer overflow rejected at `packet_set_ring`.
+- **VMA pin coupled to socket ref via PAX_REFCOUNT** — mmap cannot survive `close(2)` and pivot to UAF.
+- **fanout-group BPF prog goes through verifier with W^X (PAX_KERNEXEC) on the JIT page** — denies code-injection via fanout.
+
+Rationale: PF_PACKET is the canonical raw-network sandbox-escape primitive (CVE-2017-7308, CVE-2020-14386); strict CAP_NET_RAW gating combined with USERCOPY-whitelisted ring access neutralizes the historical exploit class.
+
 ## Open Questions
 
 (none at this Tier-3 level)

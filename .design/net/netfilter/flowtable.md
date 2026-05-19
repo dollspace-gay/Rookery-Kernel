@@ -301,6 +301,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — `nft_flowtable` netlink configuration paths (NFTA_FLOWTABLE_*) bounds-validated; offload-state netlink dumps copy bounded entries.
+- **PAX_KERNEXEC** — `nf_flow_table_type.action`, `gc`, `setup` op tables resident in R-X kernel text.
+- **PAX_RANDKSTACK** — `nf_flow_offload_inet_hook` + `flow_offload_work_handler` stacks re-randomised per dispatch.
+- **PAX_REFCOUNT** — `flow_offload.refcnt` + `nf_flowtable.refcnt` + per-flow conntrack pin saturate-trap; SW↔HW transfer storms cannot wrap.
+- **PAX_MEMORY_SANITIZE** — `flow_offload` + tuple-hash slabs zeroed on free so stale 5-tuple + dst cache cannot leak to a recycled flow.
+- **PAX_UDEREF** — every `flow_offload_tuple` field validated before dereffing; no raw user offsets through `nft_flowtable_parse_hook`.
+- **PAX_RAP/kCFI** — `nf_flow_offload->action`, gc callbacks, and HW-offload `flow_block_cb` indirect dispatch enforced with CFI signatures; cross-driver vtable confusion traps.
+- **GRKERNSEC_HIDESYM** — flowtable callback addresses never leaked via netlink dump.
+- **GRKERNSEC_DMESG** — offload-failure / hw-busy messages rate-limited + restricted.
+- **Per-`flow_offload_add` PAX_REFCOUNT on conntrack pin** — defense against per-flow-add wrap when the same ct is referenced by SW + HW simultaneously.
+- **Per-`flow_block_cb` driver vtable validation** — defense against per-third-party-driver hijack of the offload callback set.
+- **Per-`FLOW_OFFLOAD_DIR_MAX` bound** — defense against per-direction-array overflow on tuple insert.
+- **Per-`nf_flow_offload_work_gc` rate cap** — defense against per-GC starvation under flood.
+- **Per-CAP_NET_ADMIN strict on flowtable add/del** — defense against per-unprivileged HW-offload activation.
+- **Per-HW-offload setup_block error rollback** — defense against per-partial-offload leaving SW + HW desync state.
+
+Rationale: flowtable spans SW + HW offload with multiple indirect-call surfaces and a shared conntrack refcount; PAX_REFCOUNT + PAX_RAP + CAP_NET_ADMIN together contain refcount wrap on `flow_offload`, driver-vtable confusion on the HW offload path, and unprivileged offload activation.
+
 ## Open Questions
 
 (none — flowtable semantics exhaustively specified by upstream + Cilium / OVS / nftables-flowtable test coverage)

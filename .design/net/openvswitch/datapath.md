@@ -284,6 +284,24 @@ OVS-specific reinforcement:
 - **Per-DP destroy waits-for-RCU** — defense against per-skb-in-flight UAF.
 - **Per-upcall skb cutlen** — defense against per-userspace OOM on huge skb.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: OVS_PACKET_ATTR_KEY/OVS_PACKET_ATTR_PACKET/OVS_PACKET_ATTR_ACTIONS copies use whitelisted slabs; size bounded by `nla_len()` against datapath-declared maxima.
+- PAX_KERNEXEC: datapath fastpath (`ovs_dp_process_packet`, `ovs_flow_tbl_lookup_stats`) and slowpath (`ovs_dp_upcall`) reside in .text; W^X enforced.
+- PAX_RANDKSTACK: stack-base randomization on `OVS_PACKET_CMD_EXECUTE` and packet ingress entry.
+- PAX_REFCOUNT: `datapath->vport` count, `vport->refcnt`, and `sw_flow->stats_last_writer` accounting use saturating refcount_t.
+- PAX_MEMORY_SANITIZE: flow destroy via `rcu_free_flow_callback()` zeroes key+mask+actions blobs before kfree.
+- PAX_UDEREF: NLA pointers from `OVS_PACKET_*` userland validated under uderef.
+- PAX_RAP / kCFI: `vport_ops` (send/get_options/set_options/get_name) and `dp_ops` callbacks kCFI-typed.
+- GRKERNSEC_HIDESYM: `OVS_DP_CMD_GET`/`OVS_VPORT_CMD_GET` dumps redact kernel pointers.
+- GRKERNSEC_DMESG: upcall-overrun, flow-table-full, and vport-detach warnings rate-limited.
+- OVS_DP_CMD_* CAP_NET_ADMIN: `OVS_DP_CMD_NEW/DEL/SET`, `OVS_VPORT_CMD_NEW/DEL/SET`, `OVS_FLOW_CMD_NEW/DEL/SET`, `OVS_PACKET_CMD_EXECUTE`, `OVS_METER_CMD_*` gated by `ns_capable(net->user_ns, CAP_NET_ADMIN)`.
+- Flow PAX_USERCOPY: `sw_flow->key` and `sw_flow_actions` allocated from whitelisted slabs; key copies bounded by `sw_flow_key_range`.
+- Per-net datapath isolation: each `ovs_net` confines datapath visibility; userns cannot reach parent-net datapaths.
+- Upcall payload bound: PID-targeted upcall skb size capped to prevent attacker-induced unbounded allocation.
+
+Rationale: OVS datapath is a privileged control plane managing user-defined fastpath programs; per-command CAP_NET_ADMIN gating, kCFI-typed vport_ops dispatch, and saturating flow/vport refcounts close the UAF and ops-confusion vectors historically reported (CVE-2017-9242-class flow handling).
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -246,6 +246,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: nft API attribute copy_in/out (NFTA_TABLE_NAME, NFTA_CHAIN_NAME, NFTA_RULE_EXPRESSIONS) goes through whitelisted slabs with bounded sizes.
+- PAX_KERNEXEC: nft API dispatch and netlink message handlers run from .text only; W^X enforced.
+- PAX_RANDKSTACK: per-syscall stack-base randomization on `sendmsg()` netlink batches addressing NFNL_SUBSYS_NFTABLES.
+- PAX_REFCOUNT: `nft_table->use`, `nft_chain->use`, and dependent object refcounts use saturating refcount_t across batch commits.
+- PAX_MEMORY_SANITIZE: zero on free for transaction-log entries and aborted ruleset fragments to prevent slab disclosure of partial config.
+- PAX_UDEREF: all `nla_data()` pointers from userland validated before deref under uderef.
+- PAX_RAP / kCFI: `nfnl_callback->call`, `nfnl_callback->call_batch`, and `nft_expr_type->ops` indirect calls kCFI-typed.
+- GRKERNSEC_HIDESYM: nft list/dump output redacts kernel addresses; `kptr_restrict=2` applied to handle exposure.
+- GRKERNSEC_DMESG: API error paths (EBUSY, ELOOP, ERANGE) rate-limited and CAP_SYSLOG-gated.
+- nftables CAP_NET_ADMIN: every `NFT_MSG_*` checked with `ns_capable(net->user_ns, CAP_NET_ADMIN)` so unprivileged userns cannot mutate parent-net ruleset.
+- Transaction commit-abort: `nf_tables_commit()` runs under `nft_net->commit_mutex`; abort restores prior generation atomically; generation counter prevents stale lookup.
+- nft_chain PAX_REFCOUNT: `nft_use_inc()`/`nft_use_dec()` are saturating; binding count cannot wrap.
+- JIT W^X (PAX_KERNEXEC): set lookup JIT (where present) holds pages RO+X after emit.
+
+Rationale: the nft API is the privileged control plane; saturating refcounts plus transactional commit semantics close the class of "rule references freed object" UAFs reported repeatedly in nf_tables_api.c.
+
 ## Open Questions
 
 (none — nftables NETLINK API exhaustively specified by upstream + libnftnl test corpus + nft regression-test suite)

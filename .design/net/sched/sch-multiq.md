@@ -196,6 +196,30 @@ MULTIQ-specific reinforcement:
 - **Per-decrease bands frees inner qdiscs atomically** — defense against per-decrease leaving stale qdisc.
 - **Per-MULTIQ leaf integration with mqprio** — defense against per-traffic-class isolation breach.
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_multiq (multi-queue dispatch qdisc) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: `tc_multiq_qopt` attribute parsed via `nla_get_*` whitelisted accessors.
+- **PAX_KERNEXEC**: `multiq_qdisc_ops` and `multiq_class_ops` are `__ro_after_init`; W^X enforced on the dispatch path.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + per-packet enqueue/dequeue protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, per-band sub-qdisc refcnts, per-band `bstats` / `qstats` use checked `refcount_t` / `u64_stats_*`.
+- **PAX_MEMORY_SANITIZE**: freed band array zeroed on `multiq_destroy`.
+- **PAX_UDEREF**: rtnetlink walkers fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` and `Qdisc_class_ops` callbacks (`enqueue`, `dequeue`, `graft`, `leaf`) type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: multiq internal symbols hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: parse-failure printks rate-limited.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC attaching multiq requires **CAP_NET_ADMIN** in the netns owner.
+- `bands` clamped to `[1, dev->num_tx_queues]` and to `TCQ_MULTIQ_MAX_QUEUES`; out-of-range or `bands > num_tx_queues` fails `-EINVAL`.
+- `max_bands` (the per-attach kmalloc-array size) is bounded to `dev->num_tx_queues`; no unbounded class allocation on attach.
+- Per-band sub-qdisc graft (`multiq_graft`) refcounts the *old* child before swap and releases through RCU; class lookup (`multiq_find`) bounds the class id to `[1, q->bands]`.
+- Per-band drop / overlimit counters saturate via `u64_stats_*`.
+
+Rationale: multiq is the simplest multi-queue dispatch — it maps `skb->queue_mapping` directly to a sub-qdisc. The hardening surface is a `bands` integer and an array of child qdiscs; an unchecked `bands` is OOM, and a raw-indexed `band[]` lookup is OOB. Bounding the band count plus refcounted graft plus the standard PaX + RAP/kCFI envelope keeps the multi-queue dispatch fail-closed.
+
 ## Open Questions
 
 (none at this Tier-3 level)

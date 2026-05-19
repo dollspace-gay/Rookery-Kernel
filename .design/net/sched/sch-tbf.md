@@ -231,6 +231,30 @@ TBF-specific reinforcement:
 - **Per-pkt overhead accounted** — defense against IP-tunnel-encap rate undershoot.
 - **Per-inner qdisc dropped if can't fit** — defense against silent enqueue OOM.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to the TBF (Token Bucket Filter) qdisc:
+
+- **PAX_USERCOPY** — `TCA_TBF_*` netlink parameter / rate-table blobs use whitelisted `copy_{to,from}_user`.
+- **PAX_KERNEXEC** — `tbf_enqueue` / `tbf_dequeue` execute from W^X .text; no live-patched fast path.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates token-state inference.
+- **PAX_REFCOUNT** — TBF `Qdisc` and the inner `Qdisc` ref counters saturate under rapid attach/change.
+- **PAX_MEMORY_SANITIZE** — `tbf_sched_data`, freed rate/peak rate-tables, and watchdog state sanitized on destroy.
+- **PAX_UDEREF** — TBF tune attribute walking traverses user pointers under UDEREF.
+- **PAX_RAP / kCFI** — `tbf_qdisc_ops` `static const`; watchdog hrtimer callback CFI-checked.
+- **GRKERNSEC_HIDESYM** — `tbf_peek_len`, `psched_l2t_ns` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — bucket-overflow / oversize-pkt drop warnings CAP_SYSLOG-gated.
+
+TBF-specific reinforcement:
+
+- **TC qdisc CAP_NET_ADMIN** — `tc qdisc {add,change} ... tbf` requires CAP_NET_ADMIN in netdev's netns.
+- **`tbf_qdisc_ops` PAX_RAP-typed** — vtable dispatch validated.
+- **Watchdog absolute-ns rate-limit bounded** — adversarial userspace cannot drive sub-tick token replenish.
+- **Per-rate mult/shift precomputed under PAX_USERCOPY check** — divisor-zero / shift-overflow precluded at config time.
+- **GRKERNSEC_HIDESYM on `psched_l2t_ns`** — link-layer-to-ns conversion symbol hidden.
+
+Rationale: TBF's adversarial surface is the rate-table/peakrate-table arithmetic plus the watchdog scheduling; saturating refcounts, sanitize-on-free of rate tables, and CFI on the watchdog callback close the historical bucket-overflow and stale-table classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

@@ -253,6 +253,30 @@ SCTP-specific reinforcement:
 - **Per-cmsg validated** — defense against per-malformed-cmsg.
 - **Per-transport state-machine bounded** — defense against per-state-loop.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to SCTP (PF_SCTP):
+
+- **PAX_USERCOPY** — all `setsockopt`/`getsockopt(SOL_SCTP, ...)` payloads (peer addrs, AUTH key, cookie params) traverse whitelisted `copy_{to,from}_user`.
+- **PAX_KERNEXEC** — SCTP RX (`sctp_rcv`) and state-machine dispatch run from W^X .text.
+- **PAX_RANDKSTACK** — per-syscall stack randomization frustrates timing-side inference of SCTP cookie / verification-tag entropy.
+- **PAX_REFCOUNT** — `sctp_sock`, `sctp_association`, `sctp_chunk` refcounts saturating; INIT-flood cannot wrap.
+- **PAX_MEMORY_SANITIZE** — association objects, AUTH chunk-list, COOKIE key buffers sanitized on free.
+- **PAX_UDEREF** — SCTP cmsg parsing (`sctp_msghdr_parse`) under UDEREF.
+- **PAX_RAP / kCFI** — `sctp_prot`, `sctp_sm_table[][]` `static const`; state-function dispatch CFI-validated.
+- **GRKERNSEC_HIDESYM** — `sctp_endpoint_lookup_assoc`, `sctp_unpack_cookie` hidden from unprivileged kallsyms.
+- **GRKERNSEC_DMESG** — assoc/CT warning messages CAP_SYSLOG-gated.
+
+SCTP-specific reinforcement:
+
+- **`sctp_association` PAX_REFCOUNT saturating** — adversarial assoc-storm cannot wrap refcount to UAF.
+- **COOKIE-ECHO HMAC key PAX_MEMORY_SANITIZE on rekey/free** — defense against per-rekey stale-key residue.
+- **GRKERNSEC_RANDNET seeded TSN / verification tag** — defense against blind injection via TSN prediction (RFC 4960 § 5.3).
+- **`sctp_prot.{init,destroy}` PAX_RAP-typed** — protocol dispatch CFI-checked.
+- **PAX_USERCOPY on `SCTP_AUTH_KEY` setsockopt** — defense against bounded-buffer overflow on key install.
+
+Rationale: SCTP is high-value attack surface (multihoming, AUTH, cookie); MEMORY_SANITIZE on the secret-bearing buffers plus GRKERNSEC_RANDNET-seeded TSN/verification-tag entropy and CFI on the state-machine dispatch directly close the historical CVE classes (cookie-replay, AUTH bypass, UAF on shutdown race).
+
 ## Open Questions
 
 (none at this Tier-3 level)

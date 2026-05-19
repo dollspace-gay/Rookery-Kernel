@@ -249,6 +249,24 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: NFTA_SET_ELEM_KEY / NFTA_SET_ELEM_DATA copies bounded by `set->klen`/`set->dlen` with whitelisted slab allocations.
+- PAX_KERNEXEC: set type vtables (`nft_set_rhash_type`, `nft_set_rbtree_type`, `nft_set_pipapo_type`, `nft_set_bitmap_type`, `nft_set_hash_type`) reside in .rodata; W^X enforced.
+- PAX_RANDKSTACK: stack-base randomization on element add/del netlink ingress.
+- PAX_REFCOUNT: `nft_set->use`, `nft_set_binding` count, and per-element object refs saturating refcount_t.
+- PAX_MEMORY_SANITIZE: set element destruction zeroes key/data area; expired-element GC scrubs slab before free.
+- PAX_UDEREF: NLA parsing for element attributes uderef-checked.
+- PAX_RAP / kCFI: `nft_set_ops` (init/destroy/insert/remove/activate/deactivate/lookup/walk/gc_init/elem_priv_size) kCFI-typed across all set backends.
+- GRKERNSEC_HIDESYM: set descriptors and element pointers redacted in `nft list` and `/proc` exposure.
+- GRKERNSEC_DMESG: set-overfull / GC-storm warnings rate-limited.
+- nftables CAP_NET_ADMIN: NFT_MSG_NEW/DEL/GETSET and SETELEM variants gated by CAP_NET_ADMIN in net_ns.
+- Transaction commit-abort: set element add/del staged under transaction; abort reverses with `nft_set_elem_destroy()` for each staged element; no partial-set exposure.
+- nft_chain PAX_REFCOUNT: chains referenced by element-data via NFT_DATA_VERDICT/JUMP use `nft_use_inc()` saturating.
+- JIT W^X (PAX_KERNEXEC): backends with codegen (none today beyond pipapo SIMD) constrained to data-only emit.
+
+Rationale: nft sets are the most-exercised CVE surface within nftables (CVE-2023-32233 set-UAF, CVE-2024-1086 set GC race); per-backend kCFI ops plus transactional element staging eliminate the documented UAF and double-free vectors.
+
 ## Open Questions
 
 (none — set storage backends exhaustively specified by upstream)

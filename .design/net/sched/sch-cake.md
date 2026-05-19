@@ -228,6 +228,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_cake inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_CAKE_* netlink attributes parsed via `nla_*` whitelisted accessors; no raw `copy_from_user` against the CAKE config blob.
+- **PAX_KERNEXEC**: `cake_qdisc_ops` lives in `.rodata`, `__ro_after_init`; W^X enforced on the shaper dispatch path.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC → cake_change participates in per-syscall kstack randomization; per-packet enqueue/dequeue runs in softirq with the same protection.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, per-tin `tin_backlog`, and CAKE flow counters use checked `refcount_t` / `u64_stats_*`; saturating on overflow.
+- **PAX_MEMORY_SANITIZE**: freed `cake_sched_data` (1024 flows × per-tin state) zeroed on `cake_destroy`.
+- **PAX_UDEREF**: rtnetlink + skb walkers may not deref a userspace pointer.
+- **PAX_RAP / kCFI**: `Qdisc_ops` callbacks invoked via CFI-checked indirect; `cake_qdisc_ops` type-tagged.
+- **GRKERNSEC_HIDESYM**: cake flow-hash secret and internal symbols hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: CAKE parse-failure / shaper-overflow printks rate-limited and gated to CAPSYSLOG.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC attaching CAKE requires **CAP_NET_ADMIN** in the netns owner.
+- Bandwidth (`TCA_CAKE_BASE_RATE64`) clamped to `[0, U32_MAX bps]`; quanta clamped to `[64, 65536]`; `tin` count fixed at 8 (compile-time).
+- Per-tin / per-flow `backlog` and `drops` use `u64_stats_*`; saturate rather than wrap.
+- CAKE flow hash uses a per-Qdisc random secret (`get_random_bytes`) seeded under SipHash to prevent flow-collision DoS.
+- 8-way set-associative hash bucket count is compile-time-fixed; no unbounded kmalloc on attach.
+
+Rationale: CAKE is a complex shaper running in softirq with per-flow state; an unchecked rate or unbounded flow count is trivially a network DoS primitive. PaX + RAP/kCFI keep the dispatch path fail-closed and the flow-hash secret hidden.
+
 ## Open Questions
 
 (none — CAKE semantics are exhaustively specified by upstream + the original CAKE paper)

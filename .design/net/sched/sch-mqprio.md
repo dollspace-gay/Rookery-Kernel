@@ -199,6 +199,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_mqprio (multi-queue priority, DCB/802.1Q) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_MQPRIO_* attributes (`mqprio_qopt`, `TCA_MQPRIO_TC_ENTRY`, `TCA_MQPRIO_MIN_RATE64`, `TCA_MQPRIO_MAX_RATE64`) parsed via `nla_*` whitelisted accessors with strict policy.
+- **PAX_KERNEXEC**: `mqprio_qdisc_ops` is `__ro_after_init`; W^X enforced.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + per-packet enqueue/dequeue protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt` + per-TC sub-qdisc refcnts + per-TC qstats use checked `refcount_t` / `u64_stats_*`.
+- **PAX_MEMORY_SANITIZE**: freed `mqprio_sched` (per-TC array + offload state) zeroed on destroy.
+- **PAX_UDEREF**: rtnetlink walkers fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` + per-driver `ndo_setup_tc(TC_SETUP_QDISC_MQPRIO)` callbacks type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: mqprio internal symbols hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: parse-failure / offload-fail printks rate-limited.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC attaching mqprio requires **CAP_NET_ADMIN** in the netns owner; full-offload mode additionally requires the driver to advertise the feature, gating attacker-controlled offload calls.
+- `num_tc` clamped to `[1, TC_QOPT_MAX_QUEUE = 16]`; `prio_tc_map[]` indexed by `skb->priority & TC_PRIO_MAX` only; out-of-range fails `-EINVAL`.
+- Per-TC `(count, offset)` validated such that `offset + count ≤ dev->num_tx_queues` and ranges do not overlap; prevents one TC from poisoning another's TX ring.
+- `min_rate64` / `max_rate64` clamped to `[0, U64_MAX / 8]` bps and `min_rate ≤ max_rate ≤ link_speed` (where link speed is known).
+- Hardware-offload path (`TC_SETUP_QDISC_MQPRIO`) is dispatched via the kCFI-checked `ndo_setup_tc`; failure rolls back to in-kernel mqprio rather than leaving the NIC half-programmed.
+
+Rationale: mqprio is the standard way to map skb priorities to NIC TX queues with hardware offload; a corrupted `prio_tc_map` or an out-of-range `(count, offset)` pair becomes a cross-queue DMA / RAP target. Bounding the map plus the driver offload kCFI + CAP gating keeps the multi-queue dispatch fail-closed.
+
 ## Open Questions
 
 (none — mqprio semantics exhaustively specified by upstream + IEEE 802.1Q DCB)

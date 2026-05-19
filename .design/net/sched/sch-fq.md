@@ -206,6 +206,30 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+Beyond the Row-1 defaults above, sch_fq (TCP pacing-aware Fair Queue) inherits the following PaX/grsec primitives:
+
+- **PAX_USERCOPY**: TCA_FQ_* netlink attributes parsed via `nla_*` whitelisted accessors.
+- **PAX_KERNEXEC**: `fq_qdisc_ops` is `__ro_after_init`; W^X enforced.
+- **PAX_RANDKSTACK**: RTM_NEWQDISC + per-packet enqueue/dequeue (softirq) protected.
+- **PAX_REFCOUNT**: `Qdisc.refcnt`, per-flow `qlen`/`credit`, drop counters use checked `refcount_t` / `u64_stats_*`.
+- **PAX_MEMORY_SANITIZE**: freed `fq_flow` slab entries zeroed on `fq_flow_purge`; flow rb-trees walked deterministically.
+- **PAX_UDEREF**: rtnetlink + skb walkers fenced.
+- **PAX_RAP / kCFI**: `Qdisc_ops` callbacks type-tagged + CFI-checked.
+- **GRKERNSEC_HIDESYM**: FQ flow-hash secret and internal symbols hidden from `/proc/kallsyms`.
+- **GRKERNSEC_DMESG**: parse-failure printks rate-limited.
+
+Component-specific reinforcement:
+
+- RTM_NEWQDISC attaching FQ requires **CAP_NET_ADMIN** in the netns owner.
+- `flow_limit` (per-flow packet cap) clamped to `[1, 65536]`; `plimit` (total queue) clamped to `[1, 1<<20]`.
+- `pacing-rate` derived from `sk->sk_pacing_rate` is validated against `[0, U32_MAX bps]`; per-socket `SO_MAX_PACING_RATE` requires CAP_NET_ADMIN to exceed the sysctl ceiling (`net.core.max_skb_pacing`).
+- `quantum` and `initial_quantum` clamped to `[256, 1<<20]` bytes.
+- Per-flow `fq_flow` allocations from a dedicated kmem_cache (AUTOSLAB) capped by `flow_max_count`; LRU-style eviction prevents unbounded growth under attacker-driven flow churn.
+
+Rationale: sch_fq is the default qdisc on Google-fleet-style hosts and integrates TCP pacing; an unbounded `flow_max_count` is OOM, and an unchecked `pacing-rate` lets an unprivileged process saturate the NIC. Clamping pacing + the flow table plus per-Qdisc SipHash flow-hash and the PaX + RAP/kCFI envelope keep the pacer fail-closed.
+
 ## Open Questions
 
 (none — fq semantics are exhaustively specified by upstream + the original "TCP pacing" patches)

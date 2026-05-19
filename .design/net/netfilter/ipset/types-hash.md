@@ -225,6 +225,26 @@ None beyond upstream defaults.
 
 (See § Verification above.)
 
+## Grsecurity/PaX-style Reinforcement
+
+- **PAX_USERCOPY** — hash-type kadt/uadt nlattr ingress (IPSET_ATTR_IP, _CIDR, _PORT, _PROTO, _MAC, _IFACE, _MARK) bounded by per-type NLA policies.
+- **PAX_KERNEXEC** — per-type `ip_set_type_variant` op pointer arrays (hash:ip, hash:net, hash:ip,port, hash:ip,port,net, hash:net,iface, etc.) live in R-X text.
+- **PAX_RANDKSTACK** — `hash_ip4_kadt` / `hash_net6_kadt` / `hash_ipport4_kadt` family stacks re-randomised; per-call key + jhash seed locals unpredictable.
+- **PAX_REFCOUNT** — per-set element count vs `maxelem` saturate-trap; per-set ref + extension refs cannot wrap under add storms.
+- **PAX_MEMORY_SANITIZE** — hash bucket entries + extensions (counter, comment, skbinfo, timeout) zeroed on free so stale IP/port cannot leak to a recycled slot.
+- **PAX_UDEREF** — every CIDR/netmask path validates 0..32 / 0..128 bounds before deref.
+- **PAX_RAP/kCFI** — `htype->variant->kadt/uadt` indirect dispatch signed with hash-family CFI signature; cross-family vtable trap.
+- **GRKERNSEC_HIDESYM** — hash-set bucket pointers never leak via netlink list dump.
+- **GRKERNSEC_DMESG** — element-overflow / parse-error messages rate-limited.
+- **Per-set `maxelem` strict clamp on add** — defense against per-set OOM via unbounded growth.
+- **Per-set `hashsize` clamp + power-of-two enforcement** — defense against per-bucket-storm pathological collisions.
+- **Per-set jhash seed per-instance random** — defense against per-precomputed-collision DoS.
+- **Per-set `IPSET_ATTR_CIDR` 0..32/128 bound** — defense against per-out-of-range CIDR triggering UB in netmask shift.
+- **Per-set `IPSET_ATTR_PROTO` whitelist (TCP/UDP/UDPLite/SCTP/ICMP)** — defense against per-unhandled-proto path.
+- **Per-set timeout-extension monotonic clock guard** — defense against per-time-warp expiry skew.
+
+Rationale: hash families are the most-used ipset implementation and are exposed to attacker-controlled keys + CIDR + port tuples; PAX_REFCOUNT on maxelem, per-instance jhash seed, and PAX_RAP on kadt/uadt dispatch are the critical hardening against bucket-collision DoS and vtable confusion across hash subtypes.
+
 ## Open Questions
 
 (none — hash-family ABI exhaustively specified by upstream + libipset regression-test corpus)

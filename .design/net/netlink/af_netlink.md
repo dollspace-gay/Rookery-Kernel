@@ -276,6 +276,24 @@ Netlink-specific reinforcement:
 - **Per-nsid attr restricted to LISTEN_ALL_NSID-permitted** — defense against cross-ns observability leak.
 - **Per-msg NLMSG_HDR length validated** — defense against malformed header overrunning.
 
+## Grsecurity/PaX-style Reinforcement
+
+- PAX_USERCOPY: `nlmsghdr` + payload copies into `skb_put()` and out via `netlink_dump()` use whitelisted slabs; nlmsg payload sized against `nlmsg_total_size(len)` before any copy_from_user / copy_to_user.
+- PAX_KERNEXEC: af_netlink dispatch (`netlink_sendmsg`/`netlink_recvmsg`/`netlink_rcv_skb`) resides in .text; W^X strictly applied to any per-protocol callback table.
+- PAX_RANDKSTACK: per-syscall stack-base randomization on `sendmsg(PF_NETLINK)` and `recvmsg()` paths.
+- PAX_REFCOUNT: `netlink_sock->refcnt`, `nl_table[].registered`, and `netlink_callback->refcnt` use saturating refcount_t; portid hash refs cannot wrap.
+- PAX_MEMORY_SANITIZE: socket destroy zeroes the netlink_sock private area; dump-state buffers scrubbed on `netlink_dump_done()`.
+- PAX_UDEREF: every `nlmsg_data()` deref under uderef; `iov_iter` walks bounded by skb tail.
+- PAX_RAP / kCFI: per-protocol `netlink_kernel_cfg->input`, `bind`, `unbind` indirect calls kCFI-typed across `nl_table[]`.
+- GRKERNSEC_HIDESYM: `/proc/net/netlink` redacts socket and `netlink_sock` pointers; sk addresses hidden under `kptr_restrict=2`.
+- GRKERNSEC_DMESG: netlink overrun / ENOBUFS / dump-aborted warnings rate-limited.
+- PF_NETLINK CAP_NET_ADMIN per-protocol: bind/setsockopt for NETLINK_ROUTE/NETLINK_FIREWALL/NETLINK_XFRM gated by `ns_capable(net->user_ns, CAP_NET_ADMIN)`; each `nl_table[]` entry carries its own capability mask.
+- `nlmsghdr` PAX_USERCOPY: nlmsg headers and trailing attributes copied via dedicated whitelisted slab; `nlmsg_len` validated against skb size and `NLMSG_HDRLEN` floor before deref.
+- NLA strict: `nla_parse()` defaults to strict mode under hardened policy; unknown attributes rejected; length/range validated by NLA_POLICY at every depth.
+- Per-net `nl_table` isolation: parent netns cannot be addressed from child userns netlink sockets without explicit CAP_NET_ADMIN over parent.
+
+Rationale: af_netlink is the universal control-plane transport (CVE-2017-1000111, CVE-2022-32296-class issues); per-protocol kCFI ops, strict NLA validation, and saturating socket refcounts close the documented UAF and OOB-attribute classes.
+
 ## Open Questions
 
 (none at this Tier-3 level)

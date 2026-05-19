@@ -223,6 +223,30 @@ PIE-specific reinforcement:
 - **Per-bytemode optional** — defense against per-pkt-vs-byte rate confusion.
 - **Per-MAX_PROB constant** — defense against per-config invalid range.
 
+## Grsecurity/PaX-style Reinforcement
+
+Baseline PaX/grsecurity mitigations applicable to the PIE qdisc data path:
+
+- **PAX_USERCOPY** — bounded `copy_{to,from}_user` for tc-netlink PIE parameter blobs (`TCA_PIE_*`), rejecting whitelist overruns on stat dumps and config sets.
+- **PAX_KERNEXEC** — PIE classify and dequeue paths execute from W^X .text; no JIT, no patched trampolines.
+- **PAX_RANDKSTACK** — per-syscall kernel-stack randomization frustrates PIE-tick / drop-decision timing inference.
+- **PAX_REFCOUNT** — `Qdisc`, inner `Qdisc`, and `Qdisc_class_ops` use saturating refcounts; PIE attach/graft cannot wrap on adversarial RTNL storms.
+- **PAX_MEMORY_SANITIZE** — `pie_sched_data`, vars (`drop_prob`, `prob`, `qdelay_old`) and the per-skb timestamp shadow are sanitized on free.
+- **PAX_UDEREF** — netlink attribute parsing for `tc qdisc add ... pie` traverses user pointers only under UDEREF, no speculative deref.
+- **PAX_RAP / kCFI** — `Qdisc_ops` for PIE (`pie_qdisc_ops`) is `static const`; enqueue/dequeue/dump dispatch is type-checked at call sites.
+- **GRKERNSEC_HIDESYM** — PIE-internal symbols (`pie_drop_early`, `calculate_probability`) hidden from non-CAP_SYSLOG callers.
+- **GRKERNSEC_DMESG** — drop-probability anomalies are rate-limited and gated by CAP_SYSLOG.
+
+PIE-specific reinforcement:
+
+- **TC qdisc CAP_NET_ADMIN** — `tc qdisc {add,change,del} ... pie` requires CAP_NET_ADMIN in the netns owning the netdev.
+- **`pie_qdisc_ops` PAX_RAP-typed** — function-pointer mismatch on dispatch faults instead of speculatively executing.
+- **Per-tupdate watchdog rate-limit bounded** — PI-controller tick cannot be driven below the configured minimum from userspace.
+- **`drop_prob` clamp under PAX_REFCOUNT-equivalent saturating arithmetic** — adversarial enqueue cannot wrap probability accumulator.
+- **GRKERNSEC_HIDESYM on PIE internal probes** — kprobe/tracepoint surface for `pie_calculate_probability` gated.
+
+Rationale: PIE is a per-flow AQM running in softirq with attacker-controlled enqueue rate; clamping probability arithmetic, sanitizing per-skb shadow timestamps, and CFI-protecting the Qdisc_ops vtable closes the AQM-tampering surface that grsec historically hardens for sch-api children.
+
 ## Open Questions
 
 (none at this Tier-3 level)
