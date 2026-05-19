@@ -1,0 +1,10 @@
+{
+  "uuid": "d2b3ce7a-693f-41c7-a781-b2acd5dbe151",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "iter 180 (637 docs, +12 wave-25): init/main+initramfs, security/security-core+lsm-audit, security/selinux/hooks+apparmor/lsm, kernel/seccomp+ptrace+capability, lib/xarray+rhashtable+rbtree. 25 waves complete. Tier-3 doc count vastly exceeds the original Phase C target.",
+  "created_at": "2026-05-19T15:52:45.702065530Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA5szYbJzUiIRLiwkHJq4Y9kmJa7yVcppYyyDQwX9/nVdpy7DnESQfDohPkMz3wZiLgztNBKZ2SNC/LwWNWoMIDw=="
+}
