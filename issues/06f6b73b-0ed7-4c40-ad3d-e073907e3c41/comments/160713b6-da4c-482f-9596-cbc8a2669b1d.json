@@ -1,0 +1,10 @@
+{
+  "uuid": "160713b6-da4c-482f-9596-cbc8a2669b1d",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 32: infiniband/mlx5-ib.md committed (88860d7, 254 lines). mlx5_ib — production-critical RDMA driver for the world. Every HPC + AI training + DGX/HGX + cloud-low-latency + NVMe-oF. ~34400 LOC. Provides IB + RoCEv1+v2 verbs (QP/CQ/MR/SRQ/AH/PD) + DEVX direct-verbs + ODP On-Demand Paging + Flow Steering RAW + DCQCN + LAG-aware QP migration. Rust translation headline: Qp<S: QpState> typestate closes QP state-machine race class structurally (CVE-2022-3239 + many others). Grsec is the most important section in entire enumeration: highest-CVE-density driver — defenses include MR mmu_notifier release ordering strict (closes CVE-2024-26583 MR UAF), lkey/rkey high-entropy allocator (closes rkey-prediction cross-process RDMA R/W class), DEVX UCTX_TOKEN + per-token opcode allowlist (closes DEVX over-grant + token-steal), MR length+offset bounds (closes CVE-2023-52455), ODP page-fault rate-limit, dmabuf-MR strict-validation (closes GPUDirect 'GPU mem imported wrong DMA mask → UAF'), LAG-aware migration atomic (closes failover-race UAF). 32 docs / ~1.98M LOC. Mellanox mlx5 family now complete (6 docs). Next iteration: drivers/infiniband/hw/bnxt_re — Broadcom NetXtreme RoCE (sibling RDMA driver to mlx5_ib, deployed in Azure HC + bare-metal cloud).",
+  "created_at": "2026-05-21T03:57:15.566622450Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAC54cgzy6UT43idI2MBUrs+cED1mnwHAwjXlNp4e0h61HxCioi4WTvte1JLEM1TgbKFcZ+W7NDOVESb4sKGiPBQ=="
+}
