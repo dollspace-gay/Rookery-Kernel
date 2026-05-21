@@ -1,0 +1,10 @@
+{
+  "uuid": "7dc0ddc9-0c7a-43f9-9a3b-3f67ea127442",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 60 (milestone): net/phy/phy-framework.md committed (f958570, 239 lines). Linux PHY framework + SFP transceivers — every Ethernet link layer chip + every fiber transceiver. ~92K LOC / ~80 PHY drivers. Major silicon: Realtek RTL8211/Broadcom BCM54xx/Marvell 88E1xxx/Aquantia AQR113C 10G/Microchip/Atheros/NXP TJA11xx automotive 1000Base-T1. Plus SFP/SFP+/QSFP framework. Defenses: PHY firmware signature mandatory + LOCKDOWN_INTEGRITY_MAX (closes 'unprivileged loads malicious PHY firmware → covert traffic capture' REAL attack since PHY firmware reflashable via MDIO), SFP EEPROM parser strict per SFF spec (closes CVE-2022-3614 SFP EEPROM OOB), PHY state machine atomic (closes CVE-2024-26680 state-machine race), per-PHY OUI+model strict match, cable diagnostics CAP_NET_ADMIN (TDR pulse disrupts neighbors), PoE PD class advertise validated (closes 'wrong class → PSE damage'), automotive TJA11xx config CAP_NET_ADMIN (safety-critical brake-by-wire). 60 docs / ~5.14M LOC. **60-document milestone**. Next iteration: drivers/cdrom (every optical drive — CD/DVD/Blu-ray) or pivot — net/sched/* (already extensively covered).",
+  "created_at": "2026-05-21T11:33:32.813792212Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAngf/vrEt/bAHWGpOX+3TGUV6lOL5EsMmPss6Xz7X1bmFQAPLxgtopBZ+e6b+EuQqyHmpfJhAla7VKW+yhYBADQ=="
+}
