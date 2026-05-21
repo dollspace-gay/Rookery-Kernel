@@ -1,0 +1,10 @@
+{
+  "uuid": "77741ba6-8a47-40c5-8f2a-6f30b7c01f83",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 20: scsi/aacraid.md committed (b94c825, 206 lines). Adaptec/Microsemi/Microchip AAC-RAID — third major enterprise RAID HBA family. RX/RKT/SA/NARK legacy + SrcV2 modern SmartRAID 8000/9000 silicon. ~13600 LOC. Rust translation: typed FIB, AacSilicon trait per-variant, /dev/aac chardev typed ioctls, Lun<Logical | JBOD> typed dispatch. Grsec: /dev/aac chardev historical CVE source (CVE-2017-9059 OOB + CVE-2013-2899 permission) — defenses CAP_SYS_RAWIO + FIB opcode allowlist + per-opcode size + destructive-op CAP_SYS_ADMIN + FW signature + AIF rate-limit + per-silicon detection cross-check + battery-state info-leak gate. Session totals: 20 docs / ~1.42M upstream LOC. Storage tier complete (SAS + FC×2 + RAID): mpt3sas + qla2xxx + lpfc + aacraid. Next iteration: drivers/scsi/megaraid/ — LSI MegaRAID (fourth major RAID HBA family — closes the enterprise storage controller coverage).",
+  "created_at": "2026-05-21T03:21:09.203755768Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAD3xtdZ10N22yQ7BKekohLW39mKVXbrTumlMraa+G8XHguc/gyDXL5PtGEoe/JQufWpd3Yu5BA5mLLubTy/7kBg=="
+}
