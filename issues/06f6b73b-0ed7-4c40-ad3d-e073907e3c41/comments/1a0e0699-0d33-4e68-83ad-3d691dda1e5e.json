@@ -1,0 +1,10 @@
+{
+  "uuid": "1a0e0699-0d33-4e68-83ad-3d691dda1e5e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 70 (milestone): mmc/mmc-host-sdhci.md committed (222deeb, 265 lines). MMC/SD/SDIO subsystem — every smartphone eMMC (Android pre-UFS, Pi CM4), every embedded SD card boot (Pi/BeagleBone/Allwinner/Rockchip), every Pi 3/4/5 SDIO WiFi. ~130K LOC + ~30 per-host variants. Three trust boundaries: eMMC RPMB hosts fTPM/DRM/attestation keys, SD cards user-attached attacker-controlled, SDIO bus shared with WiFi/BT. Defenses: mmc_blk_ioctl arg validation + opcode allowlist for unprivileged (closes CVE-2024-26733), RPMB write HMAC-SHA256 authentication + session key kfree_sensitive (closes 'unprivileged spams RPMB → wear out + brick'), /dev/mmcblkNrpmb root-only, hot-remove synchronization (closes CVE-2023-39193 UAF), ICE key wrap kfree_sensitive (closes FDE key leak), eMMC SANITIZE + GP partition creation + firmware update CAP_SYS_RAWIO + LOCKDOWN (irreversible), CSD/EXT_CSD content validated, per-host PHY tuning immutable + PHY register CAP_SYS_RAWIO + LOCKDOWN, SDIO bus rate-limit. 70 docs / ~5.39M LOC. **70-doc milestone**. Next iteration: drivers/scsi/ufs (UFS — Universal Flash Storage — modern smartphone replacement for eMMC).",
+  "created_at": "2026-05-21T12:03:29.030980740Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsJ6ifWIJpaanbwNdYvPe5sKYiaUL4W6ikzupmvg3N6eq8lRPjqSO0ArFfQJ4h/rNSjb9GRRSUR2tzOCMshTvAw=="
+}
