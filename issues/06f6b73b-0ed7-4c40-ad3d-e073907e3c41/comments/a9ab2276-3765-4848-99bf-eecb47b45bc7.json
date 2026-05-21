@@ -1,0 +1,10 @@
+{
+  "uuid": "a9ab2276-3765-4848-99bf-eecb47b45bc7",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 49: mtd/spi-nor.md committed (c174185, 211 lines). SPI-NOR flash — most security-critical flash type. Every BIOS/UEFI flash chip (Intel/AMD motherboards), every server BMC firmware flash (AST2400/2500/2600 aspeed-smc), every embedded boot flash, every coreboot/Heads host. ~11400 LOC. JEDEC + SFDP detection. Defenses: LOCKDOWN_INTEGRITY_MAX disables BIOS flash writes entirely (closes UEFI-implant class — real-world LoJax-style attacks), Intel ME region access locked + driver refuses writes (closes ME-rootkit), BMC firmware integrity check + CAP_SYS_RAWIO (closes 'unprivileged BMC firmware update → server takeover'), SFDP parser bounded (closes 'malicious flash advertises malformed SFDP'), WREN/WRDI pairing enforced, status register write opcode allowlist, TPM-EC flash writes refused, OTP region writes refused after lock, SWP modification CAP_SYS_ADMIN + LOCKDOWN_INTEGRITY_MAX bypass-disabled, read-only BIOS regions by default (explicit cmdline opt-in for write). 49 docs / ~2.85M LOC. Next iteration: drivers/mtd/nand/raw — raw NAND flash (every eMMC alternative on embedded boards, every SD-card-less embedded boot — Pi compute modules, BeagleBone, industrial).",
+  "created_at": "2026-05-21T05:10:46.017890947Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAgpngdN/V0smsJQjJE1g4i5WbRZaJ1WW6aB76p8R7wCNgtXYMfP/GGyVZ96pvzms4DFEak1T5HTsEh6wprax0Bw=="
+}
