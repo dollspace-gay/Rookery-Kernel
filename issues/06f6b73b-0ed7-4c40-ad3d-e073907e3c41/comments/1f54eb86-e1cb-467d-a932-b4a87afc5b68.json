@@ -1,0 +1,10 @@
+{
+  "uuid": "1f54eb86-e1cb-467d-a932-b4a87afc5b68",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 33: infiniband/bnxt-re.md committed (ddb65d7, 222 lines). Broadcom NetXtreme RoCE — sibling to mlx5_ib for BCM Thor silicon. Azure HC + bare-metal cloud + enterprise NVMe-oF. ~15500 LOC. ULP-attached to bnxt (shares MSI-X + HWRM + NQ rings). Dedicated RCFW cmd transport. Rust translation: same Qp<S> typestate pattern as mlx5_ib + bnxt-specific bridging types. Grsec: inherits mlx5_ib's RDMA defense pattern + bnxt-specific extras — ULP attach validation (closes 'bnxt_re attaches to non-RDMA bnxt silicon → UB' unique to ULP model), HWRM resource carve-out enforced (closes 'RDMA storm starves netdev HWRM' cross-protocol DoS unique to shared-HWRM arch), LAG failover atomic, doorbell pacing CAP_SYS_ADMIN. RDMA tier coverage: mlx5_ib + bnxt_re (two dominant production drivers). 33 docs / ~2.00M LOC. Crossed 2 million LOC threshold. Next iteration: drivers/infiniband/hw/efa — AWS Elastic Fabric Adapter (every AWS HPC/ML instance, NVIDIA H100 GPU-cluster training).",
+  "created_at": "2026-05-21T04:21:13.339462076Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA14D036jZaA3OOEL3bQrXt/erblmJMXld+GJAaPO8AEG/WEqDScmzJ7lw372TM8vaeEQknzCPcUjGFfXziYMYDw=="
+}
