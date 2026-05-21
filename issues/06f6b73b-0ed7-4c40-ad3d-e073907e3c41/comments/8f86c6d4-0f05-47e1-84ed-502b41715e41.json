@@ -1,0 +1,10 @@
+{
+  "uuid": "8f86c6d4-0f05-47e1-84ed-502b41715e41",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 35: pensando/ionic.md committed (94cf0f0, 207 lines). AMD Pensando DSC SmartNIC — Oracle Cloud Infrastructure (every OCI bare-metal) + HPE GreenLake + IBM Cloud + enterprise on-prem DPU. ~11900 LOC. ARM Cortex-A72 SoC + 25/50/100/200G + P4 programmable pipeline. Admin Queue + LIF (Logical Interface) abstraction with multi-LIF per PF for multi-tenant carving. Aux-bus integration for ionic_rdma RDMA sibling. Grsec: deployment-specific multi-tenant cloud bare-metal concerns — multi-LIF per-LIF isolation strict (closes tenant-escape via Admin Q critical for multi-tenant bare-metal), RX filter install per-LIF scope strict (closes cross-tenant rule injection), Multi-tenant Admin Q request authentication (LIF ownership verified), DPU host↔SoC trust boundary explicit, per-LIF Admin Q queue carve-out (closes shared-AQ exhaustion DoS), Pensando FW signature mandatory. SmartNIC/DPU tier coverage: octeontx2 (Marvell) + ionic (AMD Pensando). 35 docs / ~2.02M LOC. Next iteration: drivers/net/ethernet/cavium/thunder/ (Cavium/Marvell ThunderX2 SoC NIC, embedded server tier), or pivot to drivers/vfio/pci/ (vfio-pci for SR-IOV passthrough — foundational for cloud-VM SR-IOV).",
+  "created_at": "2026-05-21T04:26:07.666375418Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAd7zQqq9bgerDSGF8TAv30qbEq9RAmTA/w6bYXJuoAidV0kf9mmmcZy7LNnvauI1Yd559PkQ//xupPlX3adFjAg=="
+}
