@@ -1,0 +1,10 @@
+{
+  "uuid": "d15e119b-7d0c-498a-b356-ece00f827926",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Session auto-ended (stale after 1826 minutes). No handoff notes provided.",
+  "created_at": "2026-05-21T01:23:25.222931582Z",
+  "kind": "handoff",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABARzcFBsEbcmtt7nyME6GYDNAoutPzZcjJcwB7r2pG0XRYj0aOegiBYladG73HiPReYXVck/GGQH/oysOO8OuUDQ=="
+}
