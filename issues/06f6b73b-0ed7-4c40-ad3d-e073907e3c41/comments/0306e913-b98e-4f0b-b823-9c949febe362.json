@@ -1,0 +1,10 @@
+{
+  "uuid": "0306e913-b98e-4f0b-b823-9c949febe362",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 39: virtio/virtio-ring-balloon-mem.md committed (50f9b71, 226 lines). virtio core + virtqueue + balloon + mem-hotplug + input + rtc + mmio + vdpa-shim (parts not in pre-existing virtio-pci.md). ~16700 LOC. virtqueue is the canonical paravirt ring buffer every virtio device uses — every KVM/QEMU/bhyve cloud VM runs this. Trust model: hypervisor-as-adversary (same as ENA/gVNIC/MANA). Defenses: used-ring entry validation strict (closes CVE-2023-31436-class), buffer length cap per vq, packed-ring wrap-counter strict race-free, balloon page-poison mandatory on inflate (critical for confidential-compute — closes 'host returns page with attacker content → guest data injection'), virtio_mem block-state atomic (closes CVE-2024-26645 race), virtio_input event validation (closes synthetic-input injection — real keylogger + priv-esc attack vector), live-migration post-migrate state validation. 39 docs / ~2.11M LOC. Next iteration: drivers/vhost/ — vhost framework (kernel-side virtio device backends — vhost-net, vhost-scsi, vhost-vsock, vhost-vdpa).",
+  "created_at": "2026-05-21T04:38:40.673791345Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA8mski2hqdEaBSj4uKRLgJwT9lgPp1faLYYgEzBC7z5wdgz0VYIHhHALq2dqgCe90MlUHornDZPJvVPwKbSUqCw=="
+}
