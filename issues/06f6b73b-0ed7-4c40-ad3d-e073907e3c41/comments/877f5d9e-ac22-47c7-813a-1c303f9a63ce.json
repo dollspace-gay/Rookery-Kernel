@@ -1,0 +1,10 @@
+{
+  "uuid": "877f5d9e-ac22-47c7-813a-1c303f9a63ce",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 24: intel/iavf.md committed (7a5fdde, 225 lines). Intel Adaptive VF — guest-side driver shared across i40e/ice/future Intel SR-IOV silicon via runtime VirtChnl ABI negotiation. Same binary works across all PF generations. ~16K LOC. Architectural distinction: trust model is INVERTED. PF (host) is the adversary, not the network. Rust translation: shared virtchnl-msg crate with PF drivers. Grsec headline: PF-as-adversary defensive validation — PF-response payload schema validation (closes CVE-2024-27059-class PF-response OOB), VirtChnl opcode allowlist + size strict, async event validation, version pinned (closes downgrade attack), VF resource cap defense-in-depth, reset rate-limit (closes 'PF gaslights VF into reset loop' DoS). Intel SR-IOV pair complete: PF (i40e/ice) + VF (iavf). 24 docs / ~1.56M LOC. Next iteration: drivers/net/ethernet/intel/igc — Intel I225/I226 2.5G NIC (every modern enthusiast/SMB motherboard).",
+  "created_at": "2026-05-21T03:33:01.204289630Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAm0amMXb7WlIkRdEShsOy15a8Tkkb162rOOLHv/chbVAq/Xp/K2eYibcLSwQLCrSba7KmKsXoYBnCHNModO+5Dg=="
+}
