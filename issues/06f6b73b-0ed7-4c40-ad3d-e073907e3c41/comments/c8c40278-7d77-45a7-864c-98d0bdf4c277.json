@@ -1,0 +1,10 @@
+{
+  "uuid": "c8c40278-7d77-45a7-864c-98d0bdf4c277",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 57: net/bluetooth/bt-l2cap-smp-mgmt.md committed (bee0ad0, 270 lines). Bluetooth host stack above HCI core — every laptop/phone BT, every BLE peripheral (fitness, smart locks, hospital pumps, industrial sensors), every BT audio + HID + tethering. ~70K LOC. L2CAP + SMP + Mgmt + RFCOMM + SCO/ISO + HIDP + BNEP + 6LoWPAN. Grsec: radio threat boundary (attacker in ~10m radio range). Defenses: L2CAP packet length strict (closes CVE-2023-39192), SMP key-exchange ordering + confirm validation (closes BleedingTooth + MITM-during-pairing class), SMP keys kfree_sensitive, HIDP report parser bounded (closes CVE-2024-24858 + BT-HID-injection), pairing request rate-limit (closes BlueZ DoS), BT controller firmware update CAP_SYS_RAWIO + LOCKDOWN (closes 'unprivileged updates BT controller fw → covert RF channel' REAL attack vector — BT controllers run own firmware autonomously when compromised), forced Just-Works pairing refused. 57 docs / ~4.90M LOC. Next iteration: drivers/firmware/efi or net/sched (covered) — let me pivot to drivers/nvme/host/auth (NVMe-oF authentication, separate from target).",
+  "created_at": "2026-05-21T11:23:12.315637776Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAlOX4r/2/HZbz7eJYoZKrofJJoMGhBxo7TFjioHHYtWxMCX1MYr6/WyoSemNOknm2EC4FzQlleXw2PShP4vEeBw=="
+}
