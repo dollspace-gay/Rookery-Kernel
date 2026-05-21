@@ -1,0 +1,10 @@
+{
+  "uuid": "d356ab48-1c5e-4ce6-80b6-8acdce2f1bda",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 64: firmware/imx-scu.md committed (dfa59db, 205 lines). NXP i.MX SCU/SM/ELE firmware — every i.MX 8 automotive (cluster, IVI), every i.MX 8M IoT/industrial, every i.MX 9 next-gen automotive (Renault, Stellantis, BMW, Toyota), every industrial PLC. ~1530 LOC. Defenses: trust boundary between Linux (Cortex-A) and SCU/SM/ELE (Cortex-M/security engine). SCU cmd-class + cmd-id allowlist, RM assign_resource refused from kernel (partition assignment boot-time only — closes 'driver steals Cortex-M peripheral'), PM set_clock_rate + set_voltage range-validated, SCFW update + DSP firmware NXP-signed + LOCKDOWN-gated, ELE key access scoped per-process, automotive partition boundary strict (i.MX 9 in ASIL-D-class systems — safety implications). 64 docs / ~5.16M LOC. Next iteration: drivers/firmware/microchip (PolarFire SoC firmware — RISC-V industrial) or drivers/firmware/ti — Texas Instruments SoC firmware interfaces.",
+  "created_at": "2026-05-21T11:44:05.272824604Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA2byV4WwU0HBW2FMgq1yhGIBQe7mSxuONNqSzVOymGY8reEdtJSl+hTDKXBh+xxSK8LvbUZVEk2znnCQKYCIhDg=="
+}
