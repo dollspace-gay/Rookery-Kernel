@@ -1,0 +1,10 @@
+{
+  "uuid": "692de94b-6165-45f3-bdbf-df4e9b68ff9a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 37: iommu/amd-vi.md committed (4aa174b, 229 lines). AMD-Vi IOMMU — every modern AMD Zen-based server + EPYC datacenter. ~9700 LOC. Sibling to Intel VT-d (10 docs pre-existing). Prerequisite for vfio-pci tenant isolation on AMD. Defenses: ACS quirks immutable + ATS-enabled refusal on ACS-shared groups + IOMMU group computation pre-runtime (closes dominant historical CVE class — CVE-2019-19036 + CVE-2023-3567 — devices in wrong groups → cross-tenant DMA), DTE program validation strict per-bit, PASID per-process + mmu_notifier strict (SVA cross-process), PPR log overflow handling + storm rate-limit, nested 2nd-stage validation (new with AMD-Vi 3.1+), IVRS table strict, RMRR enforcement. IOMMU tier: Intel VT-d + AMD-Vi (complementary). 37 docs / ~2.07M LOC. Next iteration: drivers/iommu/arm/arm-smmu-v3 (ARM SMMU v3 — every modern ARM server, AWS Graviton 1/2/3/4, Ampere Altra).",
+  "created_at": "2026-05-21T04:32:48.585385922Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAEuFQcGefARZlh/xDifHq5GvRQqh8G1kYY+NiP3T4fJybPzRPYQngvEHVR2NVhUAGnvWRrdLJKMoWOEa8ZKZHDg=="
+}
