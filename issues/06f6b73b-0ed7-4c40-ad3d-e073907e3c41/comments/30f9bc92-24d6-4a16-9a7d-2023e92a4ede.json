@@ -1,0 +1,10 @@
+{
+  "uuid": "30f9bc92-24d6-4a16-9a7d-2023e92a4ede",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 52: usb/typec/usb-typec.md committed (a2bec6b, 246 lines). USB Type-C + Power Delivery + UCSI — every modern laptop USB-C port, Snapdragon-X, Chromebook, USB 4/Thunderbolt 4 host. ~40K LOC. Two implementations: TCPM (Linux state machine + TCPC silicon) and UCSI (EC/PMIC-internal). Defenses: extends BadUSB threats to laptop power + display output. PD message parser strict (closes CVE-2022-1462 + CVE-2023-31085 classes), TCPM state transition validation, DisplayPort alt-mode e-marker validation (closes 'untrusted charger DP source → screen-leak'), Thunderbolt alt-mode IOMMU enforcement mandatory (closes Thunderclap DMA via USB 4), VBUS voltage gradual + source caps validation (closes 'malicious charger 240W → battery damage'), contaminant detection mandatory (closes electrocution risk), UCSI integrity (closes 'compromised EC firmware → TCPM bypass'), NVIDIA alt-mode default-off (historical security issues). 52 docs / ~2.97M LOC. Next iteration: drivers/mfd/ — multifunction devices (PMIC controllers + RTC + watchdog + ADC combos used on every embedded board).",
+  "created_at": "2026-05-21T05:20:58.877775492Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABArBVY1acbSUEho0BJ4bv9TziaVWQqlCqo1h+PnhiGdfnDTHqqcpQonOFiGiR7G40phA4SbNioSRuT+t9VbhjDAA=="
+}
