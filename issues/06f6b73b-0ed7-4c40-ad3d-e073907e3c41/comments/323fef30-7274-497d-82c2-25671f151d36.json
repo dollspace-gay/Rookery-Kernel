@@ -1,0 +1,10 @@
+{
+  "uuid": "323fef30-7274-497d-82c2-25671f151d36",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 26: intel/igb.md committed (3cb4157, 184 lines). Intel 82575-I35x 1G NIC family — every enterprise IPMI/BMC interface + OS management network. SR-IOV-capable (first Intel SR-IOV NIC, pre-XL710). ~25500 LOC. Unique trust posture: BMC/IPMI port sharing via NCSI side-band — host OS must NOT be able to reconfigure BMC's port (would be remote-server-takeover primitive). Defenses: NCSI passthru opcode allowlist + BMC-ownership respect, same PF↔VF mailbox + VF spoof-check pattern as ixgbe, NVRAM CAP_SYS_ADMIN + LOCKDOWN (closes MAC-change-via-NVRAM attack). 26 docs / ~1.59M LOC. Intel NIC family complete: e1000e + igc + igb + ixgbe + i40e + ice + iavf. Next iteration: drivers/net/ethernet/realtek/r8169 — Realtek RTL8169/8125/8126 (every consumer motherboard 1G/2.5G NIC, every cheap USB Ethernet adapter).",
+  "created_at": "2026-05-21T03:38:06.117805569Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA0LU0KDwD2oC2Dbk0yPIP+K6haM2+895gDde2w0yZf+6MaBsPaz7RjkLngGKKD3kPHPK5FwjKYuLTUt8cS+6cAQ=="
+}
