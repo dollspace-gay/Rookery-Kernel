@@ -1,0 +1,10 @@
+{
+  "uuid": "65f62034-d83a-4759-9731-5d8d786562de",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 31: marvell/octeontx2.md committed (5b38c39, 225 lines). Marvell ARM-based SoC NIC family CN9xxx/CN10K/CN20K. SmartNICs (Cloudflare, AWS Outposts) + DPUs (BlueField/IPU competitor) + Cisco/Juniper embedded edge. ~64K LOC. Architecturally unique: multi-block SoC with AF root + RVU resource allocator + per-block subdrivers (NIX/NPA/NPC/CPT/CGX/MCS/RPM). NPC has programmable parser (KPU) for custom protocols. Rust translation: per-block crates. Grsec: cross-tenant + SmartNIC trust boundary defenses — AF mailbox per-VF scope validation (closes 'compromised VF tricks AF into reconfig of sibling VF' SR-IOV-escape class), NPC KPU program Marvell-signature mandatory (closes 'compromised programmable parser bypasses flow rules' — unique to Marvell's prog-parser arch), inline IPsec/MACsec key kfree_sensitive after silicon install, CGX link state authoritative from AF, MACsec replay window enforced, DPU host↔SoC trust boundary explicit. 31 docs / ~1.95M LOC. Next iteration: drivers/infiniband/hw/mlx5/ — Mellanox RoCE/IB RDMA driver (every ConnectX RDMA fabric — HPC + AI training + cloud-low-latency).",
+  "created_at": "2026-05-21T03:53:42.347782615Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASrLQGmjvhGJljDPlM1/pqvRksQXcq0tJ1gnYqD1JpYdlsO09VQX1pW4CiCtv9eS8FcIbw859XoKpdrJeXK/xAQ=="
+}
