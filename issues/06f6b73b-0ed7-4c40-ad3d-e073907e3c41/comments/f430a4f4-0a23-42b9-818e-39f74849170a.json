@@ -1,0 +1,10 @@
+{
+  "uuid": "f430a4f4-0a23-42b9-818e-39f74849170a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 66: scsi/scsi-disk-transports.md committed (8399d73, 257 lines). SCSI upper-layer drivers (sd/sr/sg/st/ses + sd_zbc) + per-transport (FC/iSCSI/SAS/SRP/SPI) + device-handlers (ALUA/EMC/HP/RDAC). Every SATA/SAS/USB/iSCSI/FC disk, every CD-ROM, every tape, every FC fabric LUN. ~32K LOC. Defenses: /dev/sgN default-root, SG_IO opcode allowlist for unprivileged (block-style restricted to READ/WRITE/INQUIRY; FORMAT/ERASE/WRITE_BUFFER CAP_SYS_RAWIO + CAP_SYS_ADMIN — closes 'unprivileged sends FORMAT_UNIT via SG_IO → wipes drive'), CDB length validated per opcode, SG_IO dxferp+len bounded, DVD CSS + Blu-ray AACS keys CAP_SYS_RAWIO, iSCSI netlink CAP_NET_ADMIN (closes 'unprivileged session hijack'), SAS expander phy event validation (closes 'attacker on SAS bus sends crafted phy event'), sense data scrubbed before non-root, CD-ROM eject CAP_SYS_RAWIO (closes 'unprivileged ejects mounted disc'), TUR rate-limit. 66 docs / ~5.20M LOC. Next iteration: drivers/usb/storage (USB mass-storage bridge — every USB flash drive).",
+  "created_at": "2026-05-21T11:50:24.850611090Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAGIQg155dnlw4DSuaVSlcbv1PYt+nI4AQM87+xO0JL3lPJbQMZ4K52ckiNKIgwBMUX//KuLxe6szljf5AG9tDDQ=="
+}
