@@ -1,0 +1,10 @@
+{
+  "uuid": "c314532a-9a88-44c4-8846-f7e033b40d9b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 55: usb/serial/usb-serial.md committed (8b71647, 232 lines). USB-attached serial — every FTDI/CH340/CP210x/PL2303 USB-to-UART dongle, every USB cellular modem, every USB GPS/barcode/dev-board. ~52K LOC / 60+ chip drivers. Defenses: extends BadUSB threat to USB-serial. USB descriptor parser strict per-chip, control-transfer parser bounded (closes CVE-2024-27410 ftdi_sio UAF), hot-unplug URB cancel-before-free, /dev/ttyUSB* dialout-only, console-over-USB-serial CAP_SYS_RAWIO + LOCKDOWN (closes 'malicious USB host attaches kgdb via cable → /dev/kmem'), cellular AT cmd CAP_NET_ADMIN (closes 'unprivileged → premium-rate call attack'), multi-port per-port isolation, Suzy-Q debug dongle CAP_SYS_ADMIN. 55 docs / ~3.50M LOC. Next iteration: drivers/media — V4L2 framework + every USB webcam (uvc) + every TV tuner + every camera sensor.",
+  "created_at": "2026-05-21T05:31:19.820902594Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAs1MGTIboeH5GN20LMQpXTvHzbW1bkK1t+1pienlbGM8NYNfwKDh4EG1qk5PCutp6PdeHWhgX4IJl/mp/y7CMAQ=="
+}
