@@ -1,0 +1,10 @@
+{
+  "uuid": "efce0112-d908-464c-8d6a-cf5255a219ec",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 4: mlx5-lag.md committed (a5c21b4, 209 lines). Multi-port aggregation across dual-port ConnectX. 5 LAG modes (NONE/ROCE/SRIOV/MULTIPATH/MPESW) modelled as phantom-typed Lag<Mode>. LagBundle as Arc shared across two MlxCoreDev (weak from per-PF priv to break ref cycle). Grsec emphasises cross-PF tenant isolation: MPESW reg_c0[28..31] originating-PF tag closes cross-PF mix structurally, FIB-event allowlist (only routes naming both bundled PFs), 5s devcom timeout with NONE-rollback-on-both-PFs, MPESW requires both PFs in fully-trusted-host posture. Total mlx5 family docs now: 5 (mlx5-core, eswitch, mlx5-sf, mlx5-lag, mellanox-mlx5-en pre-existing). Next iteration: pivot to drivers/net/ethernet/intel/ice/ — Intel E810 100G NIC, the other huge cloud-deployed driver.",
+  "created_at": "2026-05-21T01:48:45.750446731Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOA0Hkd9IHpRHvfApHVcxuiHqwse7FvdJWCCGLTVjyblb5GCBpqJEz3tdjwN//u95okJRY7GEq4fxWDD1sELnDA=="
+}
