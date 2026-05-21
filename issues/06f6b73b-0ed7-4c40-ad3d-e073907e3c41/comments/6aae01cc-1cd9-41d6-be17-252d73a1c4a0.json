@@ -1,0 +1,10 @@
+{
+  "uuid": "6aae01cc-1cd9-41d6-be17-252d73a1c4a0",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 21: scsi/megaraid-sas.md committed (84597a1, 206 lines). LSI/Broadcom MegaRAID — dominant enterprise RAID HBA. Every Dell PERC + HP P-Series + Lenovo TS RAID + Supermicro. ~16100 LOC. Two silicon families: MFI mailbox legacy + Fusion DMA-direct modern + Fast-Path driver-side LD bypass. Rust translation: typed MFI cmd, RAID map atomic via RCU, Fast-Path LBA bounds-checked. Grsec: /dev/megaraid_sas chardev historical CVE source (CVE-2021-39685 + CVE-2019-19528 + CVE-2020-12114) — defenses CAP_SYS_RAWIO + opcode allowlist + sg-list cap + destructive-op CAP_SYS_ADMIN + Fast-Path bounds-check (closes corrupt-RAID-map-wrong-disk-write class). Storage tier complete (4 families): mpt3sas + qla2xxx + lpfc + aacraid + megaraid_sas. Session totals: 21 docs / ~1.44M LOC. Next iteration: drivers/net/ethernet/intel/ixgbe (Intel 10G NIC — huge installed base in older datacenters, still ships in many new servers).",
+  "created_at": "2026-05-21T03:24:25.753639315Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA7MDyisD6WQxU32CuzAuiWfJGKn2FlZCGNFc5Bj7mzZkpOyRBZdCqZqz6rWbEoGKwAtfado2by/8qaEF3iA2RCg=="
+}
