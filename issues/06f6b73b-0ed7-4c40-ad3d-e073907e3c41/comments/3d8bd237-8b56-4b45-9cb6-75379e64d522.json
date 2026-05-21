@@ -1,0 +1,10 @@
+{
+  "uuid": "3d8bd237-8b56-4b45-9cb6-75379e64d522",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 27: realtek/r8169.md committed (0f1348e, 174 lines). Realtek RTL8169/8168/8125/8126 1G/2.5G — statistically the most-deployed NIC silicon family on Earth (every consumer motherboard, every cheap USB dongle, every set-top box, smart TV, NAS, SBC). ~7700 LOC / 4 files. Per-chip-version dispatch (60+ silicon revisions). Rust translation: ChipVersion enum + RtlChip trait per-version, PHY init as immutable typed data tables. Grsec: chip-version detection cross-validated against secondary register reads (closes 'spoofed chip-id → bricked PHY' class), PHY init data tables immutable, firmware Realtek-signature mandatory + LOCKDOWN, ASPM force-disable for known-buggy chips immutable (closes 'user re-enables ASPM, system hangs' footgun-as-attack), magic-packet allowlist for WOL (closes 'attacker on broadcast wakes unrelated machines'), NVRAM/EFUSE writes refused outright (closes tamper-brick). 27 docs / ~1.60M LOC. Next iteration: drivers/net/wireless/intel/iwlwifi — Intel WiFi (every Intel-laptop WiFi 6/6E/7).",
+  "created_at": "2026-05-21T03:40:37.689659570Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAvBc0jWJqzgdaEUwIc4vAFVT1LPTNcWQn+kzpH0+GCoPWlN7jtx52l0gmcATctR4ex5VPGVH8iztGte43qMRuBg=="
+}
