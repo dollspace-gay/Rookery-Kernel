@@ -1,0 +1,10 @@
+{
+  "uuid": "3e11781e-663b-4c76-be1c-a0bd1b103e53",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 54: iio/iio-core.md committed (917a9d8, 247 lines). IIO Industrial I/O — every IMU on every phone, embedded sensor, CO2/AQI monitor. ~365K LOC / 684 .c files (largest driver subsystem after net + drm). Grsec headline: IIO sensors are subject to documented side-channel attacks. Defenses: per-sensor-class sample-rate caps for unprivileged (closes Gyrophone class via gyro-rate cap >100Hz reconstructs audio from gyro; closes TEMPEST class via light-rate cap reconstructs screen content; closes magnetometer-keylogger class via magn-rate cap), heart-rate/health sensor CAP_NET_ADMIN-equivalent (more sensitive than CAP_SYS_RAWIO), sample buffers kfree_sensitive (no cross-process biometric leak), HID sensor hub trust validation (closes 'malicious USB HID hub → fake biometric readings'), sensor calibration CAP_SYS_ADMIN (closes 'leave sensor un-calibrated'), self-test mode CAP_SYS_RAWIO (closes 'spoof readings → user-deception'). 54 docs / ~3.45M LOC. Next iteration: drivers/clk core (clock controller framework — every SoC has ~50-200 clocks).",
+  "created_at": "2026-05-21T05:27:51.774364966Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAtAkgfrYoXB9wvN+Vv7dBm9lmd0hqlwhkU8MCq10FMPS4+PPmAGVtW319sv7zSZjwis5Pu3c34xaJwuwsHnt9Ag=="
+}
