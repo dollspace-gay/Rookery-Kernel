@@ -1,0 +1,10 @@
+{
+  "uuid": "885d5998-d8dd-4542-a16f-9979159a0c8a",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 36: vfio/vfio-pci.md committed (b185577, 231 lines). vfio-pci — PCIe passthrough foundation. Every KVM/QEMU VM with SR-IOV VF, GPU passthrough, NVMe passthrough flows through this. ~32K LOC core + 6 per-vendor migration variants. Most security-critical boundary in kernel — grants tenant VMs direct hardware MMIO + DMA; bugs = cross-tenant escape. Defenses: IOMMU isolation MANDATORY (closes 'tenant in shared group DMA-attacks neighbor'), config-space filter strict per-capability hand-curated (closes CVE-2021-32606-class), BUS_MASTER gating, MSI-X table virtualization + MSI-X BAR mmap refused in MSI-X-enabled state (closes 'guest writes arbitrary IRQ vectors'), eventfd refcount strict (closes CVE-2024-26851-class), hot reset peer-fd verification, migration state machine atomic via typestate, per-vendor variant binding restricted, dma-buf opt-in, migration buffer integrity signed/verified. 36 docs / ~2.05M LOC. Next iteration: drivers/iommu/intel/ — Intel VT-d IOMMU (foundational for PCIe DMA isolation across every Intel system, prerequisite for vfio-pci defenses).",
+  "created_at": "2026-05-21T04:29:43.141607568Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA8xHsFJK0+OhClUhq+tPukFk6Zcvkh0kfAXd+gOMA/PwzPGZ2S6R9QMyKnSxrSVdWMnLz66EBdM3/KXoWQD96CQ=="
+}
