@@ -1,0 +1,10 @@
+{
+  "uuid": "501252f4-630f-439a-9958-20275e1bd654",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 3: mlx5-sf.md committed (770fce1, 208 lines). Covers Sub-Functions — vport-without-PCI-BDF for k8s/cloud-native scale (4096+ SFs per BlueField-3). Headline Rust translation: 5-state mlx5_vhca_state FSM becomes phantom-typed Sf<S> with consuming transitions — closes UAF class from mlx5_ib SF teardown coupling. Grsec emphasizes scale: sfnum LATENT_ENTROPY randomization (defeat tenant fingerprinting), cap-derived count cap (DoS prevention), VHCA event payload validation (untrusted-FW), state-transition allowlist on event, aux-driver allowlist (blocks third-party shadow). Next iteration: drivers/net/ethernet/mellanox/mlx5/core/lag/ — multi-PF LAG aggregation (active-backup/active-active across two ConnectX PFs).",
+  "created_at": "2026-05-21T01:44:54.368882351Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAv/DERxyhEs2LHYgfFQKQAJQ5sA1tJDBvCu/hehCATXaO9J1eidQwFfDC0WqkrxJ1vL7HuDDfJ8UMapZgcz6RDQ=="
+}
