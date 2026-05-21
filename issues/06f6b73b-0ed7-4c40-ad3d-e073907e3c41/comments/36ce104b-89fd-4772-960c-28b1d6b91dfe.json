@@ -1,0 +1,10 @@
+{
+  "uuid": "36ce104b-89fd-4772-960c-28b1d6b91dfe",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Resuming long-tail driver enumeration as a slow background task per /goal: one vendor-specific driver Tier-3 doc per turn. Each doc: full Tier-3 template (Summary, Upstream refs, REQ-1..N, AC-*, Architecture, Hardening, Grsec/PaX section, Open Questions, Verification), aware of upstream Linux source paths, explicit about Rust translation target. Starting with drivers/net/ethernet/mellanox/mlx5/core/ (mlx5-core.md) — every Mellanox ConnectX NIC depends on it. Will commit after each doc, one per iteration.",
+  "created_at": "2026-05-21T01:29:08.512579565Z",
+  "kind": "plan",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABACZh900W/wAgWpHiYAyxiF9b7HVNM3QfAlYz0WYkWx0LW8ZjVwcAXGDigzQ6H0i/g14ZDjxVl7Ax3bNLNUOpsAQ=="
+}
