@@ -1,0 +1,10 @@
+{
+  "uuid": "1241f153-bdc5-425d-9e8d-9e742dfc7a27",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 56: media/v4l2-uvc-dvb.md committed (c210230, 241 lines). drivers/media V4L2 + UVC + DVB + sensor framework. Largest driver subsystem at ~1.3M LOC / 1636 files. Every USB webcam, every laptop camera, every smartphone camera, every TV tuner. Grsec: cameras most privacy-critical device. Defenses: /dev/videoN default-group=video, camera LED hardware enforcement (closes covert-capture documented real-world attack), VB2 buffer kfree_sensitive (no cross-process frame leak), UVC class-request parser strict (closes CVE-2024-23196), VB2 user-pointer + IOMMU mandatory (closes camera-as-DMA-attack), HDR/RAW capture CAP_SYS_ADMIN, autofocus actuator CAP_NET_ADMIN (closes 'rapid back-and-forth damages actuator'), CEC opcode allowlist + HDMI-as-adversarial, sensor calibration CAP_SYS_ADMIN (closes 'user-deception via always-blur-face filter'), mem2mem codec input NOT parsed kernel-side (FW handles — closes whole class of kernel codec parser bugs). 56 docs / ~4.83M LOC. Next iteration: drivers/bluetooth — Bluetooth host stack (every laptop/phone BT, every BLE IoT device).",
+  "created_at": "2026-05-21T11:19:54.471484514Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAg559NC0vo3aQjhAIAqHkb8rD82cZUWCQ+C8h8E8+YtuC5uLKoPX1bMBseJvXD+VQs3SfdxHP6zcXQoB504iZBw=="
+}
