@@ -1,0 +1,10 @@
+{
+  "uuid": "18982268-1510-4044-8b51-ceb336345946",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 65: firmware/ti-sci.md committed (4a8aa99, 221 lines). TI K3 SCI — every TI Sitara AM6x (industrial PLC + robotics + edge AI), every TI J7 automotive cockpit + ADAS (Hyundai/Kia/Toyota/GM/Ford), every BeagleBone AI-64/Play. ~6000 LOC. Trust boundary: Linux Cortex-A ↔ DMSC (Cortex-M3 TIFS) + Cortex-R5 safety + C66x/C7x DSP + PRU. Defenses: SCI opcode allowlist per-host strict, SCI msg size + payload bounds per-opcode (closes CVE-2024-26681 parser-OOB), per-host-ID validation (closes 'compromised DMSC routes wrong cluster response'), device-id allowlist per cluster (closes 'Linux disables brake-controller → safety violation' — REAL automotive safety since J7 in production ADAS), cluster boot CAP_SYS_ADMIN + LOCKDOWN + boot address validated, DMSC firmware update CAP_SYS_ADMIN + LOCKDOWN + TI-signed-only, OTP write CAP_SYS_ADMIN + LOCKDOWN (irreversible), PSIL pair scope per-cluster (closes cross-cluster DMA hijack). Firmware tier coverage: Qualcomm + ARM SCMI + Google + Pi + NXP + TI. 65 docs / ~5.16M LOC. Next iteration: drivers/firmware/broadcom (Broadcom NorthStar / Cumulus / BCM2711 boot) or pivot to non-firmware area.",
+  "created_at": "2026-05-21T11:46:55.982563561Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPgFohlsDauloROALLGZTbu0tJMVYLvujWFI7xkcJltOcQpyYG7teLZZALpuxJoiBu3pvdsPllB2ArzjaPIZvCg=="
+}
