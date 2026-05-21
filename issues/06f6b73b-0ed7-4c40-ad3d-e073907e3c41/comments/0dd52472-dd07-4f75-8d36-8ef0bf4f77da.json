@@ -1,0 +1,10 @@
+{
+  "uuid": "0dd52472-dd07-4f75-8d36-8ef0bf4f77da",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 25: intel/igc.md committed (7a10ff8, 195 lines). Intel I225/I226 Foxville 2.5G — every modern motherboard with 2.5G LAN + entry-level open-source TSN NIC (industrial, automotive AVB). ~16K LOC. Headline: TSN (TAS + CBS + LaunchTime) + strong PHC (sub-100ns). Rust translation: typed TSN qopt (Tas/Cbs structs), LaunchTime as typed TX descriptor. Grsec: smaller attack surface but unique TSN+PTP defenses — TSN qopt silicon-cap validated (closes 'garbage TAS hangs FW' class), LaunchTime range bounded (closes 'distant-future TX queue saturation' DoS), PHC CAP_SYS_TIME (closes time-sync disruption), PHY register write allowlist (closes hostile-PHY brick), LED CAP_SYS_ADMIN (closes covert-channel-via-motherboard-LEDs class). 25 docs / ~1.57M LOC. Next iteration: drivers/net/ethernet/intel/igb — Intel I210/I211/I350 1G NIC (still ships in enterprise IPMI/BMC interfaces, embedded controllers).",
+  "created_at": "2026-05-21T03:36:00.231566920Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAvyq/V22+LgB/5xSLjlTeuPtdAnzkSwNO2xm+XjEZ+ciFVxvpoXPTo77pWXTvxSttWkvsC4fnBWVWV5LG2DN1Dg=="
+}
