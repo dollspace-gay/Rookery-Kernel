@@ -1,0 +1,10 @@
+{
+  "uuid": "4c26014f-96a0-466c-8860-83c2dd4941c4",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 14: amd/amdgpu-vcn-v4.md committed (d6dc97f, 213 lines). VCN v4 video codec engine — AV1/H.265/H.264 decode + encode on RDNA3 (Navi 31/32/33 + Phoenix/Strix + MI300). Every Radeon video playback / livestream / Zoom call workload. Rust translation: typed Ring<DecodeMode/EncodeMode/JpegMode> closes cross-mode emit. PG/DPG/CG state machine typed (PG-while-busy refused). Grsec: kernel-side bitstream parsing avoided entirely (FW + silicon parses — closes parser-bug class), HDCP/DRM-protect respected by PSP TA enforcing encrypted-output BOs un-mmap-able without HDCP key, TDR rate-limit closes malformed-bitstream DoS, DPG load FW re-signed on SRAM reload. 14 docs / ~497K LOC. Next iteration: drivers/gpu/drm/amd/amdgpu/mes_v11_0.c — already touched as part of gfx-v11 doc; better next target is drivers/gpu/drm/i915/ — Intel iGPU + Arc discrete + Xe shared driver (the rival GPU stack).",
+  "created_at": "2026-05-21T02:58:54.715266722Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA/mg00TFNBG7Vt8sdOyjOlfOj66aYj7bab0NUW6vHDPaVSQct7ibL1Wls61fzgqnwk/ibzsCB3h9GYhFlgIB9DA=="
+}
