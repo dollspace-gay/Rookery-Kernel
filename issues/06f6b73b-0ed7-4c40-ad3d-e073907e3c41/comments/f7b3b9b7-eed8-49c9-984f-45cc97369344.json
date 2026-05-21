@@ -1,0 +1,10 @@
+{
+  "uuid": "f7b3b9b7-eed8-49c9-984f-45cc97369344",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 67: usb/storage/usb-storage.md committed (dc1e19f, 220 lines). USB Mass Storage Class BBB + UAS — every USB flash drive, every external USB HDD/SSD, every USB card reader, every USB-to-SATA/NVMe enclosure. ~19500 LOC. Defenses: canonical BadUSB attack surface — CBW + CSW size strict + tag match + residue ≤ requested length (closes BBB-parser-UAF), UAS IU size + type validation (closes CVE-2024-26605 command_orb double-free), UAS tag exhaustion bounded, USB device descriptor validation strict, LUN count bounded, READ_CAPACITY range-validated, hot-disconnect URB cancel-before-free (closes CVE-2021-3656-class USB-unplug UAF), per-vendor quirk table immutable at runtime, USB-storage firmware update CAP_SYS_ADMIN (closes BadUSB class — malicious firmware update turns drive into HID injector). 67 docs / ~5.22M LOC. Next iteration: drivers/usb/dwc3 (DesignWare USB 3 — every Snapdragon/RK3399/ZynqMP/Allwinner H6 USB controller) or pivot.",
+  "created_at": "2026-05-21T11:53:30.591132359Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABATtiiMaKLfhTC7DxF+7jxEjGXeKJPGMTabzpmeqGBOuiaCy3MDZZbLl54/a5JNIl/3LoaUiagMr47kRFU0jw6DQ=="
+}
