@@ -1,0 +1,10 @@
+{
+  "uuid": "3ae6fbd5-0a2c-490c-8380-9c3eb607b17d",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 63: firmware/raspberrypi-vc.md committed (625421b, 194 lines). Pi VideoCore firmware mailbox — every Raspberry Pi (1/2/3/4/5/Zero/400/CM). Proprietary closed-source VC blob runs alongside Linux — treat adversarially. Defenses: property tag allowlist (closes 'compromised VC sends bogus tag'), set_clock_rate + set_voltage range-validated (closes silicon-burn/damage), Pi 4/5 EEPROM update CAP_SYS_ADMIN + LOCKDOWN + RPI-signed-only (closes 'install attacker EEPROM'), VCHIQ message length per-service bounded (closes 'compromised VC pushes huge msg → OOM'), VCHIQ user interface CAP_SYS_RAWIO. 63 docs / ~5.16M LOC. Next iteration: drivers/firmware/imx (NXP i.MX SCU firmware — every i.MX 8/9 automotive Linux).",
+  "created_at": "2026-05-21T11:41:38.004288873Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAo3yR15betYlD0vdyyPUdt1v52x7ekVfVDcoYTFk0vWFeDNbLguy/U/JUdIjHJwZSpuUYWTyU4LL1BSt5hdFMAA=="
+}
