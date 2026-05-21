@@ -1,0 +1,10 @@
+{
+  "uuid": "21a93c7b-c0d6-4448-9abe-5d84f637e951",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 68: ata/ahci-sata-host.md committed (ba13e9b, 215 lines). AHCI + per-SoC + per-vendor SATA host — every Intel/AMD desktop+server SATA, every embedded ARM SATA, every legacy Marvell/NVIDIA/Promise SATA card. ~92K LOC. ~15 per-SoC AHCI variants + ~10 per-vendor SATA hosts. Defenses: kernel-attached-direct-disk boundary. PRD entry length validated + DMA target validated (closes 'DMA to kernel-text → kernel rooting'), hot-plug event handler synchronized with in-flight cmds (closes CVE-2024-26583 sata_mv UAF), ATA SECURITY CAP_SYS_RAWIO + CAP_SYS_ADMIN (closes 'unprivileged sets ATA password → disk locked → data unrecoverable' REAL attack against laptops), EM CAP_SYS_ADMIN (drive bay LEDs as covert info-leak channel), D2H FIS source validation per port+slot (closes 'malicious drive forges FIS for sibling port'), PMP FBS validation (closes 'malicious PMP claims 256 devices → host OOM'). 68 docs / ~5.23M LOC. Next iteration: drivers/usb/dwc3 (DesignWare USB 3 — every Snapdragon/RK3399/ZynqMP/Allwinner H6 USB controller).",
+  "created_at": "2026-05-21T11:56:52.136437318Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA8B5v+yk2ytzPCJlfahQevVFGlQhqPO1AMU+vfcQxw+j2rz6VZFcdnnKExhyw1O274VXrRjjsy5mcGzOsVgonBw=="
+}
