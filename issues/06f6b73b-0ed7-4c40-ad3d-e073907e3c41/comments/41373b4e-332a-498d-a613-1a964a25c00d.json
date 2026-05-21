@@ -1,0 +1,10 @@
+{
+  "uuid": "41373b4e-332a-498d-a613-1a964a25c00d",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 28: intel/iwlwifi.md committed (d85cf71, 259 lines). Intel WiFi — every Intel-laptop WiFi 6/6E/7. ~137K LOC across hundreds of files. Three-layer + 4-op-mode architecture (dvm/mvm/mld/mei). Rust translation: per-layer + per-op-mode crates. Grsec posture: WiFi is highest-risk kernel attack surface because RF-layer trust boundary is 'anything in RF range'. Headline historical CVE concentration: 2022 mac80211 BSS-list family (CVE-2022-41674 + 6 more) from malformed beacons via iwlwifi RX. Defenses: per-frame-type typed RX parsers with bounded length (closes class structurally), FW image Intel-signature + LOCKDOWN, host-cmd opcode allowlist per FW version, MEI bus ownership atomic (closes vPro/AMT cross-domain UAF), WiFi 7 MLO per-link auth isolation (closes new-with-WiFi-7 cross-link injection), CSA action frame source-MAC validation (closes spoofed-CSA), TKIP/WEP refused in WPA3-only (closes downgrade), scan rate-limit, regulatory ACPI table validation. 28 docs / ~1.74M LOC. Next iteration: drivers/net/wireless/ath/ath11k (Qualcomm Atheros WiFi 6/6E — used in many TP-Link, Linksys, Synology AP routers + Pixel phones).",
+  "created_at": "2026-05-21T03:44:32.405926839Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA+SPZKPLjo/aOjdF8ph8+pP3Q7L5P8jxS8pLHVRFlnyloU3FpjkqCDt7MPFdwM6QefSEZ7nRc4sPl0wDYnKTxCA=="
+}
