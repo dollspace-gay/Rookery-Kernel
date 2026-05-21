@@ -1,0 +1,10 @@
+{
+  "uuid": "d3e57989-50c1-47a8-b83c-958bceda000f",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 9: mpt3sas.md committed (de60c2c, 238 lines). Pivot from net to storage. LSI/Broadcom Fusion-MPT SAS-3 + Tri-mode HBA — every enterprise server in the last decade. ~33500 upstream lines covered. Headline subsystems: ~9000-line base (IOC state machine + request pool + reply queues), ~14180-line scsih (SCSI + SAS topology + device discovery + error recovery), ~4520-line ctl (/dev/mpt3ctl vendor-tool chardev — primary userspace attack surface). Rust translation: typed MPI ABI, typed Smid<T> with Drop-based free, ReplyPostQ/ReplyFreeQ DMA-direction enforced, SasTopology typed tree, RecoveryLevel enum. Grsec: CAP_SYS_RAWIO on every /dev/mpt3ctl ioctl, MPT3COMMAND opcode allowlist (destructive ops require additional CAP_SYS_ADMIN), FW signature mandatory + LOCKDOWN integration, topology event payload validation closes historical CVE-2019-19073 OOB class. Next iteration target: drivers/usb/host/xhci-hcd — USB 3.x host controller (every modern motherboard has xHCI silicon).",
+  "created_at": "2026-05-21T02:08:24.776388721Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAUK2cYG7lUBbdXtVug8VhP77mUGckml+YgMImHVtRPzflrCoVSJmY/eoq84DURG9vQV5iQ7temwZmXMa2RcEUCg=="
+}
