@@ -1,0 +1,10 @@
+{
+  "uuid": "6de54677-bb35-4758-a8ea-ef61a54eb341",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 11: amd/amdgpu-core.md committed (8a7d292, 292 lines). AMD amdgpu — largest single driver tree in upstream Linux (~320K LOC, 304 .c files). This Tier-3 covers the ~30K-line core (PCIe lifecycle, IP discovery, memory mgmt VM/VRAM/GTT/TTM/GEM/BO, CS pipeline, ctx, RAS, PSP secure-boot, XGMI). Subsequent iterations to cover IP block families (gfx_v9..v12, sdma_v4..v7, vcn_v1..v5, mes, gmc, ih, nbio), DC display (~80K lines), SMU, amdkfd. Rust translation: IP blocks as separate crates implementing IpBlock trait; CsParser→ValidatedCs→BoList→Job→Fence typed pipeline (closes CVE-2023-2007 class structurally); Fence<S> typed (no double-signal UAF). Grsec: IOMMU mandatory (GPU is DMA-attack vector), PSP FW signature mandatory + LOCKDOWN integration, IB chunk cap, per-VM PT memory cap, RAS recovery scoped, GPU recovery rate-limit, XGMI peer allowlist, amdkfd SVM CAP_SYS_NICE-gated, per-VM tenant isolation in SR-IOV. Vendor-driver enumeration session totals: 11 docs covering ~480K upstream LOC. Next iteration: drivers/gpu/drm/amd/amdgpu/gfx_v11_0.c — RDNA3 GFX engine (gaming GPU compute pipeline).",
+  "created_at": "2026-05-21T02:17:31.621013875Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAw/TIOnEbiyHPt4rj0J7WdFY7VeCFgmXaXwUmaJXsseX/72SHDKrsaKBojkaAFprnFequBpi9lT8MAGZm0vfMDw=="
+}
