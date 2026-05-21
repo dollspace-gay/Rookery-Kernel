@@ -1,0 +1,10 @@
+{
+  "uuid": "6fa1dae7-5c0b-4790-b468-37a188172ff8",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 48: tty/serial-core.md committed (31c6215, 239 lines). Linux serial UART subsystem — every USB-serial dongle, embedded UART, IPMI SoL, Pi /dev/ttyS0. ~127K LOC / ~50 SoC variants (8250 + PL011 + i.MX + Atmel + OMAP + MSM + SH + Xilinx + SiFive + LiteX + I2C/SPI expanders). earlycon + kgdboc + sysrq. Grsec: physical-serial-port → kernel-access. Defenses: kgdboc CAP_SYS_ADMIN + LOCKDOWN_KERNEL_RAM (closes 'kgdb = /dev/kmem via serial'), sysrq CAP_SYS_RAWIO, USB-serial unplug synchronization (closes CVE-2020-28941-class UAF), /dev/ttyS* root-or-dialout perms, multi-port card per-port isolation, Break detection rate-limit (closes 'continuous-break CPU starvation'), kgdb breakpoint in user-space refused (closes 'kgdb injects user-space code'). 48 docs / ~2.84M LOC. Next iteration: drivers/spi/spi-nor (SPI-NOR flash — every BIOS/UEFI flash chip, every embedded boot flash, every TPM emulator) or drivers/mtd/ (MTD subsystem).",
+  "created_at": "2026-05-21T05:07:46.312310776Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABASQHEQfKrBNxJUzf8mrr+cGrE589TY9EwaiZIIJQ7tBStqeMU6OWVlodb9yokKDTw/d4LFj8JqxioW6thC9tECA=="
+}
