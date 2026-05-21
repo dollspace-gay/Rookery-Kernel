@@ -1,0 +1,10 @@
+{
+  "uuid": "802fb060-1580-4828-82b2-03eb0ec7ee09",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 38: iommu/arm-smmu-v3.md committed (4a2cab5, 229 lines). ARM SMMU v3 — every modern ARM server (AWS Graviton + Ampere Altra + NVIDIA Grace + Apple silicon). ~7650 LOC. Components: arm-smmu-v3.c core + SVA + iommufd glue + Tegra T241 CMDQV extension (NVIDIA Grace per-CPU command queues for 144-core batch invalidation). Grsec: defenses parallel Intel/AMD + ARM-specific — STE/CD V bit gating (torn-STE), BTM coherency invariant (CPU TLB invalidate triggers SMMU IOTLB invalidate — verified via Verus + integration), kunit selftest at boot mandatory unique to SMMU v3 (catches known silicon bugs before tenant workloads see them), Tegra CMDQV per-CPU queue isolation (closes cross-CPU cmd injection new to that extension), EVTQ fault-record source-SID validation. IOMMU tier complete: Intel VT-d + AMD-Vi + ARM SMMU v3 — covers x86 + ARM. 38 docs / ~2.09M LOC. Next iteration: drivers/kvm/x86/ — KVM-x86 (the hypervisor that consumes all the vfio-pci + IOMMU work to make VMs run with passthrough).",
+  "created_at": "2026-05-21T04:35:41.281704737Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA5b7x6kPH2jkMA3payvS8oAECAlOUjnOehSk0B6iQoqi9REJP0dJ/sx4NF7uqnsErcIMdW823gP+hXKet5bTWCA=="
+}
