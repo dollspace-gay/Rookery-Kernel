@@ -1,0 +1,10 @@
+{
+  "uuid": "0a6857e8-2f51-46ca-b1e3-07130eaf80cd",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 16: intel/xe-core.md committed (a27b6f3, 263 lines). Intel xe — clean-rewrite successor to i915 (Xe2_LPG Lunar Lake + Battlemage + Panther Lake + Xe3+). ~110K LOC / 194 files. Architectural cleanliness over i915: VM_BIND-first (not execbuffer relocs), GuC-only primary path (no dual-mode), full-PPGTT-only (no cmd parser needed structurally), single TTM-backed xe_bo (no per-backing variants), ~25 ioctls vs i915's ~120. Rookery ships both i915 (installed base) + xe (new silicon). Rust translation: Tile<T> phantom-typed multi-tile, VM_BIND as async Future, ValidatedBind/ValidatedExec only constructible from validate, Power<State> typed transitions, ForceWake RAII. Grsec structurally stronger than i915: full-PPGTT closes parser-bug class wholesale, VM_BIND-only closes execbuffer-reloc complexity, GuC-only closes dual-mode complexity, IOMMU mandatory for BMG, FW signatures mandatory + LOCKDOWN, PXP CAP_SYS_ADMIN gated. Session totals this turn: 4 docs (sdma_v6 + vcn_v4 + i915-core + xe-core). Cumulative: 16 docs / ~967K LOC. AMD GPU: amdgpu-core + gfx-v11 + sdma-v6 + vcn-v4. Intel GPU: i915-core + xe-core. Next iteration: drivers/gpu/drm/nouveau/ (NVIDIA open-source driver — Maxwell/Pascal/Turing/Ampere/Ada via signed firmware).",
+  "created_at": "2026-05-21T03:06:11.867737033Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAhP8GnF3vucLCWkjaTv5MpE3gCyhvFJQG0iKL6ne/Fwq4GbBEIxQgQtso+CiumkDCe8VwCylBO19h2NtcJZyECA=="
+}
