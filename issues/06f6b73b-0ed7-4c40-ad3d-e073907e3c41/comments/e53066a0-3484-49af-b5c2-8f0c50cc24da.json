@@ -1,0 +1,10 @@
+{
+  "uuid": "e53066a0-3484-49af-b5c2-8f0c50cc24da",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 44: sound/soc/asoc-core.md committed (bf0dccb, 240 lines). ASoC ALSA System on Chip — every modern laptop + phone + embedded audio. Intel SOF + AMD ACP + Qualcomm Q6 + per-codec hundreds. ~1170 .c files. 3-abstraction: Component + DAI link + DAPM graph + PCM + Compressed offload + Jack + SOF (Sound Open Firmware). Trust posture: microphone access is primary privacy concern. Defenses: capture PCM through userspace policy gates, DAPM force_pin CAP_SYS_ADMIN (closes 'unprivileged forces mic on'), mic-mute hw-button respected (closes 'malicious userspace overrides hw mute'), DAPM widget graph cycle detection strict (closes 'malicious topology with cycle → infinite recursion'), SOF FW signature mandatory + topology signing (closes DSP-substitution + audio-path-bypass), PCM hw_params strict, SOF IPC msg validation, codec register write allowlist, jack-event debouncing, compress stream content NOT parsed kernel-side (DSP handles — closes whole class of kernel bitstream parser bugs), volume control bounded (closes 'unbounded volume → speaker damage'). 44 docs / ~2.47M LOC. Next iteration: drivers/hid/ for hid-core + per-vendor (Apple/Logitech/Razer) — every laptop touchpad/keyboard/mouse/gamepad input.",
+  "created_at": "2026-05-21T04:54:40.719951557Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAi627a0vfuUr7q2G7fY8YcNvoMgbNN3d7SwdCBSQtC4uZuNQEBMnM4gT0/JKAAnpgYfgfLnG5UEilH3KglWBSAQ=="
+}
