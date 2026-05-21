@@ -1,0 +1,10 @@
+{
+  "uuid": "ae42c658-93be-42d4-a049-aa4dd4aac36e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 50 (milestone): mtd/nand-raw.md committed (ef261b8, 254 lines). Raw NAND flash — every embedded boot+rootfs flash on eMMC-less boards. ~97K LOC. Grsec: parallel concern to SPI-NOR BIOS-flash but for embedded boot. Defenses: ONFI/JEDEC param-page CRC validation (closes CVE-2019-16089-class), 5-byte ID match strict, ECC algorithm validated against chip-requirement (closes silent-fallback-to-weaker-ECC class), factory-bad-marker preservation, chip-erase opcode refused, wear-leveling delegated to UBI. Session totals: 50 vendor-driver Tier-3 docs / ~2.95M upstream LOC. Coverage: NICs ×11, WiFi ×3, GPU ×7, storage HBA ×5, storage targets ×2, RDMA ×3, SmartNIC/DPU ×2, USB ×2, virtualization ×4, IOMMU ×2, audio, link aggregation, automotive/CAN, laptop platforms, serial UART, SPI-NOR, NAND. Next iteration: drivers/firmware/qcom_scm (Qualcomm Secure Channel Manager — every Snapdragon SoC root-of-trust).",
+  "created_at": "2026-05-21T05:13:56.996290599Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAGCQZ+44ppsonz+76/i8c7/kvAqDAu2huO/4+ZvApBZ9+kp3R5KGcJX8yOQYN0g0ejOvbj74/oV5x9olxCxUxAA=="
+}
