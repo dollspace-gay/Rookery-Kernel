@@ -1,0 +1,10 @@
+{
+  "uuid": "2ceec70b-4e71-4849-9dc5-b0c552d528e2",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 47: platform/x86/x86-platform.md committed (c4db7fa, 217 lines). Every Dell/HP/Lenovo ThinkPad/Asus/Acer/MSI/Fujitsu/Sony/Samsung/Toshiba/Gigabyte laptop. ~144K LOC / 73+ top-level files + per-vendor subdirs. WMI core dispatcher + firmware-attributes standardized BIOS-setting class + per-vendor Fn-keys/battery/thermal/fan/RGB. Unique grsec concern: BIOS-state modification (boot-order, secure-boot disable, password-protected settings). Defenses: firmware_attributes CAP_SYS_ADMIN + LOCKDOWN_INTEGRITY_MAX (closes 'unprivileged modifies BIOS'), BIOS admin password kfree_sensitive, WMI method GUID allowlist per vendor (closes 'unknown GUID → BIOS UB'), ACPI buffer length validation (closes CVE-2023-32629 dell-wmi smbios OOB), EC command allowlist (closes 'unprivileged EC command → firmware corruption'), Razer-RGB CAP_SYS_ADMIN (closes 'malware uses RGB as covert channel' — real attack pattern). 47 docs / ~2.71M LOC. Next iteration: drivers/tty/serial — every USB serial console, every embedded UART (huge consumer + embedded surface).",
+  "created_at": "2026-05-21T05:04:31.520409543Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAkjDXsmF8Y26lK8yafOPT3Z/IBt47K8aghbprkUH3h4Hud8pjDka42PGdFzyR/x+j+QQWlKap+HMugkzym5KXAg=="
+}
