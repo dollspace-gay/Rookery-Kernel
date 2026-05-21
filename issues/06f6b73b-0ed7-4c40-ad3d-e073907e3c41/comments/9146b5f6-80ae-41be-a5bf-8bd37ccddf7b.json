@@ -1,0 +1,10 @@
+{
+  "uuid": "9146b5f6-80ae-41be-a5bf-8bd37ccddf7b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 18: scsi/qla2xxx.md committed (a231d9d, 239 lines). QLogic/Marvell FC HBA — every enterprise SAN. QLE25xx/26xx/27xx/28xx/2870 silicon (8G to 128G). Initiator + target mode + NVMe-FC + EDIF encryption + NPIV. ~83K LOC. Headline architectural surface: hundreds of mailbox opcodes (qla_mbx.c 7260 lines). Rust translation: typed mbx-cmd interface (each opcode a method, bilge bit-packed structs) closes format-bug class structurally. FcPort<S> typed discovery FSM, target-mode per-port state machine, EDIF keys kfree_sensitive. Grsec: FC fabric as trust boundary (hostile switch / hostile peer node) — BSG opcode allowlist closes historical BSG-cap CVE class, WWPN-uniqueness enforced (closes peer-spoofing), RSCN rate-limit (closes fabric-DoS), EDIF keys cleared after FW install, NPIV WWPN allocator deterministic. Storage tier coverage: mpt3sas (SAS HBA) + qla2xxx (FC HBA). Next iteration: drivers/scsi/lpfc — Emulex FC HBA (sibling FC driver, ~150K LOC, completes major FC HBA coverage).",
+  "created_at": "2026-05-21T03:15:19.699570691Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAKtkCLAwhw0VMQQn6EELdbzrnh6hOWRGD+ncvwYuaOnPe+gJCqhWBJ/72y4KPRWHTQN9bPJRiRSG2YnhLw7P+Cg=="
+}
