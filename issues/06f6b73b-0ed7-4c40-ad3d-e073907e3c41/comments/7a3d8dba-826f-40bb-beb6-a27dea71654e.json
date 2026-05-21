@@ -1,0 +1,10 @@
+{
+  "uuid": "7a3d8dba-826f-40bb-beb6-a27dea71654e",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 42: target/lio-core.md committed (8a36402, 247 lines). LIO Linux IO Target — generic SCSI target framework. Every iSCSI/iSER/FC/SRP/vhost-scsi target server, every Linux storage appliance. ~62000 LOC. Architecture: fabric-agnostic core + backends (iblock/file/pscsi/rd/TCMU) + fabrics (iscsi/tcm_fc/loopback/sbp/vhost-scsi). Defenses: per-opcode SCSI cmd parser typed strict, per-fabric ACL at session est. strict (closes random-initiator-cross-tenant), iSCSI CHAP HMAC validation strict (closes CVE-2018-14633 auth OOB), PR state machine atomic (PR-race CVE class), ALUA state transitions atomic (closes CVE-2023-2861 state-change race), session refcount strict (closes CVE-2023-1192 session UAF), CDB length per-opcode, TCMU mailbox bounded + CAP_SYS_ADMIN required (closes unprivileged TCMU attach), iSCSI MaxConnections capped, hot backend removal handling (closes UAF-on-remove), CmdSN ordering enforced. Storage target tier complete: nvmet + LIO. 42 docs / ~2.21M LOC. Next iteration: drivers/dma-buf/dma-heap.c or pivot — drivers/dma-buf has 2 docs but TCMU + SBP use cases need separate coverage. Or drivers/bluetooth/ for the host-side stack with BlueZ integration.",
+  "created_at": "2026-05-21T04:48:08.862950191Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABApQ5u/65g3zAxOf1mg5qRuFKxo+LXeVHyw8y3WHy4Bu6mpZvNooSmSAum8FJ72TWZ/Zgjz1pTtXBd2f4VDa95Dg=="
+}
