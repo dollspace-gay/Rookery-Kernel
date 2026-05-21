@@ -1,0 +1,10 @@
+{
+  "uuid": "ec664287-322c-4091-b41c-f559f25770a1",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 59: net/dsa/dsa-switch-drivers.md committed (1d69cc2, 201 lines). DSA per-switch drivers — every consumer router L2 switch (b53/bcm_sf2/mt7530/QCA8K/Realtek/Marvell/Lantiq), every industrial PoE switch, every automotive TSN switch (SJA1105 in Tesla/BMW/VW/Hyundai-Kia). ~97K LOC. Defenses: per-vendor tag parser strict, CPU port frame port-id validated, VLAN+FDB+MDB hw-offload size-capped, port mirroring CAP_NET_ADMIN (closes 'sniffing via port-mirror'), PoE PSE CAP_NET_ADMIN (closes 'damage non-PoE device'), SJA1105 TSN CAP_NET_ADMIN (automotive safety!), switch firmware update CAP_SYS_ADMIN + LOCKDOWN (closes 'unprivileged installs malicious switch firmware → covert traffic capture'). 59 docs / ~5.05M LOC. Crossed 5M LOC threshold. Next iteration: drivers/net/phy (PHY framework — every networking-capable system has PHY drivers).",
+  "created_at": "2026-05-21T11:30:08.698404931Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAmTfzbeChJcaJcykKLS6Akn8pnrfhstfe7CX6Cw627EWjiO/63qGA9r3mWLd6yWBKjvY3dSuzlE0E37IBCDdcDg=="
+}
