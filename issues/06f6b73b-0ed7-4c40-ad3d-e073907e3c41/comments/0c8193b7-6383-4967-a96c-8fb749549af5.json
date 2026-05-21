@@ -1,0 +1,10 @@
+{
+  "uuid": "0c8193b7-6383-4967-a96c-8fb749549af5",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 46: net/can/can-core.md committed (c124065, 226 lines). Linux CAN bus — every automotive ECU, industrial PLC, robotics control, drone autopilot. ~79K LOC. SocketCAN integration + ~30 silicon variants. Trust posture: CAN increasingly internet-exposed (Tesla CAN-over-cell, OBD-II dongles WiFi/BT). Defenses: CAP_NET_RAW for CAN_RAW (closes unprivileged-CAN-spy), USB dongle hot-add validation (closes CVE-2023-1739-class + malicious-dongle), slcan UART CAP_SYS_TTY_CONFIG+CAP_SYS_ADMIN (closes 'unprivileged attaches slcan to USB-UART connected to car CAN bus'), J1939 PGN allowlist (closes 'unprivileged fakes truck-control PGN'), bus-off auto-recovery rate-limit (closes 'compromised bus continuously causes bus-off cycles' DoS), DLC bounds check, state transitions atomic. 46 docs / ~2.57M LOC. Next iteration: drivers/spi/ (SPI core + per-controller — foundational for embedded boards, every MCU/SBC has SPI peripherals).",
+  "created_at": "2026-05-21T05:01:31.322892622Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAywsoZy79LKj/sBiZDH8ovfgv9XonrNZvrgorhKSRO1FUnjv3SKfVoxF25Eej9hsAnMUER3HGlq2Fv+0QJnXNCw=="
+}
