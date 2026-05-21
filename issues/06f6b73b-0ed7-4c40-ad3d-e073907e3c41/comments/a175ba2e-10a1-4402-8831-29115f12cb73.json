@@ -1,0 +1,10 @@
+{
+  "uuid": "a175ba2e-10a1-4402-8831-29115f12cb73",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Wave-V1 iteration 1: mlx5-core.md committed (5d1dd5a). Covers drivers/net/ethernet/mellanox/mlx5/core/{main,cmd,fw,eq,cq,health,dev}.c — the firmware-mailbox + PCI-lifecycle foundation under mlx5e/mlx5_ib/mlx5_vdpa. Includes a 'Rust translation posture' section calling out the typed-state-machine model (Probed/Cmd<Ready>/Caps/Hca/Loaded), DmaPages<Direction> replacing raw dma_map_*, typed FwCmd with bilge-style bitfields replacing MLX5_GET/SET macros. Grsec section mandatory: per-uid opcode allowlist, page-request DoS cap, AER rate-limit, FW signature mandatory, VHCA-id LATENT_ENTROPY randomization. Next iteration: drivers/net/ethernet/mellanox/mlx5/core/esw/eswitch.c (eSwitch for SR-IOV port representors) — large doc, will pick up next turn.",
+  "created_at": "2026-05-21T01:33:25.405855211Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABANkHwMfRkXxORKXek0JSCHbu7mL3bJBQ4fBBYFT6sZs0Mk0qOk34poiWtUWC5B3bqaxeC2E6EE24oEPNQyYSnDA=="
+}
