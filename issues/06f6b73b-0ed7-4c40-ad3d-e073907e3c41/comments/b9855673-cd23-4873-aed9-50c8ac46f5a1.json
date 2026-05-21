@@ -1,0 +1,10 @@
+{
+  "uuid": "b9855673-cd23-4873-aed9-50c8ac46f5a1",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 19: scsi/lpfc.md committed (2fa0956, 226 lines). Emulex/Broadcom FC HBA — largest single-file driver in upstream at ~103K LOC. LP/LPe series 8G-128G, FC + FCoE + NVMe-FC initiator + NVMe-FC target + NPIV + VMID. Rust translation: Lpfc<Sli3>/<Sli4> distinct types close mode-confusion class, Node<NodeState> typed discovery FSM closes CVE class around discovery races, ELS frame typed builders. Grsec: same fabric-trust-boundary as qla2xxx + SLI-mode pinned at probe + FSM transition allowlist via types + NVMe-FC target per-initiator auth + BSG CAP_SYS_RAWIO (closes CVE-2020-12652). FC HBA coverage complete: qla2xxx + lpfc (the major-two). Session totals: 19 docs / ~1.4M LOC across mlx5×4 + cloud-perimeter trio + bnxt + xHCI + mpt3sas + qla2xxx + lpfc + AMD-GPU×4 + Intel-GPU×2 + nouveau. Next iteration: drivers/scsi/aacraid — Adaptec/Microsemi RAID HBA (third major storage controller family).",
+  "created_at": "2026-05-21T03:18:20.649821425Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAGyV58Yj1AdzLeC3TpSYzaOulGhBaK6XkKI0Xy48tChqIJVHxSXIHuo5hTW2E0TREQXVDBN7hsDCQdECo3unfCA=="
+}
