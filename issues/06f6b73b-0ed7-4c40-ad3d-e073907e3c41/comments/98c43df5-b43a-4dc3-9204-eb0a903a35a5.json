@@ -1,0 +1,10 @@
+{
+  "uuid": "98c43df5-b43a-4dc3-9204-eb0a903a35a5",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 15: intel/i915-core.md committed (5b62ce7, 267 lines). Intel i915 — second-largest single driver tree in upstream Linux (~360K LOC, 422 files). This Tier-3 covers ~30K-line core (driver lifecycle, GEM core, Request scheduler, VMA, cmd parser, perf OA, PMU, IRQ dispatch). Per-subsystem docs (gt/, display/, pxp/, GuC) to follow. Rust translation: GenInfo enum + per-gen trait impls replace IS_GENx macros, I915Bo enum-variant per backing type, Vma<Pinned/Unpinned>/Request<Created..Completed> typestate, WwCtx RAII for batched ww_mutex with deadlock-safe unwind. Grsec: cmd parser allowlist immutable const, full-PPGTT mandatory on Gen12+ (closes GGTT leak class structurally), IOMMU mandatory for discrete, GuC/HuC FW signatures mandatory, PXP CAP_SYS_ADMIN gated + protected-BO mmap refused, userptr mmu-notifier sync strict, per-ctx PMU scope (closes OA snooping), DG2 LMEM cleared on alloc. References CVE-2024-26603 (cmd parser). Session totals: 15 docs / ~857K LOC. AMD GPU coverage: amdgpu-core + gfx-v11 + sdma-v6 + vcn-v4. Intel GPU coverage: i915-core. Next iteration: drivers/gpu/drm/nouveau or drivers/gpu/drm/xe (Intel's i915 successor for Xe2_LPG+).",
+  "created_at": "2026-05-21T03:02:54.786298808Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAsVHagb1Da3rb5BAiP1Q6302IIgv59bjI0iXTZ/2G/1sLY6hSpUfdcOePfcUKlH7B5KD3hfFYJw4mVr8IcNr+AA=="
+}
