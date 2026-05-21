@@ -1,0 +1,10 @@
+{
+  "uuid": "a22ff2da-3768-49d7-8901-48ae61e30931",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 23: intel/i40e.md committed (8648b2f, 229 lines). Intel XL710/XXV710/X710/X722 40/25G NIC family (Fortville). ~50K LOC. Bridges from ixgbe-era mailbox SR-IOV to modern AdminQ + VirtChnl pattern shared with ice + iavf. Headline features: AdminQ DMA-based FW interface, VSI abstraction, HMC Host Memory Cache, VirtChnl SR-IOV, DDP custom parser profiles, RDMA client interface. Rust translation: shared intel-adminq + virtchnl-msg crates consumed by i40e + ice + iavf. Grsec: VirtChnl PF dispatcher SR-IOV-escape surface — opcode+size allowlists, VF resource caps strict, DDP profile Intel-signature mandatory + size capped, HMC ctx write validation, client-API single-instance. Intel NIC family complete: ixgbe(10G) + i40e(40G) + ice(100G existing). 23 docs / ~1.54M LOC. Next iteration: drivers/net/ethernet/intel/iavf — Intel Adaptive VF (the VF-side driver running in KVM/QEMU guests, shared across i40e + ice PFs).",
+  "created_at": "2026-05-21T03:30:19.345103372Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABArWIdTwKaj2JblTA/tIoIKV6oHqs4EGO7I1pngRG/0cHtC2DnJwNmduHg0D1T2eLj9wKQzd9GPjI/XXXTU04oAQ=="
+}
