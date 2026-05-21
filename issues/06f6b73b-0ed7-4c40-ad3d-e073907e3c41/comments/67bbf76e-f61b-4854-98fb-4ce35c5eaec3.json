@@ -1,0 +1,10 @@
+{
+  "uuid": "67bbf76e-f61b-4854-98fb-4ce35c5eaec3",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 51: firmware/qcom-scm.md committed (55b99a1, 210 lines). Qualcomm SCM + QSEECOM + tzmem — every Snapdragon root-of-trust. Most-privileged trust boundary in Snapdragon (TrustZone > kernel). ~5000 LOC. Components: SCM dispatcher + SMC/legacy transports + QSEECOM TA loader + uefisecapp UEFI variable bridge + tzmem pool. Grsec: bugs grant secure-boot bypass (load unsigned modem fw → cellular RCE), UEFI BootOrder manipulation, DRM key extraction. Defenses: SCM cmd-id allowlist per-SoC, SCM cmd-arg type validation, PAS firmware signature mandatory + LOCKDOWN_INTEGRITY_MAX disables (closes 'attacker loads dev-signed Qualcomm fw → DSP/modem priv exec'), QSEECOM TA load CAP_SYS_ADMIN + LOCKDOWN, QSEECOM TA invocation per-TA scope, uefisecapp set CAP_SYS_ADMIN + LOCKDOWN + variable name allowlist (closes 'malicious app installs rogue boot variable'), tzmem phys mapping immutable (closes 'phys addr change mid-call → TZ reads stale data' race), ICE key wrap kfree_sensitive, SCM_ASSIGN_MEM destination validation (closes 'transfer kernel-text → kernel kills self'). 51 docs / ~2.96M LOC. Next iteration: drivers/tee/ (TEE framework — generic TEE for OP-TEE/Trusty/AMD-PSP/Intel-MEI integration).",
+  "created_at": "2026-05-21T05:17:20.480104153Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA/vekXGl01G2tuTo0VhtOsbu17kaXdC/zEmTVrJTZ7DhCH7eaSXyaVi6xMwKiyMinBRHiYDd3nAmp+KbcvJaQBg=="
+}
