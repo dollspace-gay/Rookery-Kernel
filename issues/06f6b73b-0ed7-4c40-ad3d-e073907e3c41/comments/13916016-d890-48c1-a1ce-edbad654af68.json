@@ -1,0 +1,10 @@
+{
+  "uuid": "13916016-d890-48c1-a1ce-edbad654af68",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 61: firmware/arm-scmi-psci-ffa.md committed (9bc2aa8, 234 lines). ARM firmware framework family — every ARM server (Graviton, Ampere, Grace, Apple, every Pi/STM32MP/i.MX/Allwinner/Rockchip embedded). PSCI + SCMI + FFA + SMCCC + SDEI + SCPI. ~22K LOC. Defenses: PSCI CPU_ON entry-point validated to be in kernel text (closes 'malicious driver → attacker code at EL1' — critical), SCMI message protocol+message-id allowlist (closes 'compromised SCP sends bogus response'), FFA partition-id allowlist + DIRECT_REQ payload bounded (closes SP-handler-bug exploitation), SCMI clock/perf/voltage writes CAP_SYS_ADMIN (closes 'unprivileged sets clock 5GHz → silicon burn'), PSCI SYSTEM_OFF/RESET CAP_SYS_BOOT, SDEI bind-per-CPU stays per-CPU, SCMI virtio defensively validated (host hypervisor adversarial in paravirt), SCP firmware signature mandatory + LOCKDOWN. 61 docs / ~5.16M LOC. Next iteration: drivers/tee/optee already covered — pivot to drivers/firmware/imx (i.MX SCU firmware interface for automotive Linux).",
+  "created_at": "2026-05-21T11:36:47.468654606Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAqmQ9B2T2pjXROK+mHQwUk58cMeH7R0d8h/4xwNCRbaUzypTL1qCOvlpLlNRj9AhKjb3GQOaTsdbb6oo5Ue5GAQ=="
+}
