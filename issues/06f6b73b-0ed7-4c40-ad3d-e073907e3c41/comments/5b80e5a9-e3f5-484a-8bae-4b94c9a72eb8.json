@@ -1,0 +1,10 @@
+{
+  "uuid": "5b80e5a9-e3f5-484a-8bae-4b94c9a72eb8",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 13: amd/amdgpu-sdma-v6.md committed (f75bd6f, 207 lines). RDNA3 system DMA engine — PT updates + BO copies + TLB flushes. Second per-IP-block doc following gfx-v11 pattern; per-IP-version crate convention established (amdgpu-sdma-v6 implements IpBlock from amdgpu-core). Rust translation: typed SDMA packets, GpuVa distinct from CPU virtual address (compile-time host-pointer-confusion prevention), PtUpdateBatch type. Grsec: packet opcode allowlist, POLL_REGMEM/WRITE target allowlist (closes 'user IB does privileged DMA' class), page-queue isolation (closes 'user CS forges PT updates' class), IOMMU mandatory inherited. Session totals: 13 docs / ~493K LOC across mlx5×4 + ENA + gVNIC + MANA + bnxt + mpt3sas + xhci + amdgpu-core + amdgpu-gfx-v11 + amdgpu-sdma-v6. Next iteration: drivers/gpu/drm/amd/amdgpu/vcn_v4_0.c — VCN v4 video codec engine (decode/encode for AV1/H.265/H.264 on RDNA3 — every Radeon-using livestream and video-playback workload).",
+  "created_at": "2026-05-21T02:56:06.501400803Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAvZgU6q2ZWZcf3pKlfdyfOifp2VoDeKen6ApV71/q4PHZhuVVMcs1DdhfISN0rHxM0Vf2HJl/mcg0JWKWdyuyAg=="
+}
