@@ -1,0 +1,10 @@
+{
+  "uuid": "0030422a-9803-465a-9afb-dda02c93b0a7",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 30: mediatek/mt76.md committed (192aeca, 227 lines). MediaTek mt76 — second-largest WiFi silicon family globally, dominant in consumer routers (TP-Link Archer/Asus low-mid/Xiaomi/cheap OpenWrt APs) + cheap laptops. mt76x0 (2011 n) through mt7996 (2024 WiFi 7). ~95500 LOC across many per-silicon subdirs. Multi-bus: PCIe + USB + SDIO + AHB. Rust translation: mt76-core + mt76-connac{,3} shared platform + per-silicon-family crates + per-PHY abstraction for multi-PHY silicon (mt7915/7996). Grsec: same RF trust boundary + unique defenses — USB transport length validation (physical-access threat model, closes 'malformed USB bulk from rogue dongle → driver OOB'), DFS radar event validated (closes 'rogue MCU forges radar → channel-vacate DoS'), per-PHY isolation for AP-mode multi-PHY silicon, A-MPDU sequence-window strict (closes 'malformed BA → OOB write' CVE class), MCU watchdog rate-limit. WiFi tier complete: Intel iwlwifi + Qualcomm ath11k + MediaTek mt76. 30 docs / ~1.89M LOC. Next iteration: drivers/net/ethernet/marvell/octeontx2/ — Marvell OcteonTX2 (CN9xxx/CN10K SoC NIC — major SmartNIC silicon, cloud DPU deployments).",
+  "created_at": "2026-05-21T03:50:38.119960488Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAOxYNbUWWGdlz5/t38D8BUB21NNHP65EFZkF6umTFmKTRe78TV6+1+v5i9xSEefRT+WtFLOuHQPg9r1BBfe+WBA=="
+}
