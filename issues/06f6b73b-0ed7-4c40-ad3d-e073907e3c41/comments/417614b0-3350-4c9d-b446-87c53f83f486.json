@@ -1,0 +1,10 @@
+{
+  "uuid": "417614b0-3350-4c9d-b446-87c53f83f486",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 12: amd/amdgpu-gfx-v11.md committed (4fdba92, 235 lines). First per-IP-block doc — establishes the pattern for ~30 more (other GFX versions, SDMA, VCN, MES, GMC, IH, NBIO per ASIC family). RDNA3 GFX engine: Radeon RX 7900/7800/7700/7600 + Radeon Pro W7000 + Phoenix/Strix iGPU. ~10K upstream lines. Rust translation: amdgpu-gfx-v11 crate implementing IpBlock trait from amdgpu-core, typed Ring<EngineType> prevents wrong-ring emit at compile time, PM4 packets as bilge-typed builders, GrbmRegisterAccess scoped per-SE/SA. Grsec: shader-side info-leak as headline class — cleaner shader mandatory between ctxs (kernel inserts dispatch between different-VMID jobs, closes cross-process VGPR/SGPR/LDS leak structurally), cleaner shader binary integrity SHA-256, VMID isolation HW-enforced, GDS/GWS/OA partitioned per-VMID, TDR rate-limit, microcode PSP-signature mandatory. Session totals: 12 vendor-driver Tier-3 docs covering ~490K upstream LOC across 5 driver families (Mellanox mlx5, cloud trio ENA/gVNIC/MANA, Broadcom bnxt, LSI mpt3sas, USB xHCI, AMD amdgpu core + GFX11). Iteration 13 target: drivers/gpu/drm/amd/amdgpu/sdma_v6_0.c (SDMA — System DMA engine — used for PT updates + BO copies + page-table-walk on most modern AMD GPUs).",
+  "created_at": "2026-05-21T02:21:13.003815839Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4SG2IX1+QBaDECLtqeBJu3MgeL6ad9/mOqadM5Z/CV6tj0fOV7P0sRt7bPycTiZg2AAJ18sSC2QFsZFOmmXODA=="
+}
