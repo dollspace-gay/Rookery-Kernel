@@ -1,0 +1,10 @@
+{
+  "uuid": "fea15a9e-8a1d-4b90-934c-a64446ae52ba",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 69: usb/dwc3/dwc3.md committed (12379cf, 227 lines). DesignWare USB 3 — most-deployed USB-3 controller in ARM SoCs. Every Snapdragon/Rockchip/ZynqMP/i.MX 8M/Allwinner H6/Jetson/Exynos/Meson/Octeon/Cherry-Trail/Apple-Asahi USB-3. ~20K LOC + ~20 per-SoC wrappers. Dual Role Device — same hw switches host/gadget. Defenses: mode switch atomic (closes CVE-2022-3424 dwc3 ep0 race), USB disconnect synchronized (closes CVE-2024-26648 gadget UAF), per-SoC PHY init immutable + PHY register CAP_SYS_RAWIO + LOCKDOWN (closes 'covert RF channel via mistuned PHY'), TCPM coordination strict, wakeup-from-suspend source validation (closes 'malicious USB device wakes host repeatedly → battery drain attack'). 69 docs / ~5.25M LOC. Next iteration: drivers/usb/host/xhci already covered; pivot to drivers/mmc (eMMC/SD core).",
+  "created_at": "2026-05-21T11:59:47.214933091Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABA4n7H6e87vcqjBTwWJvV8G3YoR2V97y1SMIIUo8a8/tfv9ovXIm392Z1kQTzqzuHJZNGtAxLj6K8Q4eMcqp+2AA=="
+}
