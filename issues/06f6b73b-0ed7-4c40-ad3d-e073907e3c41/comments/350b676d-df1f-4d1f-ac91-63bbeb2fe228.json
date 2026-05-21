@@ -1,0 +1,10 @@
+{
+  "uuid": "350b676d-df1f-4d1f-ac91-63bbeb2fe228",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 29: ath/ath11k.md committed (4650668, 245 lines). Qualcomm Atheros WiFi 6/6E — TP-Link/Linksys/Synology APs + Pixel 5+ phones + ChromeOS + Snapdragon-X laptops. ~61500 LOC / 33 files. Multi-transport architecture (PCIe + AHB + MHI). Rust translation: ath11k-core + per-transport sub-crates + ath11k-wmi typed cmd/event. Grsec: same RF trust boundary as iwlwifi + multi-bus extras — QMI msg validation (closes 'compromised modem-FW pushes garbage QMI to WiFi' cross-domain attack unique to Snapdragon), HAL SRNG head/tail validation in hot path (closes 'compromised FW writes huge head ptr' OOB class), CFR/Spectral CAP_SYS_ADMIN-gated (gait detection / presence sensing privacy concern). 29 docs / ~1.80M LOC. WiFi coverage: Intel iwlwifi + Qualcomm ath11k. Next iteration: drivers/net/wireless/mediatek/mt76 (MediaTek WiFi — second-most-deployed WiFi silicon after Realtek; every cheap consumer router).",
+  "created_at": "2026-05-21T03:47:33.174273142Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAPU5Ecoy0Sq/1kALlpkQ43Hq48tvReBN/Tc/KtuDRY0eNWBVH7ZqsK0DEMxYPH9QXKao81j7x+Qq7iCuZaPXKDw=="
+}
