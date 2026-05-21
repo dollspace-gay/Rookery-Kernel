@@ -1,0 +1,10 @@
+{
+  "uuid": "461ac5ed-bbce-466d-af4a-8335dd174f24",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 17: nvidia/nouveau-core.md committed (29eedf0, 252 lines). nouveau — only fully-upstream NVIDIA driver, ~170K LOC / 773 files. Two-path architecture: Legacy direct (pre-Turing) + GSP firmware (Turing+ via NVIDIA-signed GSP_RM). Rust translation: NouveauDev<Legacy> vs NouveauDev<Gsp> as distinct types closes cross-path bug class. Per-chip-class crates + per-RM-version GspRm<R> typing. Grsec: GSP FW signature mandatory, GSP RPC opcode + length allowlists, SVM mmu-notifier release ordering structural (closes CVE-2024-26695 SVM UAF class), per-channel VMID HW-isolated, DMEM migration rate-limit, FIFO TDR per-channel, MIG CAP_SYS_ADMIN gated. GPU coverage complete for all three major vendors: AMD (amdgpu-core + gfx-v11 + sdma-v6 + vcn-v4) + Intel (i915-core + xe-core) + NVIDIA (nouveau-core). 17 docs total covering ~1.14M upstream LOC. Next iteration: drivers/scsi/qla2xxx — QLogic Fibre Channel HBA (every enterprise SAN deployment).",
+  "created_at": "2026-05-21T03:10:12.875508670Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAldaQM0sofXG7BdxNkPD7Sk8UfZAIQEzWQnbROgXR3C1YhQydlQhGpjB5R/uR4tJ+gm0IR0v3lgG8MwlU+iFwDA=="
+}
