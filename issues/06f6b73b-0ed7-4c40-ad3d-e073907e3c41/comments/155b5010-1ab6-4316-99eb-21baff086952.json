@@ -1,0 +1,10 @@
+{
+  "uuid": "155b5010-1ab6-4316-99eb-21baff086952",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 58: net/usb/usb-net.md committed (2334107, 225 lines). USB networking — every USB Ethernet dongle (ASIX/Realtek/Aquantia/SMSC/Microchip), Android USB tether (RNDIS), iPhone tether (ipheth), USB cellular modem (MBIM/QMI). ~51K LOC. Defenses: USB descriptor parser strict per-chip, rx_fixup framing strict (closes CVE-2023-2860 r8152 OOB), RNDIS msg parser bounded (closes CVE-2024-26852 rndis_host OOB), CDC NCM aggregation NDP validated, per-chip frame max-size cap, hot-unplug URB cancel-before-free, Android tether RNDIS adversarial, Realtek RTL8152 firmware update CAP_SYS_ADMIN + LOCKDOWN (USB Ethernet chip has firmware = covert side-channel risk), Microchip LAN78xx EEPROM CAP_SYS_ADMIN (closes 'unprivileged modifies dongle MAC permanently'), MBIM SAP/SIM CAP_SYS_ADMIN. 58 docs / ~4.95M LOC. Next iteration: drivers/net/dsa (Distributed Switch Architecture — every managed L2 switch on consumer routers/embedded).",
+  "created_at": "2026-05-21T11:27:25.533246478Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAYuzqwf0B2r/AQD4hdPCk52kmTCXwMUd9Znefv8v55JwrxCtfawXw0/tI/LD9mqpzmrVtMJoaAzSEOoVrgS8aCw=="
+}
