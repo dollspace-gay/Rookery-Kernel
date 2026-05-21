@@ -1,0 +1,10 @@
+{
+  "uuid": "aa3bf38d-cc8c-4c6c-befb-6f5c3b33f26b",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 8: broadcom/bnxt.md committed (8767e7b, 256 lines). Largest single-driver target so far at ~34000 upstream lines: BCM5731x/5741x/5750x(Thor)/5760x(Thor2)/5770x. Headline architecture: HWRM (versioned 10K-line auto-gen FW ABI, hundreds of opcodes). Rust translation: HwrmReq<'_, T> RAII guard makes use-after-free impossible at compile time (sentinel becomes runtime backup), bilge bit-packed for hsi.h structs, build.rs auto-gen from upstream spec. Grsec: HWRM as primary attack surface — response length per-opcode validation, opcode allowlist per-VF (closes the historical 'VF escapes to PF via HWRM' CVE class), FW image signature mandatory on install. SR-IOV + switchdev + TC offload (CFA) + RoCE-ULP-aux-bus + DCB + PTP + coredump all covered. Cloud-perimeter coverage: ENA+gVNIC+MANA+bnxt now complete. Next iteration target: drivers/nvme/host/pci.c — NVMe-PCIe driver (storage tier — every modern Linux SSD/NVMe host).",
+  "created_at": "2026-05-21T02:04:20.484232132Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAnd8tmS94MsptH0hr5vdSO5ldIaEd/4sqTBE5l3nNQ/T2+s23QmnSP5R3Ai6ExbcHc7LSw01WXjnxPBviEB4IAg=="
+}
