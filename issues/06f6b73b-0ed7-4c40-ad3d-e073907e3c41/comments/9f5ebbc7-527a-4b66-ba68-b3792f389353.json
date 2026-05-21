@@ -1,0 +1,10 @@
+{
+  "uuid": "9f5ebbc7-527a-4b66-ba68-b3792f389353",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 41: nvme/target-core.md committed (4965435, 246 lines). Linux nvmet — in-kernel NVMe-oF target. Every NVMe-oF storage appliance, every Kubernetes NVMe-CSI driver. ~24700 LOC / 20 files. Transports: TCP + RDMA + FC + Loop + PCIe-EPF. Backends: bdev + file + passthru. Features: PR + ZNS + DH-CHAP + Discovery + configfs. Rust translation: per-feature + per-backend + per-transport crates. Subsys<Phase> + Controller<Phase> typestate. Grsec: network-facing storage target — defenses include per-opcode cmd parser typed strict (closes CVE-2024-26926-class nvmet-tcp UAF), per-host allowlist at Connect (closes 'random network host connects → cross-tenant'), DH-CHAP HMAC validation strict + secret kfree_sensitive, PR state machine atomic (closes PR-race), LBA range validation strict (closes OOB-write), SGL parser bounded, passthru opcode allowlist + destructive-op CAP_SYS_ADMIN (closes 'unauthorized FW flash via passthru'), Connect rate-limit, TCP header+data digest default-on, NQN parser strict, PR registrant key high-entropy. 41 docs / ~2.15M LOC. Next iteration: drivers/target/ — LIO (Linux IO Target — generic SCSI target framework for iSCSI/iSER/FC/vhost-scsi backends).",
+  "created_at": "2026-05-21T04:45:10.118796968Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAMLriXk7zSOda7B7tvlt4AuBkeyDS/dnNX2JaloGPKcEVYveehGgTaPB1yxpY7Y153e2VQ0ESrX0b6ruCXIEsAA=="
+}
