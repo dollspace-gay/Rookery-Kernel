@@ -1,0 +1,10 @@
+{
+  "uuid": "1a1b4aa8-4caf-456c-8920-2b2094dfd647",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 53: mfd/mfd-pmic.md committed (46b3422, 236 lines). MFD PMIC family — every smartphone companion PMIC, embedded SBC PMU, laptop power-controller. ~120K LOC across ~250 .c files. PMICs integrate regulators (5-30 rails) + charger + fuel-gauge + RTC + watchdog + ADC + GPIO + sometimes audio/TCPC/fTPM. Grsec: hardware damage primary concern (wrong voltage → silicon burn, wrong charger → battery fire). Defenses: PMIC voltage-setting bounds-checked per regulator (closes CVE-2024-26743 axp20x voltage-set OOB), charger current/voltage limits validated (closes 'malicious userspace sets 100A → battery fire'), watchdog enable+petting CAP_SYS_RAWIO (closes 'unprivileged disables watchdog → silent silicon hang'), ChromeOS EC cmd opcode allowlist (closes 'arbitrary EC cmd → laptop firmware corruption'), EC firmware update CAP_SYS_ADMIN + LOCKDOWN, USB-multifunction dongle descriptor validation strict, power-on sequencing immutable (closes 'malicious reorder → silicon damage'), RTC time-set CAP_SYS_TIME, PMIC-as-fTPM access via SCM only. 53 docs / ~3.09M LOC. Crossed 3M LOC threshold. Next iteration: drivers/leds (already 2 docs) or drivers/input (already 2 docs) or fresh — drivers/cxl/* (already 2 docs); let me pivot to drivers/iio for Industrial I/O (sensors).",
+  "created_at": "2026-05-21T05:24:29.543559011Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAA/ThQ6nSjXXQFbBUobD30vgNoV4nX6OxzfvFWCQn4B16MxwgiVtOT07E8dgJnf5YrkDKBnHAWvneKx9Ae2PpCg=="
+}
