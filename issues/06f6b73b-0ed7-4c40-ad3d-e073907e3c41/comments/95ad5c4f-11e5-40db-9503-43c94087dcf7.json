@@ -1,0 +1,10 @@
+{
+  "uuid": "95ad5c4f-11e5-40db-9503-43c94087dcf7",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 22: intel/ixgbe.md committed (0daa9e0, 224 lines). Intel 10/25G NIC family — 82598/82599/X540/X550/E610 silicon spans 16 years. Huge installed base (every datacenter pre-2020, every BMC OOB network, financial trading). ~48K LOC. Full feature stack: PF/SR-IOV-VF + DCB+FCoE + IPsec inline + PTP + AF_XDP zerocopy + XDP_DRV. Rust translation: per-silicon IxgbeSilicon trait closes cross-silicon-bug class. Grsec: PF↔VF mailbox as primary SR-IOV-escape surface — per-opcode allowlist + VF spoof-check HW-enforced + IPsec key kfree_sensitive + FCoE DDP per-XID scoping. 22 docs / ~1.49M LOC. Next iteration: drivers/net/ethernet/intel/i40e (Intel 40G XL710 — second-largest installed-base Intel server NIC).",
+  "created_at": "2026-05-21T03:27:27.769211010Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAQwcP2squBAvlFM+cFRraU8o8tuIehGIFJ+mmDHxlm37+z7wJFKchEnVAntnRlrVI7l+0ZuK1YelF/HtvEofRDw=="
+}
