@@ -1,0 +1,10 @@
+{
+  "uuid": "e757c49f-6082-4f81-8769-3aef5e407319",
+  "issue_uuid": "06f6b73b-0ed7-4c40-ad3d-e073907e3c41",
+  "author": "gb9t",
+  "content": "Iteration 2: eswitch.md committed (d89e83e, 228 lines). Covers mlx5 eSwitch — the tenant-isolation boundary on every SR-IOV deployment. Phantom-typed mode (Eswitch<Legacy> vs Eswitch<Offloads>), phase-typed Vport, structural bug-class closure via consuming switch_to_offloads. Grsec section emphasizes structural tenant isolation: match_metadata HW-enforced source-vport tagging, ACL install-before-enable, TC-action FW-cap allowlist (closes silent-no-op exfil), indir-table depth cap, SF LATENT_ENTROPY. References historical CVE-2023-25775. Next iteration target: drivers/net/ethernet/mellanox/mlx5/core/sf/ (Sub-Functions — vport-without-PCI-BDF, modern alternative to VFs for k8s pod-per-NIC scale).",
+  "created_at": "2026-05-21T01:41:33.483319523Z",
+  "kind": "result",
+  "signed_by": "SHA256:OaKTv4xeYMeLm3esBlrnW5RjDWoaTe34waXVZekvQwU",
+  "signature": "U1NIU0lHAAAAAQAAADMAAAALc3NoLWVkMjU1MTkAAAAga0Kn7LkmAuSzMcnvrS0WoaFqxJ7fxMMRpfOvGq48ujcAAAARY3Jvc3NsaW5rLWNvbW1lbnQAAAAAAAAABnNoYTUxMgAAAFMAAAALc3NoLWVkMjU1MTkAAABAHdNj1lReiHfHqrwGIu/Gb6N46ubFWIisUF3K/JQf9NqdIp5XmmMtXsYxNprWScJpfDs4ZsTUMwaF4A/3UJJsCg=="
+}
